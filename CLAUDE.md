@@ -25,6 +25,23 @@ First deliverable (v0.1): a 2D town map, 10 agents, 3 locations, 5 event types. 
 2. **Warm** — active areas, socializing/working/exploring. Rule/utility-AI decisions, occasional LLM.
 3. **Hot** — interacting with players or in critical events. Higher LLM frequency.
 
+## Repository Layout
+
+```
+K-town/
+  CLAUDE.md              — Claude Code 项目指南（本文件）
+  AGENTS.md              — 通用 AI 编码助手指南（Codex、Copilot 等）
+  .gitignore             — 已排除 docs-local/ 等个人工作目录
+  README.md              — 项目介绍
+  docs/                  — 共享文档案（Git 跟踪）
+    product/             — 产品设计文档
+    architecture/        — 架构文档
+    plans/               — 实施计划
+    development-progress.md
+    handoff.md           — AI session 交接状态
+  docs-local/            — 个人笔记/草稿/实验文件（Git 忽略，AI 不应修改）
+```
+
 ## Development Workflow
 
 This project is designed for AI-assisted development. The workflow is:
@@ -95,10 +112,9 @@ docs/
 ### 安全规则
 
 1. 禁止 `git add -A` / `git add .`，仅暂存相关文件
-2. 禁止提交 `agentEnv.local`、`.data/`、`wiki/`、`uploads/*`、`V*.sql`
-3. 禁止 amend，永远创建新 commit
-4. 禁止 `--no-verify`、`--no-gpg-sign`
-5. hook 失败时修复后创建新 commit，不回退 amend
+2. 禁止 amend，永远创建新 commit
+3. 禁止 `--no-verify`、`--no-gpg-sign`
+4. hook 失败时修复后创建新 commit，不回退 amend
 
 ### 工作流
 

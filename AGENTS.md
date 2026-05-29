@@ -21,6 +21,23 @@ A multi-agent town simulation game. Residents are independent AI agents with per
 2. **Warm** — active areas, rule/utility-AI decisions, occasional LLM
 3. **Hot** — interacting with players, higher LLM frequency
 
+## Repository Layout
+
+```
+K-town/
+  CLAUDE.md              — Claude Code project guide
+  AGENTS.md              — Generic AI coding agent guide (this file)
+  .gitignore             — excludes docs-local/ (personal workspace)
+  README.md              — project overview
+  docs/                  — shared documentation (git tracked)
+    product/             — product design
+    architecture/        — architecture docs
+    plans/               — implementation plans
+    development-progress.md
+    handoff.md           — AI session handoff state
+  docs-local/            — personal notes/drafts (git ignored, AI agents should NOT modify)
+```
+
 ## Development Workflow
 
 1. **PRD first** — define goals, non-goals, core experience, risks, acceptance criteria before coding
@@ -53,7 +70,6 @@ docs/
 
 **Safety**:
 - Never `git add -A` / `git add .` — stage only relevant files
-- Never commit `agentEnv.local`, `.data/`, `wiki/`, `uploads/*`, `V*.sql`
 - Never amend — always create a new commit
 - Never `--no-verify` / `--no-gpg-sign`
 - On hook failure: fix issues, create new commit (don't amend)
