@@ -13,18 +13,18 @@ const (
 )
 
 type Location struct {
-    ID       string
-    Name     string
-    Type     LocationType
-    Agents   []string
-    Events   []string
-    Properties map[string]interface{}
+    ID         string                 ` + "`json:\"id\"`" + `
+    Name       string                 ` + "`json:\"name\"`" + `
+    Type       LocationType           ` + "`json:\"type\"`" + `
+    Agents     []string               ` + "`json:\"agents\"`" + `
+    Events     []string               ` + "`json:\"events\"`" + `
+    Properties map[string]interface{} ` + "`json:\"properties\"`" + `
 }
 
 type World struct {
-    Time      int64
-    Weather   string
-    Locations map[string]*Location
+    Time      int64                ` + "`json:\"tick\"`" + `
+    Weather   string               ` + "`json:\"weather\"`" + `
+    Locations map[string]*Location ` + "`json:\"locations\"`" + `
 }
 
 func New(cfg config.Config) *World {
