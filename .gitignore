@@ -1,2 +1,5 @@
 # Local workspace — personal notes, drafts, and experimental files
 docs-local/
+
+# Local config with secrets
+config.yaml
