@@ -1,57 +1,64 @@
-# AI 会话交接
+# AI Session Handoff
 
 **最后会话**: 2026-08-02
-**当前阶段**: v0.1 规划 / 文档
+**当前分支**: feat/v0.1-go-server
+**当前阶段**: v0.1 编码完成，待编译测试
 
 ## 已完成
 
-- 按 report_260528_001.md 建议创建完整文档骨架：
-  - docs/product/vision.md - 长期愿景、非目标、核心体验
-  - docs/product/world-v0.1.md - 3 地点、4 资源、5 事件类型、10 原型
-  - docs/product/agent-model.md - 身份、状态、记忆、目标、行为策略
-  - docs/product/knowledge-system.md - KnowledgeClaim 生命周期、传播、质疑
-  - docs/architecture/overview.md - 系统架构图
-  - docs/architecture/backend-go.md - Go 模块分解、数据结构
-  - docs/architecture/godot-client.md - 场景、网络、渲染
-  - docs/architecture/logging-and-replay.md - 日志类型、回放系统
-  - docs/plans/2026-08-02-v0.1-prototype.md - 27 任务实施计划
-  - docs/development-progress.md - 版本进度追踪
-- 所有文档已翻译为中文
+### 文档（中文）
+- docs/product/vision.md, world-v0.1.md, agent-model.md, knowledge-system.md
+- docs/architecture/overview.md, backend-go.md, godot-client.md, logging-and-replay.md
+- docs/plans/2026-08-02-v0.1-prototype.md
+- docs/development-progress.md, handoff.md
 
-## 进行中
+### Go 服务器（internal/）
+- config: YAML 配置加载（含 LLM API 配置）
+- world: 世界状态 + 3 个地点 + 天气系统
+- event: 事件总线（发布/订阅/调度/缓冲）
+- agent: Agent 系统（身份/状态/记忆/日程/决策/10原型）
+- knowledge: 知识引擎（CRUD/传播/质疑/修正/固化/谣言）
+- log: 三缓冲区日志（世界事件/决策/知识）
+- api: WebSocket + HTTP API（状态/Agent详情/时间线/玩家动作）
+- tick: Tick 循环引擎（驱动 Agent 生命周期）
+- llm: LLM 客户端（占位，待实现 HTTP 调用）
 
-- 文档骨架创建（本次会话）。
+### Godot 客户端（client/）
+- project.godot, 24 个场景/脚本文件
+- WebSocket 客户端、状态解析、地图渲染、UI 面板、回放控制
 
-## 剩余工作（下一步）
+## 待办
 
-1. **审查和优化文档** - 确保所有利益相关者对设计达成共识
-2. **开始阶段 1 实施** - Go 服务器基础（tick 循环、世界状态、事件总线）
-3. **搭建 Go 项目** - 初始化模块、配置、基本结构
-4. **启动 Godot 项目** - WebSocket API 确定后
+1. **编译测试** - 当前环境未安装 Go，无法验证编译。需要：
+   - 安装 Go 1.21+
+   - `go mod init k-town`
+   - `go mod tidy`（安装 yaml.v3, gorilla/websocket 依赖）
+   - `go build ./...`
+   - 修复编译错误
 
-## 测试结果
+2. **LLM HTTP 调用** - internal/llm/client.go 需要实现真实的 HTTP 调用
 
-- 尚未编写代码；无测试可运行
-- 文档一致且交叉引用
+3. **集成测试** - 运行服务器 + 连接 Godot 客户端
 
-## 剩余风险
+## 提交历史
 
-- LLM 成本管理尚未验证（v0.1 避免）
-- Agent 行为深度未测试；实施期间需要调优
-- Godot WebSocket 兼容性应在阶段 5 尽早测试
+```
+589bc39 feat(server): integrate all modules
+8fed2ac feat(knowledge,api,log): knowledge engine, API, logging
+6bbae23 feat(client): Godot 2D client
+2c2abec feat(agent): agent system
+821cb8e feat(server): Go server skeleton with LLM config
+6597dec chore: initial project structure
+```
 
-## 建议的下一会话
+## API 配置
 
-开始实施计划阶段 1：
-1. 初始化 Go 项目：go mod init k-town
-2. 创建 cmd/server/main.go 基础配置加载
-3. 实施 internal/tick/ 中的 tick 循环引擎
-4. 按 AGENTS.md 约定每个任务独立提交
+- Base URL: https://api.longcat.chat/anthropic
+- Key: ak_2VK1Sy7sz0Et3Q14BD4Vf7pH2ed6O
+- Model: LongCat-2.0
 
-## 未来会话上下文
+## 已知问题
 
-- 项目根目录：C:\Users\azi\Desktop\K-town-demo-v0.1.0
-- 所有设计决策记录在 docs/product/ 和 docs/architecture/
-- 实施计划在 docs/plans/2026-08-02-v0.1-prototype.md
-- v0.1 仅使用内存存储；无需数据库设置
-- LLM 集成推迟；v0.1 Agent 基于规则
+- config.yaml 含 API 密钥，已加入 .gitignore
+- Godot 客户端场景文件为基础结构，需连接脚本
+- WebSocket 客户端在 Godot 4.x 中需测试
