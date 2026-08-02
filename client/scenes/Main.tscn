@@ -1,0 +1,50 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/World/TownMap.tscn" id="1_town"]
+[ext_resource type="PackedScene" path="res://scenes/UI/TopBar.tscn" id="2_topbar"]
+[ext_resource type="PackedScene" path="res://scenes/UI/AgentInspector.tscn" id="3_inspector"]
+
+[node name="Main" type="Node2D"]
+
+[node name="TownMap" parent="." instance=ExtResource("1_town")]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopBar" parent="UI" instance=ExtResource("2_topbar")]
+offset_left = 0.0
+offset_right = 1280.0
+offset_bottom = 48.0
+
+[node name="AgentInspector" parent="UI" instance=ExtResource("3_inspector")]
+offset_left = 980.0
+offset_right = 1280.0
+offset_top = 48.0
+offset_bottom = 600.0
+
+[node name="ChatPanel" parent="UI" type="Control"]
+offset_left = 20.0
+offset_right = 320.0
+offset_top = 400.0
+offset_bottom = 600.0
+script = ExtResource("res://scripts/ui/chat_panel.gd")
+
+[node name="EventLog" parent="UI" type="Control"]
+offset_left = 20.0
+offset_right = 320.0
+offset_top = 60.0
+offset_bottom = 380.0
+script = ExtResource("res://scripts/ui/event_log.gd")
+
+[node name="ReplayBar" parent="UI" type="Control"]
+offset_left = 300.0
+offset_right = 900.0
+offset_top = 660.0
+offset_bottom = 710.0
+script = ExtResource("res://scripts/ui/replay_bar.gd")
+
+[node name="PlayerController" parent="." type="Node2D"]
+position = Vector2(640, 360)
+script = ExtResource("res://scripts/player/player_controller.gd")
+
+[node name="NetworkClient" parent="." type="Node"]
+script = ExtResource("res://scripts/networking/ws_client.gd")

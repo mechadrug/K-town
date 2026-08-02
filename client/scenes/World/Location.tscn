@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/location.gd" id="1_loc"]
+
+[node name="Location" type="Node2D"]
+script = ExtResource("1_loc")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("res://icon.svg")
+scale = Vector2(1.5, 1.5)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -40.0
+offset_top = 32.0
+offset_right = 40.0
+offset_bottom = 56.0
+horizontal_alignment = 1

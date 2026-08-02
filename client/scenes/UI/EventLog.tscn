@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/event_log.gd" id="1_log"]
+
+[node name="EventLog" type="Control"]
+offset_right = 300.0
+offset_bottom = 300.0
+script = ExtResource("1_log")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+offset_right = 300.0
+offset_bottom = 300.0
+
+[node name="FilterOption" type="OptionButton" parent="VBox"]
+item_count = 5
+text = "All"
+items = [Item0: "All", Item1: "Move", Item2: "Chat", Item3: "Rumor", Item4: "Conflict"]
+
+[node name="LogList" type="ItemList" parent="VBox"]
+size_flags_vertical = 3

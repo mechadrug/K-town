@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/replay_bar.gd" id="1_replay"]
+
+[node name="ReplayBar" type="Control"]
+offset_right = 600.0
+offset_bottom = 50.0
+script = ExtResource("1_replay")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+offset_right = 600.0
+offset_bottom = 50.0
+theme_override_constants/separation = 8.0
+
+[node name="PlayBtn" type="Button" parent="HBox"]
+text = "Play"
+
+[node name="Timeline" type="HSlider" parent="HBox"]
+size_flags_horizontal = 3
+min_value = 0.0
+max_value = 100.0
+value = 0.0
+
+[node name="TickLabel" type="Label" parent="HBox"]
+text = "Tick: 0"
+
+[node name="SpeedBtn" type="Button" parent="HBox"]
+text = "1x"
+
+[node name="ModeBtn" type="Button" parent="HBox"]
+text = "Replay"

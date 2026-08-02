@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/agent_inspector.gd" id="1_insp"]
+
+[node name="AgentInspector" type="Control"]
+offset_right = 300.0
+offset_bottom = 600.0
+script = ExtResource("1_insp")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+offset_right = 300.0
+offset_bottom = 600.0
+theme_override_constants/separation = 8.0
+
+[node name="NameLabel" type="Label" parent="VBox"]
+text = "Agent Name"
+
+[node name="RoleLabel" type="Label" parent="VBox"]
+text = "Role: -"
+
+[node name="MoodLabel" type="Label" parent="VBox"]
+text = "Mood: -"
+
+[node name="LocationLabel" type="Label" parent="VBox"]
+text = "Location: -"
+
+[node name="MemoryLabel" type="Label" parent="VBox"]
+text = "Memory:"
+
+[node name="MemoryList" type="ItemList" parent="VBox"]
+size_flags_vertical = 3
+max_text_lines = 3
+
+[node name="ClaimsLabel" type="Label" parent="VBox"]
+text = "Knowledge Claims:"
+
+[node name="ClaimsList" type="ItemList" parent="VBox"]
+size_flags_vertical = 3
+max_text_lines = 3
+
+[node name="ChatBtn" type="Button" parent="VBox"]
+text = "Chat"
+
+[node name="CloseBtn" type="Button" parent="VBox"]
+text = "Close"
