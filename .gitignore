@@ -3,3 +3,25 @@ docs-local/
 
 # Local config with secrets
 config.yaml
+
+# Go build artifacts
+ktown-server
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go test
+*.test
+*.out
+go.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,63 +1,46 @@
-extends Signal
+extends Node
 
-# Global game state singleton
+# Global game state singleton (autoload in project settings)
 
-# Agent data: {id: {name, role, mood, location_id, memory[], claims[], relationships{}}}
-var agents: Dictionary = {}
+var agents = {}
+var locations = {}
+var current_tick = 0
+var weather = "clear"
+var selected_agent_id = ""
+var current_view_tick = 0
+var mode = "live"
 
-# Location data: {id: {name, type, position: Vector2, agent_ids: []}}
-var locations: Dictionary = {}
-
-# Current world tick
-var current_tick: int = 0
-
-# Weather: "sunny", "rainy", "cloudy", "stormy"
-var weather: String = "sunny"
-
-# Currently selected agent ID (empty if none)
-var selected_agent_id: String = ""
-
-# Current view tick (for replay mode)
-var current_view_tick: int = 0
-
-# Mode: "live" or "replay"
-var mode: String = "live"
-
-# #### Signals ####
-signal agent_selected(agent_id: String)
+signal agent_selected(agent_id)
 signal state_updated()
-signal tick_changed(new_tick: int)
-signal mode_changed(new_mode: String)
-signal weather_changed(new_weather: String)
+signal tick_changed(new_tick)
+signal mode_changed(new_mode)
+signal weather_changed(new_weather)
 
-func _ready():
-    pass
-
-func set_agent(agent_id: String, data: Dictionary):
+func set_agent(agent_id, data):
     agents[agent_id] = data
     state_updated.emit()
 
-func get_agent(agent_id: String) -> Dictionary:
+func get_agent(agent_id):
     return agents.get(agent_id, {})
 
-func set_location(loc_id: String, data: Dictionary):
+func set_location(loc_id, data):
     locations[loc_id] = data
     state_updated.emit()
 
-func set_tick(tick: int):
+func set_tick(tick):
     current_tick = tick
     if mode == "live":
         current_view_tick = tick
     tick_changed.emit(tick)
 
-func select_agent(agent_id: String):
+func select_agent(agent_id):
     selected_agent_id = agent_id
     agent_selected.emit(agent_id)
 
-func set_weather(w: String):
+func set_weather(w):
     weather = w
     weather_changed.emit(w)
 
-func set_mode(m: String):
+func set_mode(m):
     mode = m
     mode_changed.emit(m)
