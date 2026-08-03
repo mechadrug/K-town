@@ -135,6 +135,24 @@ class TickEngine:
             here = loc_map.get(agent.state.location, [])
             agent.perceive(evt_strs)
             agent.think(hour)
+            # 情绪传染：周围Agent的心情影响自己
+            nearby_moods = []
+            for other in self.agents:
+                if other.identity.id != agent.identity.id and other.state.location == agent.state.location:
+                    nearby_moods.append(other.state.mood)
+            if nearby_moods:
+                happy_count = sum(1 for m in nearby_moods if m == Mood.HAPPY)
+                sad_count = sum(1 for m in nearby_moods if m in (Mood.SAD, Mood.ANGRY))
+                stability = agent.identity.personality.get('stability', 0.5)
+                # 稳定性低→更容易被传染
+                contagion_resist = stability * 0.5
+                if happy_count > len(nearby_moods) / 2 and random.random() < (0.3 - contagion_resist):
+                    agent.state.mood = Mood.HAPPY
+                elif sad_count > len(nearby_moods) / 2 and random.random() < (0.25 - contagion_resist):
+                    if agent.state.mood == Mood.HAPPY:
+                        agent.state.mood = Mood.NEUTRAL
+                    elif agent.state.mood == Mood.NEUTRAL:
+                        agent.state.mood = Mood.ANXIOUS
             action = agent.decide(hour, here, evt_strs)
             # 记录行为日志
             self.daily_agent_logs[agent.identity.id].append(f"{hour}点: {action['desc']}")
@@ -437,17 +455,38 @@ class TickEngine:
                     a.state.gold += 20
                     break
         elif event.type == EventType.FESTIVAL:
-            # 节日，所有人心情变好
+            # 节日：所有人心情变好（外向的人更开心，内向的人反应平淡）
             for a in self.agents:
-                a.state.mood = Mood.HAPPY
+                extraversion = a.identity.personality.get('extraversion', 0.5)
+                agreeableness = a.identity.personality.get('agreeableness', 0.5)
+                # 外向+宜人性高→非常开心
+                if extraversion > 0.6 and agreeableness > 0.5:
+                    a.state.mood = Mood.HAPPY
+                    a.state.energy = min(100, a.state.energy + 15)
+                else:
+                    a.state.mood = Mood.NEUTRAL if a.state.mood != Mood.HAPPY else Mood.HAPPY
+                    a.state.energy = min(100, a.state.energy + 5)
                 a.state.energy = min(100, a.state.energy + 10)
         elif event.type == EventType.DISASTER:
-            # 灾害，资源减少，Agent体力下降
+            # 灾害：根据人格不同反应不同
+            disaster_type = event.payload.get('type', 'unknown')
             for a in self.agents:
-                a.state.energy = max(0, a.state.energy - 15)
-                a.state.gold = max(0, a.state.gold - 5)
+                stability = a.identity.personality.get('stability', 0.5)
+                openness = a.identity.personality.get('openness', 0.5)
+                # 稳定性低→反应更强烈（更害怕）
+                energy_loss = 10 + int((1 - stability) * 10)
+                gold_loss = 3 + int((1 - stability) * 5)
+                a.state.energy = max(0, a.state.energy - energy_loss)
+                a.state.gold = max(0, a.state.gold - gold_loss)
+                # 稳定性低→更容易变焦虑/悲伤
+                if stability < 0.4:
+                    a.state.mood = Mood.ANXIOUS
+                elif stability > 0.7:
+                    a.state.mood = Mood.NEUTRAL
             # 减少荒野资源
             if event.location in self.world.resources:
+                for r in self.world.resources[event.location]:
+                    self.world.resources[event.location][r] = max(0, self.world.resources[event.location][r] - 10)
                 for r in self.world.resources[event.location]:
                     self.world.resources[event.location][r] = max(0, self.world.resources[event.location][r] - 10)
         elif event.type == EventType.RUMOR_SPREAD:
