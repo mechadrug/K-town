@@ -47,6 +47,27 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # 事件表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tick INTEGER NOT NULL,
+                day INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                location TEXT NOT NULL,
+                payload JSON NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self.conn.commit()
+    
+    def reset(self):
+        """重置数据库，清空所有数据"""
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM day_summaries")
+        cursor.execute("DELETE FROM agent_logs")
+        cursor.execute("DELETE FROM world_snapshots")
+        cursor.execute("DELETE FROM events")
         self.conn.commit()
     
     def save_day_summary(self, summary: Dict[str, Any]):
@@ -147,6 +168,35 @@ class Database:
             return json.loads(row[0])
         return None
     
+    def save_event(self, tick: int, day: int, event_type: str, location: str, payload: Dict[str, Any]):
+        """保存事件到数据库"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT INTO events (tick, day, type, location, payload)
+            VALUES (?, ?, ?, ?, ?)
+        """, (tick, day, event_type, location, json.dumps(payload, ensure_ascii=False)))
+        self.conn.commit()
+    
+    def get_events(self, day: int) -> List[Dict[str, Any]]:
+        """获取指定日期的事件列表"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT tick, type, location, payload, created_at
+            FROM events
+            WHERE day = ?
+            ORDER BY tick ASC
+        """, (day,))
+        rows = cursor.fetchall()
+        return [
+            {
+                "tick": row[0],
+                "type": row[1],
+                "location": row[2],
+                "payload": json.loads(row[3]),
+                "created_at": row[4]
+            }
+            for row in rows
+        ]
+    
     def close(self):
         self.conn.close()
-

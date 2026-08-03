@@ -8,6 +8,7 @@ from events import EventBus
 from knowledge import KnowledgeEngine
 from logger import Logger
 from llm import LLMClient
+from agent import populate_agents
 
 
 def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket]):
@@ -23,6 +24,18 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
     @app.get("/api/state")
     async def get_state():
         return {"tick":world.state.tick,"weather":world.state.weather,"weather_name":world.get_weather_name(),"locations":world.to_dict()["locations"],"agents":[a.to_dict() for a in agents],"knowledge":knowledge.to_dict()}
+
+    @app.get("/api/knowledge")
+    async def get_knowledge():
+        """获取所有知识列表"""
+        claims = list(knowledge.claims.values())
+        return {"total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "scope": c.scope.value, "created_by": c.created_by, "location": c.location, "created_at": c.created_at, "solidified": c.solidified, "version": c.version} for c in claims]}
+
+    @app.get("/api/knowledge/{agent_id}")
+    async def get_agent_knowledge(agent_id:str):
+        """获取指定Agent的知识列表"""
+        claims = knowledge.agent_knowledge(agent_id)
+        return {"agent_id": agent_id, "total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "scope": c.scope.value, "location": c.location, "created_at": c.created_at, "solidified": c.solidified} for c in claims]}
 
     @app.get("/api/agents/{agent_id}")
     async def get_agent(agent_id:str):
@@ -139,6 +152,31 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                     knowledge.observe(aid,subj,claim,a.state.location)
                     break
         return {"status":"ok"}
+
+    @app.post("/api/reset")
+    async def reset_simulation():
+        """重置模拟，清空所有数据"""
+        # 清空数据库
+        tick_engine.db.reset()
+        # 清空内存数据
+        tick_engine.day_summaries = []
+        tick_engine.current_day = 1
+        tick_engine.current_day_events = []
+        tick_engine._load_history()
+        # 重新初始化世界和Agent
+        world.__init__()
+        bus.__init__()
+        knowledge.__init__()
+        logger.__init__()
+        agents.clear()
+        new_agents = populate_agents()
+        agents.extend(new_agents)
+        for a in new_agents:
+            world.add_agent_to_location(a.identity.id, a.state.location)
+        # 重新生成第一天事件
+        agent_ids = [a.identity.id for a in agents]
+        tick_engine.scheduler.generate_daily_schedule(1, agent_ids)
+        return {"status":"ok", "message":"模拟已重置"}
 
     @app.websocket("/ws")
     async def ws_endpoint(websocket:WebSocket):

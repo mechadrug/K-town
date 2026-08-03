@@ -1,4 +1,4 @@
-"""Tick loop engine."""
+﻿"""Tick loop engine."""
 import asyncio
 import random
 from typing import List, Dict, Any, Callable, Optional, Tuple
@@ -14,7 +14,7 @@ from db import Database
 class TickEngine:
     def __init__(self, world: World, bus: EventBus, agents: list,
                  knowledge: KnowledgeEngine, logger: Logger, llm: LLMClient,
-                 rate: float = 1.0, day_length: int = 24):
+                 rate: float = 1.0, day_length: int = 24, auto_reset: bool = True):
         self.world = world
         self.bus = bus
         self.agents = agents
@@ -43,6 +43,9 @@ class TickEngine:
         self._db_write_interval: int = 10
         # 已处理事件去重集合（避免重复处理相同事件）
         self._processed_event_keys: set = set()
+        # 自动重置
+        if auto_reset:
+            self.db.reset()
         # 加载历史摘要
         self._load_history()
     
@@ -99,13 +102,15 @@ class TickEngine:
             self._flush_db_writes()
             self._tick_since_last_db_write = 0
 
-        # 事件处理：使用去重键避免重复处理相同事件
+        # 处理事件，避免重复处理，同时保存到数据库
+        processed_events = set()
         for event in self.bus.all_events:
-            event_key = (event.type.value, event.location, event.tick,
-                         str(event.payload)[:100])
-            if event_key in self._processed_event_keys:
+            event_key = f"{event.type.value}_{event.tick}_{event.location}"
+            if event_key in processed_events:
                 continue
-            self._processed_event_keys.add(event_key)
+            processed_events.add(event_key)
+            # 保存事件到数据库
+            self.db.save_event(tick, self.current_day, event.type.value, event.location, event.payload)
             self.current_day_events.append({
                 "tick": tick, "type": event.type.value,
                 "location": event.location, "payload": str(event.payload)[:100],
@@ -113,19 +118,21 @@ class TickEngine:
             await self._process_event(event)
         self.bus.clear_events()
 
-        # 构建位置映射（仅构建一次，后续复用）
+        # 优化循环，减少重复计算
         loc_map: Dict[str, list] = {}
         for a in self.agents:
             loc_map.setdefault(a.state.location, []).append(a.identity.id)
         for loc_id, loc_data in self.world.locations.items():
             loc_data["agents"] = loc_map.get(loc_id, [])
 
-        # Agent循环：事件已清空，无需重复获取事件列表
+        # 批量处理Agent行动
         for agent in self.agents:
+            evts = self.bus.get_events_at(agent.state.location)
+            evt_strs = [f"{e.type.value} at {e.location}" for e in evts]
             here = loc_map.get(agent.state.location, [])
-            agent.perceive([])  # 事件已在上面清空，传入空列表
+            agent.perceive(evt_strs)
             agent.think(hour)
-            action = agent.decide(hour, here, [])
+            action = agent.decide(hour, here, evt_strs)
             # 记录行为日志
             self.daily_agent_logs[agent.identity.id].append(f"{hour}点: {action['desc']}")
             self.logger.log_decision(tick, agent.identity.id, action["desc"], action["type"],
@@ -226,7 +233,6 @@ class TickEngine:
             "weather": self.world.state.weather,
             "overall_summary": overall_summary,
             "agents": agent_summaries,
-            "important_events": important_events,
             "stats": {
                 "total_gold": current_total_gold,
                 "gold_change": gold_change,
@@ -250,6 +256,8 @@ class TickEngine:
             "teacher": "教师",
             "farmer": "农民",
             "storyteller": "讲故事的人",
+            "healer": "医生",
+            "miner": "矿工",
             "player": "旅行者"
         }
         return role_map.get(role, role)
@@ -259,7 +267,9 @@ class TickEngine:
         loc_map = {
             "square": "广场",
             "workshop": "工坊",
-            "wilderness": "荒野"
+            "wilderness": "荒野",
+            "school": "学校",
+            "mine": "矿洞"
         }
         return loc_map.get(location, location)
 
@@ -307,17 +317,23 @@ class TickEngine:
             agent.state.energy -= 8
             # 不同职业工作产出不同
             role = agent.identity.role.value
-            if role in ("blacksmith", "carpenter"):
+            if role in ["blacksmith", "carpenter"]:
                 # 铁匠和木匠产出工具，卖给商人
                 agent.state.gold += 5
                 agent.state.inventory.append("tool")
-            elif role in ("forager", "farmer"):
+            elif role in ["forager", "farmer"]:
                 # 采集者和农民产出食物
                 agent.state.gold += 3
                 agent.state.inventory.append("food")
             elif role == "scout":
                 # 侦察兵探索获得金币
                 agent.state.gold += 4
+            elif role == "healer":
+                # 医生治疗获得金币
+                agent.state.gold += 4
+            elif role == "miner":
+                # 矿工采集矿石获得金币
+                agent.state.gold += 5
             else:
                 agent.state.gold += 2
         elif t == "rest":
@@ -338,5 +354,4 @@ class TickEngine:
 
     def stop(self):
         self._running = False
-        self._flush_db_writes()
         self.db.close()

@@ -314,6 +314,37 @@ body {
   margin-bottom: 4px;
 }
 
+/* 知识卡片 */
+.knowledge-card {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.knowledge-card .subject {
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+.knowledge-card .claim {
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.knowledge-card .meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85em;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.knowledge-card .confidence {
+  color: var(--green);
+}
+.knowledge-card .source {
+  color: var(--blue);
+}
+
 /* 回放控制 */
 .replay-controls {
   display: flex;
@@ -394,6 +425,10 @@ body {
     <div class="icon knowledge">📚</div>
     <span>知识: <b id="knowledge">0</b> 条</span>
   </div>
+  <div class="status-pill">
+    <div class="icon" style="background:rgba(255,51,102,0.2);color:var(--accent)">🔄</div>
+    <button onclick="resetSimulation()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:600">重置模拟</button>
+  </div>
 </div>
 
 <div class="grid">
@@ -411,6 +446,11 @@ body {
   <div class="card">
     <h2><span class="dot"></span>居民状态</h2>
     <div class="agent-grid" id="agent-grid"></div>
+  </div>
+
+  <div class="card full">
+    <h2><span class="dot"></span>知识库</h2>
+    <div id="knowledge-list"></div>
   </div>
 
   <div class="card full">
@@ -466,12 +506,62 @@ function connect() {
   };
 }
 
+async function resetSimulation() {
+  if (!confirm('确定要重置模拟吗？所有数据将被清空！')) return;
+  const response = await fetch('/api/reset', { method: 'POST' });
+  const result = await response.json();
+  if (result.status === 'ok') {
+    alert('模拟已重置');
+    location.reload();
+  } else {
+    alert('重置失败：' + result.message);
+  }
+}
+
 function updateState(data) {
   currentState = data;
   document.getElementById('tick').textContent = data.tick;
   document.getElementById('weather').textContent = data.weather_name || getWeatherCn(data.weather);
   document.getElementById('day').textContent = Math.floor(data.tick / 24) + 1;
   document.getElementById('knowledge').textContent = data.knowledge?.total_claims || 0;
+  loadKnowledge();
+}
+
+async function loadKnowledge() {
+  const response = await fetch('/api/knowledge');
+  const data = await response.json();
+  renderKnowledge(data.claims);
+}
+
+function renderKnowledge(claims) {
+  const container = document.getElementById('knowledge-list');
+  if (!claims || claims.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-dim)">暂无知识</div>';
+    return;
+  }
+  container.innerHTML = claims.map(c => `
+    <div class="knowledge-card">
+      <div class="subject">📖 ${c.subject}</div>
+      <div class="claim">${c.claim}</div>
+      <div class="meta">
+        <span class="confidence">置信度: ${c.confidence.toFixed(2)}</span>
+        <span class="source">来源: ${getSourceCn(c.source)}</span>
+        <span>创建者: ${c.created_by}</span>
+        <span>位置: ${getLocationCn(c.location)}</span>
+        ${c.solidified ? '<span style="color:var(--gold)">已固化</span>' : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function getSourceCn(source) {
+  const map = {observation: '观察', conversation: '对话', reasoning: '推理', rumor: '传闻', player: '玩家'};
+  return map[source] || source;
+}
+
+function getLocationCn(location) {
+  const map = {square: '广场', workshop: '工坊', wilderness: '荒野', school: '学校', mine: '矿洞'};
+  return map[location] || location;
 }
 
 function getWeatherCn(weather) {
