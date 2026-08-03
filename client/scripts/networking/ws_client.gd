@@ -3,7 +3,7 @@ extends Node
 # WebSocket client node - attach to scene tree
 # Connects to Go server and emits signals for state/events
 
-const SERVER_URL: String = "ws://localhost:8080/ws"
+const SERVER_URL: String = "ws://localhost:8090/ws"
 
 var _ws: WebSocketPeer = WebSocketPeer.new()
 var _connected: bool = false

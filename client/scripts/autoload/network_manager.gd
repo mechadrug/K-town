@@ -2,7 +2,7 @@ extends Node
 
 # Network manager singleton - manages WebSocket connection to Go server
 
-const SERVER_URL: String = "ws://localhost:8080/ws"
+const SERVER_URL: String = "ws://localhost:8090/ws"
 const RECONNECT_DELAY: float = 3.0
 
 var _ws: WebSocketPeer = null
