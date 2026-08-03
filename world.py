@@ -1,5 +1,6 @@
 ﻿from models import WorldState
 from typing import Dict
+import random
 
 class World:
     def __init__(self):
@@ -14,35 +15,75 @@ class World:
         self.state.locations = self.locations
         self._weathers = ["clear", "cloudy", "rainy", "snowy", "windy"]
         self._weather_names = {
-            "clear": "晴朗",
-            "cloudy": "多云",
-            "rainy": "下雨",
-            "snowy": "下雪",
-            "windy": "大风"
+            "clear": "晴朗", "cloudy": "多云", "rainy": "下雨", "snowy": "下雪", "windy": "大风"
         }
         # 资源分布
         self.resources = {
-            "square": {"food": 10, "materials": 5},
-            "workshop": {"food": 0, "materials": 20},
-            "wilderness": {"food": 50, "materials": 30},
-            "school": {"food": 5, "materials": 10},
-            "mine": {"food": 0, "materials": 50}
+            "square": {"food": 10, "materials": 5, "tools": 3},
+            "workshop": {"food": 0, "materials": 20, "tools": 10},
+            "wilderness": {"food": 50, "materials": 30, "tools": 0},
+            "school": {"food": 5, "materials": 10, "tools": 2},
+            "mine": {"food": 0, "materials": 50, "tools": 0}
         }
+        # 价格系统：基础价格和当前价格
+        self.base_prices = {"food": 5, "materials": 3, "tools": 15, "medicine": 10, "ore": 12}
+        self.prices = {res: price for res, price in self.base_prices.items()}
+        self.price_history = {res: [price] for res, price in self.base_prices.items()}
+        # 供需追踪
+        self.demand = {"food": 0, "materials": 0, "tools": 0, "medicine": 0, "ore": 0}
+        self.supply = {"food": 0, "materials": 0, "tools": 0, "medicine": 0, "ore": 0}
 
     def advance(self, tick: int):
         self.state.tick = tick
-        # 每天早上6点更新天气
+        # 每天早上6点更新天气和价格
         if tick % 24 == 6:
             self._change_weather()
+            self._update_prices()
 
     def _change_weather(self):
-        # 随机选择天气，晴朗概率更高
-        import random
         weights = [0.5, 0.2, 0.15, 0.1, 0.05]
         self.state.weather = random.choices(self._weathers, weights=weights, k=1)[0]
 
+    def _update_prices(self):
+        """根据供需关系更新价格"""
+        for resource in self.prices:
+            base = self.base_prices[resource]
+            demand = self.demand.get(resource, 0)
+            supply = self.supply.get(resource, 0)
+            
+            # 供需比→价格变动
+            if supply > 0:
+                ratio = demand / supply
+            else:
+                ratio = demand * 2  # 无供应时价格大幅上涨
+            
+            # 价格变动幅度（限制在基础价格的50%-200%）
+            change_factor = max(0.5, min(2.0, ratio))
+            new_price = max(1, round(base * change_factor))
+            self.prices[resource] = new_price
+            
+            # 记录价格历史
+            self.price_history[resource].append(new_price)
+            if len(self.price_history[resource]) > 30:
+                self.price_history[resource] = self.price_history[resource][-30:]
+            
+            # 重置供需计数
+            self.demand[resource] = 0
+            self.supply[resource] = 0
+
+    def get_price(self, resource: str) -> int:
+        """获取某资源的当前价格"""
+        return self.prices.get(resource, self.base_prices.get(resource, 5))
+
+    def record_demand(self, resource: str, amount: int = 1):
+        """记录需求"""
+        self.demand[resource] = self.demand.get(resource, 0) + amount
+
+    def record_supply(self, resource: str, amount: int = 1):
+        """记录供给"""
+        self.supply[resource] = self.supply.get(resource, 0) + amount
+
     def get_weather_name(self, weather: str = None) -> str:
-        """获取天气中文名"""
         if not weather:
             weather = self.state.weather
         return self._weather_names.get(weather, weather)
@@ -56,18 +97,15 @@ class World:
             self.locations[location]["agents"].remove(agent_id)
 
     def get_resource(self, location: str, resource_type: str) -> int:
-        """获取某个地点的资源数量"""
         return self.resources.get(location, {}).get(resource_type, 0)
 
     def consume_resource(self, location: str, resource_type: str, amount: int = 1) -> bool:
-        """消耗资源，成功返回True，失败返回False"""
         if self.get_resource(location, resource_type) >= amount:
             self.resources[location][resource_type] -= amount
             return True
         return False
 
     def add_resource(self, location: str, resource_type: str, amount: int = 1):
-        """添加资源"""
         if location not in self.resources:
             self.resources[location] = {}
         self.resources[location][resource_type] = self.resources[location].get(resource_type, 0) + amount
@@ -78,6 +116,7 @@ class World:
             "weather": self.state.weather,
             "weather_name": self.get_weather_name(),
             "locations": {k: {**v, "agents": list(v["agents"])} for k, v in self.locations.items()},
-            "resources": self.resources
+            "resources": self.resources,
+            "prices": self.prices,
+            "price_history": {k: v[-7:] for k, v in self.price_history.items()}
         }
-
