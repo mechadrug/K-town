@@ -85,6 +85,39 @@ class Agent:
                 social_chance += 0.1
             if random.random() < social_chance:
                 return {"type":"talk","desc": f"{n}和周围的人聊天","target":""}
+
+        # 关系驱动：有好朋友在→主动寻找互动
+        best_friend = None
+        best_tie = -999
+        worst_enemy = None
+        worst_tie = 999
+        for other_id in agents_here:
+            if other_id == self.identity.id:
+                continue
+            tie = self.state.social_ties.get(other_id, 0)
+            if tie > best_tie:
+                best_tie = tie
+                best_friend = other_id
+            if tie < worst_tie:
+                worst_tie = tie
+                worst_enemy = other_id
+
+        # 好朋友在→优先互动（好感>30）
+        if best_friend and best_tie > 30 and random.random() < 0.4:
+            return {'type': 'talk', 'desc': f'{n}看到好朋友，开心地走过去打招呼', 'target': best_friend}
+
+        # 讨厌的人在→可能回避（好感<-10）
+        if worst_enemy and worst_tie < -10 and random.random() < 0.3:
+            locations = ['square', 'workshop', 'wilderness', 'school', 'mine']
+            if self.state.location in locations:
+                locations.remove(self.state.location)
+            target = random.choice(locations)
+            return {'type': 'move', 'desc': f'{n}不想看到不喜欢的人，转身去了{self._get_location_cn(target)}', 'target': target}
+
+        # 挚友在→分享知识（好感>50）
+        if best_friend and best_tie > 50 and random.random() < 0.25:
+            if self.knowledge:
+                return {'type': 'talk', 'desc': f'{n}和挚友分享自己的知识', 'target': best_friend}
         
         # 调查事件（开放性高的人更喜欢调查）
         if events:
@@ -176,7 +209,8 @@ class Agent:
             "location_cn": self._get_location_cn(self.state.location),
             "goal": g.description if g else "暂无目标",
             "knowledge_count": len(self.knowledge),
-            "personality": self.identity.personality
+            "personality": self.identity.personality,
+            "social_ties": {k: round(v, 1) for k, v in self.state.social_ties.items()}
         }
 
     def _get_role_cn(self, role: str) -> str:

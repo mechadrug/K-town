@@ -162,6 +162,16 @@ class TickEngine:
                 )
             self.current_day_events = []
             self.current_day += 1
+            # 关系衰减：每天好感度向0回归5%（需要持续维护关系）
+            for agent in self.agents:
+                for other_id in agent.state.social_ties:
+                    tie = agent.state.social_ties[other_id]
+                    # 衰减量 = 当前值的5%，最小衰减0.1
+                    decay = max(0.1, abs(tie) * 0.05)
+                    if tie > 0:
+                        agent.state.social_ties[other_id] = max(0, tie - decay)
+                    elif tie < 0:
+                        agent.state.social_ties[other_id] = min(0, tie + decay)
             aids = [a.identity.id for a in self.agents]
             self.scheduler.generate_daily_schedule(self.current_day, aids, self.world)
             # 保存下一天的前置状态
@@ -254,18 +264,18 @@ class TickEngine:
             change_text = "，".join(changes) if changes else "状态平稳"
 
             # 组合叙事
-            narrative = f"{agent.identity.name}（{self._get_role_cn(agent.identity.role.value)}）"
+            narrative = f"{agent.identity.name}（{agent._get_role_cn(agent.identity.role.value)}）"
             narrative += "，".join(narrative_parts) + "。"
             narrative += f"目前{mood_desc}，{change_text}。"
-            narrative += f"当前位于{self._get_location_cn(agent.state.location)}，体力{round(agent.state.energy,1)}点，持有{agent.state.gold}金币。"
+            narrative += f"当前位于{agent._get_location_cn(agent.state.location)}，体力{round(agent.state.energy,1)}点，持有{agent.state.gold}金币。"
 
             agent_summaries.append({
                 "id": agent.identity.id,
                 "name": agent.identity.name,
                 "role": agent.identity.role.value,
-                "role_cn": self._get_role_cn(agent.identity.role.value),
+                "role_cn": agent._get_role_cn(agent.identity.role.value),
                 "location": agent.state.location,
-                "location_cn": self._get_location_cn(agent.state.location),
+                "location_cn": agent._get_location_cn(agent.state.location),
                 "energy": round(agent.state.energy, 1),
                 "energy_change": energy_change,
                 "mood": agent.state.mood.value,
@@ -451,7 +461,7 @@ class TickEngine:
     async def _handle_action(self, agent, action):
         t = action.get("type", "")
         tgt = action.get("target", "")
-        loc_cn = self._get_location_cn(agent.state.location)
+        loc_cn = agent._get_location_cn(agent.state.location)
         if t == "move" and tgt:
             self.world.remove_agent_from_location(agent.identity.id, agent.state.location)
             agent.state.location = tgt
@@ -506,8 +516,22 @@ class TickEngine:
             if claims and len(claims) > 0:
                 top = max(claims, key=lambda c: c.confidence)
                 if top.confidence > 0.5:
-                    self.knowledge.propagate(top.id, agent.identity.id, "nearby_agents", 0.7)
-            self.daily_agent_logs[agent.identity.id].append(f"和{loc_cn}的人聊天")
+                    self.knowledge.propagate(top.id, agent.identity.id, 'nearby_agents', 0.7)
+            # 社交时增加与在场Agent的好感度
+            for other in self.agents:
+                if other.identity.id == agent.identity.id:
+                    continue
+                if other.state.location == agent.state.location:
+                    # 宜人性高→更容易增加好感
+                    agreeableness = agent.identity.personality.get('agreeableness', 0.5)
+                    extraversion = agent.identity.personality.get('extraversion', 0.5)
+                    tie_change = 0.5 + agreeableness * 0.5 + extraversion * 0.3
+                    current_tie = agent.state.social_ties.get(other.identity.id, 0)
+                    agent.state.social_ties[other.identity.id] = current_tie + tie_change
+                    # 双向关系也增加（但少一些）
+                    other_tie = other.state.social_ties.get(agent.identity.id, 0)
+                    other.state.social_ties[agent.identity.id] = other_tie + tie_change * 0.7
+            self.daily_agent_logs[agent.identity.id].append(f'和{loc_cn}的人聊天')
         elif t == "trade":
             if agent.identity.role.value == "merchant":
                 agent.state.gold += 8
