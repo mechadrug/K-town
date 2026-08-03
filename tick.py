@@ -46,7 +46,9 @@ class TickEngine:
         if summaries:
             self.day_summaries = summaries
             self.current_day = summaries[-1]["day"] + 1
-            print(f"✅ 已加载 {len(summaries)} 条历史每日摘要，当前第 {self.current_day} 天")
+            print(f"[OK] 已加载 {len(summaries)} 条历史每日摘要，当前第 {self.current_day} 天")
+        # 初始化当天的agent行为日志
+        self.daily_agent_logs = {a.identity.id: [] for a in self.agents}
 
     async def run(self):
         # 初始化前一天状态
@@ -307,4 +309,5 @@ class TickEngine:
     def stop(self):
         self._running = False
         self.db.close()
+
 
