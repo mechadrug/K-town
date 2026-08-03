@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>K-town Ğ¡ÕòÄ£ÄâÆ÷</title>
+<title>K-town å°é•‡æ¨¡æ‹Ÿå™¨ v0.2</title>
 <style>
 :root {
   --bg-primary: #0a0a14;
@@ -35,7 +35,7 @@ body {
   padding: 28px;
 }
 
-/* Í·²¿ */
+/* å¤´éƒ¨ */
 .header {
   text-align: center;
   margin-bottom: 36px;
@@ -57,7 +57,7 @@ body {
   margin-top: 4px;
 }
 
-/* ×´Ì¬À¸ */
+/* çŠ¶æ€æ  */
 .status-bar {
   display: flex;
   justify-content: center;
@@ -88,7 +88,7 @@ body {
 .status-pill .icon.day { background: rgba(255,215,0,0.2); color: var(--gold); }
 .status-pill b { font-size: 1.2em; margin-left: 4px; }
 
-/* Ö÷Íø¸ñ */
+/* ä¸»ç½‘æ ¼ */
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -124,11 +124,11 @@ body {
 }
 .card.full { grid-column: 1 / -1; }
 
-/* µØÍ¼ */
+/* åœ°å›¾ */
 .map-container {
   position: relative;
   width: 100%;
-  height: 360px;
+  height: 420px;
   background: linear-gradient(135deg, #080810 0%, #101028 100%);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -155,8 +155,10 @@ body {
 .loc-square { left: 50%; top: 50%; }
 .loc-workshop { left: 22%; top: 28%; }
 .loc-wilderness { left: 78%; top: 72%; }
+.loc-school { left: 22%; top: 72%; }
+.loc-mine { left: 78%; top: 28%; }
 
-/* Agent±ê¼Ç */
+/* Agentæ ‡è®° */
 .agent-marker {
   position: absolute;
   width: 42px; height: 42px;
@@ -185,14 +187,16 @@ body {
 .teacher { background: linear-gradient(135deg, #3498db, #2980b9); }
 .farmer { background: linear-gradient(135deg, #1abc9c, #16a085); }
 .storyteller { background: linear-gradient(135deg, #e91e63, #c2185b); }
+.healer { background: linear-gradient(135deg, #00b894, #00cec9); }
+.miner { background: linear-gradient(135deg, #636e72, #2d3436); }
 .player { background: linear-gradient(135deg, #ffffff, #f0f0f0); color: #333; border: 3px solid var(--accent); }
 
-/* Agent¿¨Æ¬ */
+/* Agentå¡ç‰‡ */
 .agent-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 14px;
-  max-height: 360px;
+  max-height: 420px;
   overflow-y: auto;
 }
 .agent-card {
@@ -243,7 +247,7 @@ body {
 .energy-mid { background: linear-gradient(90deg, var(--gold), #ccac00); }
 .energy-low { background: linear-gradient(90deg, var(--accent), #cc2952); }
 
-/* ÈÕÖ¾ÈİÆ÷ */
+/* æ—¥å¿—å®¹å™¨ */
 .log-container {
   max-height: 200px;
   overflow-y: auto;
@@ -262,7 +266,7 @@ body {
   font-size: 0.85em;
 }
 
-/* Ã¿ÈÕÕªÒª */
+/* æ¯æ—¥æ‘˜è¦ */
 .day-card {
   background: var(--bg-hover);
   border-radius: var(--radius-sm);
@@ -310,7 +314,41 @@ body {
   margin-bottom: 4px;
 }
 
-/* ¹ö¶¯Ìõ */
+/* å›æ”¾æ§åˆ¶ */
+.replay-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.replay-controls input {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 0.9em;
+}
+.replay-controls button {
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+.replay-controls button:hover {
+  background: var(--accent-light);
+}
+.replay-controls button:disabled {
+  background: var(--text-dim);
+  cursor: not-allowed;
+}
+
+/* æ»šåŠ¨æ¡ */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -323,294 +361,92 @@ body {
   border-radius: 3px;
 }
 
-/* ÏìÓ¦Ê½ */
+/* å“åº”å¼ */
 @media (max-width: 768px) {
   .grid { grid-template-columns: 1fr; }
   .agent-grid { grid-template-columns: 1fr; }
   .status-bar { gap: 12px; }
   .status-pill { padding: 8px 16px; font-size: 0.85em; }
 }
-
-/* ÀúÊ·»Ø·ÅÃæ°å */
-.replay-panel {
-  background: linear-gradient(135deg, rgba(255,51,102,0.08) 0%, rgba(255,215,0,0.05) 100%);
-  border: 1px solid rgba(255,51,102,0.25);
-  border-radius: var(--radius);
-  padding: 24px;
-  margin-bottom: 24px;
-}
-.replay-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.replay-header h2 {
-  font-size: 1.2em;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--accent), var(--gold));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin: 0;
-}
-.replay-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.replay-btn {
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  border: 1.5px solid var(--accent);
-  background: rgba(255,51,102,0.1);
-  color: var(--accent);
-  font-size: 18px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s ease;
-}
-.replay-btn:hover {
-  background: var(--accent);
-  color: white;
-  transform: scale(1.1);
-}
-.replay-btn.active {
-  background: var(--accent);
-  color: white;
-}
-.replay-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  transform: none;
-}
-.replay-speed {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: var(--bg-hover);
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  font-size: 0.85em;
-}
-.replay-speed label {
-  color: var(--text-dim);
-  font-size: 0.9em;
-}
-.replay-speed select {
-  background: transparent;
-  border: none;
-  color: var(--text);
-  font-size: 0.95em;
-  cursor: pointer;
-  outline: none;
-}
-.replay-speed select option {
-  background: var(--bg-card);
-  color: var(--text);
-}
-.replay-date-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: var(--bg-hover);
-  border-radius: 20px;
-  border: 1px solid var(--border);
-}
-.replay-date-picker label {
-  color: var(--text-dim);
-  font-size: 0.9em;
-}
-.replay-date-picker input[type="date"] {
-  background: transparent;
-  border: none;
-  color: var(--text);
-  font-size: 0.95em;
-  cursor: pointer;
-  outline: none;
-  color-scheme: dark;
-}
-.replay-day-slider {
-  width: 100%;
-  margin: 16px 0 8px;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  background: var(--bg-hover);
-  border-radius: 3px;
-  outline: none;
-}
-.replay-day-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(255,51,102,0.5);
-}
-.replay-day-slider::-moz-range-thumb {
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  border: 2px solid white;
-}
-.replay-day-label {
-  text-align: center;
-  font-size: 0.9em;
-  color: var(--text-dim);
-  margin-top: 4px;
-}
-.replay-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: rgba(255,51,102,0.15);
-  border-radius: 12px;
-  font-size: 0.8em;
-  color: var(--accent);
-  border: 1px solid rgba(255,51,102,0.3);
-}
-.replay-indicator .pulse {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse 1s ease infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-/* »Ø·ÅÖĞµÄÀúÊ·Êı¾İÕ¹Ê¾ */
-.history-view {
-  display: none;
-}
-.history-view.active {
-  display: block;
-}
-.history-view .log-entry {
-  font-family: "SF Mono", "Fira Code", monospace;
-  font-size: 0.85em;
-  padding: 6px 0;
-  opacity: 0.85;
-}
-.history-view .log-entry .event-type {
-  color: var(--blue);
-  margin-right: 6px;
-}
-.history-view .log-entry .event-tick {
-  color: var(--gold);
-}
-
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>K-town Ğ¡ÕòÄ£ÄâÆ÷</h1>
-  <div class="subtitle">¶àÖÇÄÜÌåÉú»îÄ£Äâ ¡¤ ÊµÊ±¸üĞÂ</div>
-  <div class="subtitle" id="ws-status" style="color: var(--green); margin-top: 8px;">Á¬½ÓÖĞ...</div>
+  <h1>K-town å°é•‡æ¨¡æ‹Ÿå™¨</h1>
+  <div class="subtitle">å¤šæ™ºèƒ½ä½“ç”Ÿæ´»æ¨¡æ‹Ÿ Â· å®æ—¶æ›´æ–° Â· v0.2</div>
+  <div class="subtitle" id="ws-status" style="color: var(--green); margin-top: 8px;">è¿æ¥ä¸­...</div>
 </div>
 
 <div class="status-bar">
   <div class="status-pill">
-    <div class="icon tick">??</div>
+    <div class="icon tick">â±ï¸</div>
     <span>Tick: <b id="tick">0</b></span>
   </div>
   <div class="status-pill">
-    <div class="icon weather">???</div>
-    <span>ÌìÆø: <b id="weather">-</b></span>
+    <div class="icon weather">ğŸŒ¤ï¸</div>
+    <span>å¤©æ°”: <b id="weather">-</b></span>
   </div>
   <div class="status-pill">
-    <div class="icon day">??</div>
-    <span>µÚ <b id="day">1</b> Ìì</span>
+    <div class="icon day">ğŸ“…</div>
+    <span>ç¬¬ <b id="day">1</b> å¤©</span>
   </div>
   <div class="status-pill">
-    <div class="icon knowledge">??</div>
-    <span>ÖªÊ¶: <b id="knowledge">0</b> Ìõ</span>
+    <div class="icon knowledge">ğŸ“š</div>
+    <span>çŸ¥è¯†: <b id="knowledge">0</b> æ¡</span>
   </div>
 </div>
 
-
-<!-- ÀúÊ·»Ø·ÅÃæ°å -->
-<div class="card full replay-panel" style="grid-column: 1/-1; max-width: 1400px; margin: 0 auto 24px; background: var(--bg-card); border-radius: var(--radius); padding: 24px; border: 1px solid var(--border); box-shadow: var(--shadow);">
-  <div class="replay-header">
-    <h2 style="font-size:1.1em; font-weight:600; display:flex; align-items:center; gap:10px; margin:0;">
-      <span class="dot"></span>ÀúÊ·»Ø·Å
-    </h2>
-    <div class="replay-indicator" id="replay-indicator" style="display:none;">
-      <span class="pulse"></span> »Ø·ÅÄ£Ê½
-    </div>
-  </div>
-  <div class="replay-controls">
-    <div class="replay-date-picker">
-      <label>?? Ñ¡ÔñÈÕÆÚ</label>
-      <input type="date" id="replay-date" min="2026-01-01" value="2026-01-01">
-    </div>
-    <button class="replay-btn" id="btn-play" title="²¥·Å">?</button>
-    <button class="replay-btn" id="btn-pause" title="ÔİÍ£">?</button>
-    <button class="replay-btn" id="btn-slow" title="Âı·Å">?</button>
-    <button class="replay-btn" id="btn-fast" title="¿ì½ø">?</button>
-    <div class="replay-speed">
-      <label>ËÙ¶È</label>
-      <select id="replay-speed-select">
-        <option value="2000">0.5x</option>
-        <option value="1000" selected>1x</option>
-        <option value="500">2x</option>
-        <option value="250">4x</option>
-        <option value="100">10x</option>
-      </select>
-    </div>
-    <button class="replay-btn" id="btn-exit" title="ÍË³ö»Ø·Å" style="border-color: var(--text-dim); color: var(--text-dim);">?</button>
-  </div>
-  <input type="range" class="replay-day-slider" id="replay-slider" min="1" max="30" value="1">
-  <div class="replay-day-label" id="replay-day-label">µÚ 1 Ìì</div>
-</div>
 <div class="grid">
   <div class="card">
-    <h2><span class="dot"></span>Ğ¡ÕòµØÍ¼</h2>
+    <h2><span class="dot"></span>å°é•‡åœ°å›¾</h2>
     <div class="map-container" id="map">
-      <div class="location-zone loc-square">??? ¹ã³¡</div>
-      <div class="location-zone loc-workshop">?? ¹¤·»</div>
-      <div class="location-zone loc-wilderness">?? »ÄÒ°</div>
+      <div class="location-zone loc-square">ğŸ˜ï¸ å¹¿åœº</div>
+      <div class="location-zone loc-workshop">ğŸ”¨ å·¥åŠ</div>
+      <div class="location-zone loc-wilderness">ğŸŒ¿ è’é‡</div>
+      <div class="location-zone loc-school">ğŸ« å­¦æ ¡</div>
+      <div class="location-zone loc-mine">â›ï¸ çŸ¿æ´</div>
     </div>
   </div>
 
   <div class="card">
-    <h2><span class="dot"></span>¾ÓÃñ×´Ì¬</h2>
+    <h2><span class="dot"></span>å±…æ°‘çŠ¶æ€</h2>
     <div class="agent-grid" id="agent-grid"></div>
   </div>
 
   <div class="card full">
-    <h2><span class="dot"></span>ÊµÊ±ĞĞÎªÈÕÖ¾</h2>
+    <h2><span class="dot"></span>å®æ—¶è¡Œä¸ºæ—¥å¿—</h2>
     <div class="log-container" id="log-container"></div>
   </div>
 
   <div class="card full">
-    <h2><span class="dot"></span>Ã¿ÈÕ×Ü½á</h2>
+    <h2><span class="dot"></span>æ¯æ—¥æ€»ç»“</h2>
     <div id="day-summaries"></div>
+  </div>
+
+  <div class="card full">
+    <h2><span class="dot"></span>å†å²å›æ”¾</h2>
+    <div class="replay-controls">
+      <label>èµ·å§‹æ—¥: <input type="number" id="replay-start" value="1" min="1"></label>
+      <label>ç»“æŸæ—¥: <input type="number" id="replay-end" value="5" min="1"></label>
+      <button onclick="loadReplay()">åŠ è½½å›æ”¾</button>
+      <button onclick="playReplay()" id="play-btn" disabled>æ’­æ”¾</button>
+      <button onclick="pauseReplay()" id="pause-btn" disabled>æš‚åœ</button>
+    </div>
+    <div id="replay-content"></div>
   </div>
 </div>
 
 <script>
-let ws, currentState = {}, daySummaries = [], logs = [];
+let ws, currentState = {}, daySummaries = [], logs = [], replayData = null, replayInterval = null;
 
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onopen = () => {
-    document.getElementById('ws-status').textContent = '? ÒÑÁ¬½Ó';
+    document.getElementById('ws-status').textContent = 'âœ… å·²è¿æ¥';
     document.getElementById('ws-status').classList.add('connected');
   };
   ws.onclose = () => {
-    document.getElementById('ws-status').textContent = '? ÒÑ¶Ï¿ª£¬ÖØÁ¬ÖĞ...';
+    document.getElementById('ws-status').textContent = 'âŒ å·²æ–­å¼€ï¼Œé‡è¿ä¸­...';
     document.getElementById('ws-status').classList.remove('connected');
     setTimeout(connect, 2000);
   };
@@ -633,34 +469,84 @@ function connect() {
 function updateState(data) {
   currentState = data;
   document.getElementById('tick').textContent = data.tick;
-  document.getElementById('weather').textContent = getWeatherCn(data.weather);
+  document.getElementById('weather').textContent = data.weather_name || getWeatherCn(data.weather);
   document.getElementById('day').textContent = Math.floor(data.tick / 24) + 1;
   document.getElementById('knowledge').textContent = data.knowledge?.total_claims || 0;
 }
 
 function getWeatherCn(weather) {
-  const map = {clear: 'ÇçÀÊ', rain: 'ÏÂÓê', snow: 'ÏÂÑ©', wind: '´ó·ç', fog: '´óÎí'};
+  const map = {clear: 'æ™´æœ—', rain: 'ä¸‹é›¨', snow: 'ä¸‹é›ª', wind: 'å¤§é£', fog: 'å¤§é›¾', cloudy: 'å¤šäº‘'};
   return map[weather] || weather;
 }
 
 function render() { renderMap(); renderAgents(); renderLogs(); renderDays(); }
 
+async function loadReplay() {
+  const start = parseInt(document.getElementById('replay-start').value);
+  const end = parseInt(document.getElementById('replay-end').value);
+  const response = await fetch(`/api/replay?start_day=${start}&end_day=${end}`);
+  replayData = await response.json();
+  document.getElementById('play-btn').disabled = false;
+  document.getElementById('replay-content').innerHTML = `<div style="color:var(--green)">å·²åŠ è½½ ${start} åˆ° ${end} å¤©çš„å›æ”¾æ•°æ®</div>`;
+}
+
+function playReplay() {
+  if (!replayData || !replayData.days) return;
+  let currentIndex = 0;
+  document.getElementById('pause-btn').disabled = false;
+  document.getElementById('play-btn').disabled = true;
+  replayInterval = setInterval(() => {
+    if (currentIndex >= replayData.days.length) {
+      pauseReplay();
+      return;
+    }
+    const day = replayData.days[currentIndex];
+    const content = document.getElementById('replay-content');
+    content.innerHTML = `
+      <div class="day-card">
+        <h3>ğŸ“… ç¬¬ ${day.summary?.day || currentIndex + 1} å¤©å›æ”¾</h3>
+        <div class="overall-summary">${day.summary?.overall_summary || 'æ— æ‘˜è¦æ•°æ®'}</div>
+        <div class="stats-row">
+          <span>äº‹ä»¶æ•°é‡: ${day.events?.length || 0}</span>
+          <span>Agentæ—¥å¿—æ•°é‡: ${day.agent_logs?.length || 0}</span>
+        </div>
+      </div>
+    `;
+    currentIndex++;
+  }, 2000);
+}
+
+function pauseReplay() {
+  if (replayInterval) {
+    clearInterval(replayInterval);
+    replayInterval = null;
+  }
+  document.getElementById('pause-btn').disabled = true;
+  document.getElementById('play-btn').disabled = false;
+}
+
 function renderMap() {
   if (!currentState.agents) return;
   const map = document.getElementById('map');
   map.querySelectorAll('.agent-marker').forEach(e => e.remove());
-  const pos = { square: {x:50,y:50}, workshop: {x:22,y:28}, wilderness: {x:78,y:72} };
+  const pos = { 
+    square: {x:50,y:50}, 
+    workshop: {x:22,y:28}, 
+    wilderness: {x:78,y:72},
+    school: {x:22,y:72},
+    mine: {x:78,y:28}
+  };
   const clsMap = { 
     agent_elder:'elder', agent_blacksmith:'blacksmith', agent_carpenter:'carpenter',
     agent_forager:'forager', agent_scout:'scout', agent_merchant:'merchant', 
     agent_teacher:'teacher', agent_farmer:'farmer', agent_storyteller:'storyteller', 
-    agent_player:'player' 
+    agent_healer:'healer', agent_miner:'miner', agent_player:'player' 
   };
   const emojiMap = {
-    agent_elder:'??', agent_blacksmith:'??', agent_carpenter:'??',
-    agent_forager:'??', agent_scout:'??', agent_merchant:'??', 
-    agent_teacher:'??', agent_farmer:'??', agent_storyteller:'??', 
-    agent_player:'??'
+    agent_elder:'ğŸ‘µ', agent_blacksmith:'ğŸ”¨', agent_carpenter:'ğŸªµ',
+    agent_forager:'ğŸŒ¿', agent_scout:'ğŸ§­', agent_merchant:'ğŸ’°', 
+    agent_teacher:'ğŸ“–', agent_farmer:'ğŸŒ¾', agent_storyteller:'ğŸ“œ', 
+    agent_healer:'ğŸ’Š', agent_miner:'â›ï¸', agent_player:'ğŸ‘¤'
   };
   currentState.agents.forEach((a, i) => {
     const d = document.createElement('div');
@@ -669,20 +555,20 @@ function renderMap() {
     const off = (i % 4) * 12 - 18;
     d.style.left = (p.x + off) + '%';
     d.style.top = (p.y + Math.floor(i/4) * 10) + '%';
-    d.textContent = emojiMap[a.id] || '??';
-    d.title = `${a.name} | ÌåÁ¦:${a.energy} | ${getMoodEmoji(a.mood)}${getMoodCn(a.mood)} | ${a.location_cn} | ½ğ±Ò:${a.gold}`;
+    d.textContent = emojiMap[a.id] || 'ğŸ‘¤';
+    d.title = `${a.name} | ä½“åŠ›:${a.energy} | ${getMoodEmoji(a.mood)}${getMoodCn(a.mood)} | ${a.location_cn} | é‡‘å¸:${a.gold}`;
     map.appendChild(d);
   });
 }
 
 function getMoodEmoji(mood) {
-  const map = {happy:'??', neutral:'??', anxious:'??', angry:'??', sad:'??'};
-  return map[mood] || '?';
+  const map = {happy:'ğŸ˜Š', neutral:'ğŸ˜', anxious:'ğŸ˜°', angry:'ğŸ˜ ', sad:'ğŸ˜¢'};
+  return map[mood] || 'â“';
 }
 
 function getMoodCn(mood) {
-  const map = {happy:'ĞÄÇéÓä¿ì', neutral:'ĞÄÇéÆ½¾²', anxious:'ÓĞĞ©½¹ÂÇ', angry:'·Ç³£ÉúÆø', sad:'ĞÄÇéµÍÂä'};
-  return map[mood] || 'ĞÄÇéÎ´Öª';
+  const map = {happy:'å¿ƒæƒ…æ„‰å¿«', neutral:'å¿ƒæƒ…å¹³é™', anxious:'æœ‰äº›ç„¦è™‘', angry:'éå¸¸ç”Ÿæ°”', sad:'å¿ƒæƒ…ä½è½'};
+  return map[mood] || 'å¿ƒæƒ…æœªçŸ¥';
 }
 
 function renderAgents() {
@@ -694,8 +580,8 @@ function renderAgents() {
       <div class="name"><span class="role-dot" style="background:var(--${a.role==='elder'?'purple':a.role==='blacksmith'?'orange':a.role==='forager'?'green':'blue'})"></span>${a.role_cn} ${a.name}</div>
       <div class="stats">
         <span>${getMoodEmoji(a.mood)} ${getMoodCn(a.mood)}</span>
-        <span>?? ${a.gold}</span>
-        <span>?? ${a.location_cn}</span>
+        <span>ğŸ’° ${a.gold}</span>
+        <span>ğŸ“ ${a.location_cn}</span>
       </div>
       <div class="energy-bar"><div class="fill ${ec}" style="width:${a.energy}%"></div></div>
     </div>`;
@@ -711,20 +597,20 @@ function renderDays() {
   const d = document.getElementById('day-summaries');
   d.innerHTML = daySummaries.slice().reverse().map(s => `
     <div class="day-card">
-      <h3>?? µÚ ${s.day} Ìì×Ü½á</h3>
+      <h3>ğŸ“… ç¬¬ ${s.day} å¤©æ€»ç»“</h3>
       <div class="overall-summary">${s.overall_summary}</div>
       <div class="stats-row">
-        <span>??? ÌìÆø: ${getWeatherCn(s.weather)}</span>
-        <span>?? ÖªÊ¶Ôö³¤: +${s.stats.knowledge_change}</span>
-        <span>?? ×Ü½ğ±Ò±ä»¯: ${s.stats.gold_change >= 0 ? '+' + s.stats.gold_change : s.stats.gold_change}</span>
-        <span>?? ¿ªĞÄÈËÊı: ${s.stats.happy_count}/10</span>
+        <span>ğŸŒ¤ï¸ å¤©æ°”: ${getWeatherCn(s.weather)}</span>
+        <span>ğŸ“š çŸ¥è¯†å¢é•¿: +${s.stats.knowledge_change}</span>
+        <span>ğŸ’° æ€»é‡‘å¸å˜åŒ–: ${s.stats.gold_change >= 0 ? '+' + s.stats.gold_change : s.stats.gold_change}</span>
+        <span>ğŸ˜Š å¼€å¿ƒäººæ•°: ${s.stats.happy_count}/12</span>
       </div>
       <div class="agent-list">
         ${s.agents.map(a => `
           <div class="agent-item">
             <b>${getRoleEmoji(a.role)} ${a.role_cn} ${a.name}</b>
-            ?? ${a.location_cn} ¡¤ ÌåÁ¦ ${a.energy}${a.energy_change >= 0 ? '+' + a.energy_change : a.energy_change} ¡¤ ½ğ±Ò ${a.gold}${a.gold_change >= 0 ? '+' + a.gold_change : a.gold_change}<br>
-            ${a.mood_desc}£¬½ñÈÕĞĞÎª£º${a.behavior_summary}
+            ğŸ“ ${a.location_cn} Â· ä½“åŠ› ${a.energy}${a.energy_change >= 0 ? '+' + a.energy_change : a.energy_change} Â· é‡‘å¸ ${a.gold}${a.gold_change >= 0 ? '+' + a.gold_change : a.gold_change}<br>
+            ${a.mood_desc}ï¼Œä»Šæ—¥è¡Œä¸ºï¼š${a.behavior_summary}
           </div>
         `).join('')}
       </div>
@@ -733,290 +619,17 @@ function renderDays() {
 
 function getRoleEmoji(role) {
   const map = {
-    elder:'??', blacksmith:'??', carpenter:'??',
-    forager:'??', scout:'??', merchant:'??', 
-    teacher:'??', farmer:'??', storyteller:'??', player:'??'
+    elder:'ğŸ‘µ', blacksmith:'ğŸ”¨', carpenter:'ğŸªµ',
+    forager:'ğŸŒ¿', scout:'ğŸ§­', merchant:'ğŸ’°', 
+    teacher:'ğŸ“–', farmer:'ğŸŒ¾', storyteller:'ğŸ“œ', 
+    healer:'ğŸ’Š', miner:'â›ï¸', player:'ğŸ‘¤'
   };
-  return map[role] || '??';
+  return map[role] || 'ğŸ‘¤';
 }
 
-
-/* ========== ÀúÊ·»Ø·Å¹¦ÄÜ ========== */
-let replayState = {
-  active: false,
-  currentDay: 1,
-  maxDay: 30,
-  playing: false,
-  speed: 1000,
-  timer: null,
-  replayData: null,
-  cachedDays: {}
-};
-
-function initReplayControls() {
-  document.getElementById('btn-play').addEventListener('click', replayPlay);
-  document.getElementById('btn-pause').addEventListener('click', replayPause);
-  document.getElementById('btn-slow').addEventListener('click', replaySlowDown);
-  document.getElementById('btn-fast').addEventListener('click', replayFastForward);
-  document.getElementById('btn-exit').addEventListener('click', replayExit);
-  document.getElementById('replay-speed-select').addEventListener('change', function() {
-    replayState.speed = parseInt(this.value);
-    if (replayState.playing) {
-      clearInterval(replayState.timer);
-      replayState.timer = setInterval(replayAdvance, replayState.speed);
-    }
-  });
-  document.getElementById('replay-slider').addEventListener('input', function() {
-    const day = parseInt(this.value);
-    loadAndShowDay(day);
-  });
-  document.getElementById('replay-date').addEventListener('change', function() {
-    const date = new Date(this.value);
-    const startDate = new Date('2026-01-01');
-    const day = Math.floor((date - startDate) / (1000 * 60 * 60 * 24)) + 1;
-    if (day > 0 && day <= replayState.maxDay) {
-      document.getElementById('replay-slider').value = day;
-      loadAndShowDay(day);
-    }
-  });
-}
-
-function replayPlay() {
-  if (!replayState.active) {
-    replayState.active = true;
-    document.getElementById('replay-indicator').style.display = 'inline-flex';
-    const slider = document.getElementById('replay-slider');
-    if (!replayState.replayData) {
-      loadReplayRange(parseInt(slider.value), Math.min(parseInt(slider.value) + 4, replayState.maxDay));
-    }
-  }
-  replayState.playing = true;
-  document.getElementById('btn-play').classList.add('active');
-  document.getElementById('btn-pause').classList.remove('active');
-  replayState.timer = setInterval(replayAdvance, replayState.speed);
-}
-
-function replayPause() {
-  replayState.playing = false;
-  document.getElementById('btn-play').classList.remove('active');
-  document.getElementById('btn-pause').classList.add('active');
-  if (replayState.timer) {
-    clearInterval(replayState.timer);
-    replayState.timer = null;
-  }
-}
-
-function replaySlowDown() {
-  const speeds = [2000, 1000, 500, 250, 100];
-  const sel = document.getElementById('replay-speed-select');
-  const idx = speeds.indexOf(replayState.speed);
-  if (idx > 0) {
-    replayState.speed = speeds[idx - 1];
-    sel.value = replayState.speed;
-    if (replayState.playing) {
-      clearInterval(replayState.timer);
-      replayState.timer = setInterval(replayAdvance, replayState.speed);
-    }
-  }
-}
-
-function replayFastForward() {
-  const speeds = [2000, 1000, 500, 250, 100];
-  const sel = document.getElementById('replay-speed-select');
-  const idx = speeds.indexOf(replayState.speed);
-  if (idx < speeds.length - 1) {
-    replayState.speed = speeds[idx + 1];
-    sel.value = replayState.speed;
-    if (replayState.playing) {
-      clearInterval(replayState.timer);
-      replayState.timer = setInterval(replayAdvance, replayState.speed);
-    }
-  }
-}
-
-function replayAdvance() {
-  const slider = document.getElementById('replay-slider');
-  let nextDay = parseInt(slider.value) + 1;
-  if (nextDay > replayState.maxDay) {
-    nextDay = 1;
-  }
-  slider.value = nextDay;
-  loadAndShowDay(nextDay);
-}
-
-function replayExit() {
-  replayState.active = false;
-  replayState.playing = false;
-  if (replayState.timer) {
-    clearInterval(replayState.timer);
-    replayState.timer = null;
-  }
-  document.getElementById('replay-indicator').style.display = 'none';
-  document.getElementById('btn-play').classList.remove('active');
-  document.getElementById('btn-pause').classList.remove('active');
-  // »Ö¸´ÊµÊ±×´Ì¬
-  fetch('/api/state').then(r => r.json()).then(d => { updateState(d); render(); });
-}
-
-function loadReplayRange(startDay, endDay) {
-  fetch(`/api/replay?start_day=${startDay}&end_day=${endDay}`)
-    .then(r => r.json())
-    .then(data => {
-      replayState.replayData = data;
-      data.days.forEach(d => {
-        if (d.snapshot || d.day_summary) {
-          replayState.cachedDays[d.day] = d;
-        }
-      });
-    })
-    .catch(err => console.error('¼ÓÔØ»Ø·ÅÊı¾İÊ§°Ü:', err));
-}
-
-function loadAndShowDay(day) {
-  replayState.currentDay = day;
-  document.getElementById('replay-day-label').textContent = `µÚ ${day} Ìì`;
-  // ¸üĞÂÈÕÆÚÑ¡ÔñÆ÷
-  const date = new Date('2026-01-01');
-  date.setDate(date.getDate() + day - 1);
-  document.getElementById('replay-date').value = date.toISOString().split('T')[0];
-
-  // ¼ì²é»º´æ
-  if (replayState.cachedDays[day]) {
-    renderHistoryDay(replayState.cachedDays[day]);
-    return;
-  }
-
-  // Òì²½¼ÓÔØ
-  fetch(`/api/history/${day}`)
-    .then(r => r.json())
-    .then(data => {
-      replayState.cachedDays[day] = data;
-      renderHistoryDay(data);
-    })
-    .catch(err => console.error(`¼ÓÔØµÚ${day}ÌìÊı¾İÊ§°Ü:`, err));
-}
-
-function renderHistoryDay(data) {
-  // ¸üĞÂµØÍ¼ºÍAgent×´Ì¬£¨À´×Ô¿ìÕÕ£©
-  if (data.snapshot && data.snapshot.agents) {
-    currentState = {
-      tick: data.day * 24,
-      weather: data.snapshot.weather || 'clear',
-      agents: data.snapshot.agents,
-      knowledge: { total_claims: data.snapshot.knowledge_count || 0 }
-    };
-    renderMap();
-    renderAgents();
-    document.getElementById('tick').textContent = data.day * 24;
-    document.getElementById('weather').textContent = getWeatherCn(currentState.weather);
-    document.getElementById('day').textContent = data.day;
-    document.getElementById('knowledge').textContent = currentState.knowledge.total_claims;
-  }
-
-  // ¸üĞÂÈÕÖ¾ÎªÀúÊ·ÊÂ¼ş
-  let historyLogs = [];
-  if (data.world_events && data.world_events.length > 0) {
-    historyLogs = data.world_events.map(e => ({
-      tick: e.tick,
-      action: `[${e.event_type}] ${e.location} - ${e.actors?.join(', ') || 'ÏµÍ³'}: ${JSON.stringify(e.payload || {}).substring(0, 80)}`
-    }));
-  }
-  if (data.decisions && data.decisions.length > 0) {
-    data.decisions.forEach(d => {
-      historyLogs.push({
-        tick: d.tick,
-        action: `[¾ö²ß] ${d.agent_id} - ${d.action} (Ô­Òò: ${d.reason?.substring(0, 50) || 'ÎŞ'})`
-      });
-    });
-  }
-  historyLogs.sort((a, b) => (a.tick || 0) - (b.tick || 0));
-  renderHistoryLogs(historyLogs);
-
-  // äÖÈ¾AgentÀúÊ·ĞĞÎªÈÕÖ¾
-  if (data.agent_logs && data.agent_logs.length > 0) {
-    const agentLogEntries = [];
-    data.agent_logs.forEach(log => {
-      (log.behaviors || []).forEach((b, i) => {
-        agentLogEntries.push({
-          tick: (data.day - 1) * 24 + i * 2,
-          action: `[${log.agent_name}] ${b}`
-        });
-      });
-    });
-    renderAgentHistoryLogs(agentLogEntries);
-  }
-
-  // ¸üĞÂÃ¿ÈÕ×Ü½á
-  if (data.day_summary) {
-    daySummaries = daySummaries.filter(s => s.day !== data.day);
-    daySummaries.push(data.day_summary);
-    renderDays();
-  }
-}
-
-function renderHistoryLogs(entries) {
-  const c = document.getElementById('log-container');
-  if (entries.length === 0) {
-    c.innerHTML = '<div class="log-entry"><span class="text" style="color:var(--text-dim)">¸ÃÈÕÆÚÔİÎŞÊÂ¼ş¼ÇÂ¼</span></div>';
-    return;
-  }
-  c.innerHTML = entries.slice(0, 80).map(l => 
-    `<div class="log-entry history-view active"><span class="tick event-tick">T${l.tick||''}</span><span class="text">${l.action||''}</span></div>`
-  ).join('');
-}
-
-function renderAgentHistoryLogs(entries) {
-  // Èç¹ûÓĞ×¨ÃÅµÄagent-log-container¾Í¸üĞÂËü£¬·ñÔò×·¼Óµ½log-container
-  let container = document.getElementById('agent-log-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'agent-log-container';
-    container.className = 'log-container';
-    container.style.maxHeight = '200px';
-    container.style.marginTop = '16px';
-    const logCard = document.getElementById('log-container').closest('.card');
-    const titleEl = document.createElement('h3');
-    style = 'font-size:0.95em; font-weight:600; margin-top:20px; margin-bottom:12px;';
-    titleEl.textContent = 'Agent ĞĞÎªÀúÊ·';
-    logCard.appendChild(titleEl);
-    logCard.appendChild(container);
-  }
-  if (entries.length === 0) {
-    container.innerHTML = '<div class="log-entry"><span class="text" style="color:var(--text-dim)">ÔİÎŞAgentĞĞÎªÈÕÖ¾</span></div>';
-    return;
-  }
-  container.innerHTML = entries.slice(0, 60).map(l => 
-    `<div class="log-entry"><span class="tick">T${l.tick||''}</span><span class="text">${l.action||''}</span></div>`
-  ).join('');
-}
-
-// »ñÈ¡×î´óÌìÊı²¢³õÊ¼»¯slider
-function initReplayMaxDay() {
-  fetch('/api/days')
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.length > 0) {
-        const maxDay = Math.max(...data.map(d => d.day));
-        replayState.maxDay = Math.max(maxDay, 1);
-        const slider = document.getElementById('replay-slider');
-        slider.max = replayState.maxDay;
-        slider.value = replayState.maxDay;
-        replayState.currentDay = replayState.maxDay;
-        document.getElementById('replay-day-label').textContent = `µÚ ${replayState.maxDay} Ìì`;
-        // ¸üĞÂÈÕÆÚÑ¡ÔñÆ÷µÄmin/max
-        const startDate = new Date('2026-01-01');
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + replayState.maxDay - 1);
-      }
-    })
-    .catch(err => console.error('»ñÈ¡ÌìÊıÊ§°Ü:', err));
-}
-
-// ³õÊ¼»¯Á¬½Ó
+// åˆå§‹åŒ–è¿æ¥
 connect();
-initReplayControls();
-initReplayMaxDay();
-// ¶¨Ê±Ë¢ĞÂ×´Ì¬
+// å®šæ—¶åˆ·æ–°çŠ¶æ€
 setInterval(() => {
   fetch('/api/state').then(r => r.json()).then(d => { updateState(d); render(); });
 }, 2000);
