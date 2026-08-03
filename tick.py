@@ -7,7 +7,7 @@ from events import EventBus, EventScheduler
 from knowledge import KnowledgeEngine
 from logger import Logger
 from llm import LLMClient
-from models import EventType, Mood
+from models import EventType, Mood, Mood
 from db import Database
 
 
@@ -43,6 +43,9 @@ class TickEngine:
         self._db_write_interval: int = 10
         # 已处理事件去重集合（避免重复处理相同事件）
         self._processed_event_keys: set = set()
+        # 自动重置
+        if auto_reset:
+            self.db.reset()
         # 自动重置
         if auto_reset:
             self.db.reset()
@@ -109,6 +112,8 @@ class TickEngine:
             if event_key in processed_events:
                 continue
             processed_events.add(event_key)
+            # 保存事件到数据库
+            self.db.save_event(tick, self.current_day, event.type.value, event.location, event.payload)
             # 保存事件到数据库
             self.db.save_event(tick, self.current_day, event.type.value, event.location, event.payload)
             self.current_day_events.append({
@@ -337,7 +342,14 @@ class TickEngine:
                 a.state.energy = min(100, a.state.energy + 10)
         elif event.type == EventType.DISASTER:
             # 灾害，资源减少，Agent体力下降
-            for a in self.agenelif event.type == EventType.RUMOR_SPREAD:
+            for a in self.agents:
+                a.state.energy = max(0, a.state.energy - 15)
+                a.state.gold = max(0, a.state.gold - 5)
+            # 减少荒野资源
+            if event.location in self.world.resources:
+                for r in self.world.resources[event.location]:
+                    self.world.resources[event.location][r] = max(0, self.world.resources[event.location][r] - 10)
+        elif event.type == EventType.RUMOR_SPREAD:
             claim = event.payload.get("claim", "")
             f = event.payload.get("from", "")
             t = event.payload.get("to", "")
