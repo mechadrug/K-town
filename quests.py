@@ -159,6 +159,31 @@ class QuestEngine:
             "total_quests": len(self.quests)
         }
 
+
+    def get_daily_goals(self) -> List[Dict]:
+        daily = [q for q in self.quests.values() if q.category == 'daily' and q.status == 'active']
+        return [q.to_dict() for q in daily]
+
+    def update_daily_goal_progress(self, action_type: str, amount: int = 1):
+        for q in self.quests.values():
+            if q.category != 'daily' or q.status != 'active':
+                continue
+            if q.id == 'q_daily_work' and action_type == 'work':
+                q.progress = min(q.target, q.progress + amount)
+                if q.progress >= q.target:
+                    q.status = 'completed'
+                    q.completed_at = time.time()
+            elif q.id == 'q_daily_social' and action_type == 'talk':
+                q.progress = min(q.target, q.progress + amount)
+                if q.progress >= q.target:
+                    q.status = 'completed'
+                    q.completed_at = time.time()
+            elif q.id == 'q_daily_explore' and action_type == 'move':
+                q.progress = min(q.target, q.progress + amount)
+                if q.progress >= q.target:
+                    q.status = 'completed'
+                    q.completed_at = time.time()
+
     def reset(self):
         self.quests.clear()
         self.achievements.clear()

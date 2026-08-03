@@ -716,7 +716,9 @@ class TickEngine:
                 agent.state.ap -= ap_cost
             else:
                 self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
-                return
+        # 更新每日目标进度（仅玩家）
+        if agent.identity.role.value == 'player' and hasattr(self, 'quest_engine'):
+            self.quest_engine.update_daily_goal_progress(t)
         if t == "move" and tgt:
             self.world.remove_agent_from_location(agent.identity.id, agent.state.location)
             agent.state.location = tgt
