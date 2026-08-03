@@ -9,6 +9,7 @@ from knowledge import KnowledgeEngine
 from logger import Logger
 from llm import LLMClient
 from agent import populate_agents
+from models import Event, EventType, PlayerAction, TradeOffer
 
 
 def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket]):
@@ -23,7 +24,22 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     @app.get("/api/state")
     async def get_state():
-        return {"tick":world.state.tick,"weather":world.state.weather,"weather_name":world.get_weather_name(),"locations":world.to_dict()["locations"],"agents":[a.to_dict() for a in agents],"knowledge":knowledge.to_dict()}
+        # 获取玩家状态
+        player = None
+        for a in agents:
+            if a.identity.role.value == "player":
+                player = a.to_dict()
+                break
+        return {
+            "tick": world.state.tick,
+            "weather": world.state.weather,
+            "weather_name": world.get_weather_name(),
+            "locations": world.to_dict()["locations"],
+            "agents": [a.to_dict() for a in agents],
+            "knowledge": knowledge.to_dict(),
+            "player": player,
+            "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
+        }
 
     @app.get("/api/knowledge")
     async def get_knowledge():
@@ -180,17 +196,25 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         """获取指定日期的Agent行为日志"""
         return tick_engine.db.get_agent_logs(day, agent_id)
 
+    @app.get("/api/logs/player")
+    async def get_player_logs(n:int=50):
+        """获取玩家操作日志"""
+        return logger.query_player_actions(n)
+
     @app.post("/api/player/action")
     async def player_action(action:dict):
         t=action.get("type","")
         aid=action.get("agent_id","agent_player")
         tgt=action.get("target","")
+        result = ""
         if t=="move":
             for a in agents:
                 if a.identity.id==aid:
                     world.remove_agent_from_location(a.identity.id,a.state.location)
                     a.state.location=tgt
                     world.add_agent_to_location(a.identity.id,tgt)
+                    a.state.energy -= 5
+                    result = f"{a.identity.name}移动到了{tgt}"
                     break
         elif t=="claim":
             subj=action.get("subject","observation")
@@ -198,8 +222,63 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             for a in agents:
                 if a.identity.id==aid:
                     knowledge.observe(aid,subj,claim,a.state.location)
+                    result = f"{a.identity.name}添加了知识：{claim}"
                     break
-        return {"status":"ok"}
+        elif t=="trigger_event":
+            # 触发事件
+            event_type = action.get("event_type","weather_change")
+            location = action.get("location","square")
+            payload = action.get("payload",{})
+            event = Event(tick=tick_engine.world.state.tick, type=EventType(event_type), location=location, payload=payload)
+            bus.publish(event)
+            result = f"触发了{event_type}事件"
+        elif t=="talk":
+            # 和其他Agent对话
+            target_agent = tgt
+            if target_agent:
+                # 传播知识
+                claims = knowledge.agent_knowledge(aid)
+                if claims:
+                    top_claim = max(claims, key=lambda c: c.confidence)
+                    knowledge.propagate(top_claim.id, aid, target_agent, 0.8)
+                    result = f"向{target_agent}传播了知识：{top_claim.claim}"
+                else:
+                    result = "没有可传播的知识"
+        elif t=="trade":
+            # 发起交易
+            item = action.get("item","")
+            price = action.get("price",0)
+            target = tgt
+            if target and item and price > 0:
+                offer = TradeOffer(from_agent=aid, to_agent=target, item=item, price=price)
+                world.state.trade_offers.append(offer)
+                result = f"向{target}发起了{item}的交易请求，价格{price}金币"
+            else:
+                result = "交易参数错误"
+        elif t=="accept_trade":
+            # 接受交易
+            offer_id = action.get("offer_id",-1)
+            if 0 <= offer_id < len(world.state.trade_offers):
+                offer = world.state.trade_offers[offer_id]
+                # 执行交易
+                for a in agents:
+                    if a.identity.id == offer.to_agent:
+                        if a.state.gold >= offer.price:
+                            a.state.gold -= offer.price
+                            a.state.inventory.append(offer.item)
+                            offer.status = "accepted"
+                            result = f"接受了{offer.from_agent}的交易，花费{offer.price}金币购买{offer.item}"
+                        else:
+                            result = "金币不足，无法完成交易"
+                        break
+            else:
+                result = "交易不存在"
+        else:
+            result = "未知操作"
+        # 记录玩家操作
+        player_action = PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result)
+        logger.log_player_action(player_action)
+        return {"status":"ok", "result": result}
 
     @app.post("/api/reset")
     async def reset_simulation():
@@ -230,6 +309,12 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         await websocket.accept()
         ws_clients.add(websocket)
         try:
+            # 获取玩家状态
+            player = None
+            for a in agents:
+                if a.identity.role.value == "player":
+                    player = a.to_dict()
+                    break
             # 发送当前状态和历史摘要
             await websocket.send_json({
                 "type": "state",
@@ -239,7 +324,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                     "weather_name": world.get_weather_name(),
                     "agents": [a.to_dict() for a in agents],
                     "locations": world.to_dict()["locations"],
-                    "knowledge": knowledge.to_dict()
+                    "knowledge": knowledge.to_dict(),
+                    "player": player,
+                    "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
                 }
             })
             # 发送历史每日摘要
@@ -253,8 +340,22 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 try:
                     msg=json.loads(raw)
                     if msg.get("type")=="player_action":
-                        await player_action(msg.get("action",{}))
-                        await websocket.send_json({"type":"ack"})
+                        result = await player_action(msg.get("action",{}))
+                        await websocket.send_json({"type":"player_action_result", "data": result})
+                        # 发送更新后的状态
+                        await websocket.send_json({
+                            "type": "state",
+                            "data": {
+                                "tick": world.state.tick,
+                                "weather": world.state.weather,
+                                "weather_name": world.get_weather_name(),
+                                "agents": [a.to_dict() for a in agents],
+                                "locations": world.to_dict()["locations"],
+                                "knowledge": knowledge.to_dict(),
+                                "player": player,
+                                "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
+                            }
+                        })
                 except json.JSONDecodeError:
                     pass
         except WebSocketDisconnect:

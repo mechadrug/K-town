@@ -1,4 +1,4 @@
-from dataclasses import dataclass,field
+﻿from dataclasses import dataclass,field
 from enum import Enum
 from typing import Optional,Dict,List,Any
 import time,uuid
@@ -16,7 +16,7 @@ class ClaimScope(str,Enum):
     PRIVATE="private";GROUP="group";PUBLIC="public"
 
 class EventType(str,Enum):
-    WEATHER_CHANGE="weather_change";RESOURCE_FOUND="resource_found";SOCIAL_ENCOUNTER="social_encounter";ITEM_CRAFTED="item_crafted";RUMOR_SPREAD="rumor_spread"
+    WEATHER_CHANGE="weather_change";RESOURCE_FOUND="resource_found";SOCIAL_ENCOUNTER="social_encounter";ITEM_CRAFTED="item_crafted";RUMOR_SPREAD="rumor_spread";PLAYER_ACTION="player_action";TRADE="trade"
 
 @dataclass
 class KnowledgeClaim:
@@ -48,6 +48,13 @@ class Event:
     tick:int;type:EventType;location:str;payload:Dict[str,Any]=field(default_factory=dict);timestamp:float=field(default_factory=time.time)
 
 @dataclass
-class WorldState:
-    tick:int=0;weather:str="clear";locations:Dict[str,dict]=field(default_factory=dict)
+class PlayerAction:
+    tick:int;action_type:str;payload:Dict[str,Any];result:str;timestamp:float=field(default_factory=time.time)
 
+@dataclass
+class TradeOffer:
+    from_agent:str;to_agent:str;item:str;price:int;status:str="pending";created_at:float=field(default_factory=time.time)
+
+@dataclass
+class WorldState:
+    tick:int=0;weather:str="clear";locations:Dict[str,dict]=field(default_factory=dict);trade_offers:List[TradeOffer]=field(default_factory=list)
