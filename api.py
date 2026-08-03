@@ -3,11 +3,11 @@ import json,asyncio,os
 from typing import Set
 from fastapi import FastAPI,WebSocket,WebSocketDisconnect
 from fastapi.responses import JSONResponse,HTMLResponse
-from .world import World
-from .events import EventBus
-from .knowledge import KnowledgeEngine
-from .logger import Logger
-from .llm import LLMClient
+from world import World
+from events import EventBus
+from knowledge import KnowledgeEngine
+from logger import Logger
+from llm import LLMClient
 
 
 def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket]):
@@ -144,3 +144,4 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             ws_clients.discard(websocket)
 
     return app
+

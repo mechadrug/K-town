@@ -64,3 +64,4 @@ class EventScheduler:
             claims = ["strange sounds at night","missing supplies","new discovery in woods"]
             f,t = random.sample(agent_ids,2)
             self.bus.schedule(Event(tick=base+18,type=EventType.RUMOR_SPREAD,location="square",payload={"claim":random.choice(claims),"from":f,"to":t}),base+18)
+

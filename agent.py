@@ -1,6 +1,6 @@
 ﻿import random,time,uuid
 from typing import List,Optional
-from .models import AgentIdentity,AgentState,Goal,MemoryEntry,Mood,Role,KnowledgeClaim,ClaimSource
+from models import AgentIdentity,AgentState,Goal,MemoryEntry,Mood,Role,KnowledgeClaim,ClaimSource
 
 class Agent:
     def __init__(self, identity:AgentIdentity, location="square"):
@@ -176,3 +176,4 @@ def populate_agents():
             desc, pri, urg = goals_map[a.identity.id]
             a.add_goal(desc, pri, urg)
     return agents
+

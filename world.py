@@ -76,3 +76,4 @@ class World:
             "locations": {k: {**v, "agents": list(v["agents"])} for k, v in self.locations.items()},
             "resources": self.resources
         }
+

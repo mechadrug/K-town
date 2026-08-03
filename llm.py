@@ -1,4 +1,4 @@
-import aiohttp
+﻿import aiohttp
 from typing import Optional
 
 class LLMClient:
@@ -36,3 +36,4 @@ class LLMClient:
     async def close(self):
         if self._session and not self._session.closed:
             await self._session.close()
+

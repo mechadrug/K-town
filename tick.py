@@ -2,13 +2,13 @@
 import asyncio
 import random
 from typing import List, Dict, Any, Callable, Optional
-from .world import World
-from .events import EventBus, EventScheduler
-from .knowledge import KnowledgeEngine
-from .logger import Logger
-from .llm import LLMClient
-from .models import EventType
-from .db import Database
+from world import World
+from events import EventBus, EventScheduler
+from knowledge import KnowledgeEngine
+from logger import Logger
+from llm import LLMClient
+from models import EventType
+from db import Database
 
 
 class TickEngine:
@@ -307,3 +307,4 @@ class TickEngine:
     def stop(self):
         self._running = False
         self.db.close()
+

@@ -1,4 +1,4 @@
-from dataclasses import dataclass,field
+﻿from dataclasses import dataclass,field
 from enum import Enum
 from typing import Optional,Dict,List,Any
 import time,uuid
@@ -50,3 +50,4 @@ class Event:
 @dataclass
 class WorldState:
     tick:int=0;weather:str="clear";locations:Dict[str,dict]=field(default_factory=dict)
+

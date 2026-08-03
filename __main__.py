@@ -1,5 +1,5 @@
-"""K-town server - run with: python -m server"""
-from .main import main
+﻿"""K-town server - run with: python -m server"""
+from main import main
 import asyncio
 
 if __name__ == "__main__":

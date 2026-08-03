@@ -1,4 +1,4 @@
-import time
+﻿import time
 from typing import Any
 from collections import deque
 
@@ -25,3 +25,4 @@ class Logger:
 
     def query_knowledge(self, n=50):
         return list(self.knowledge_logs)[-n:]
+

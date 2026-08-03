@@ -1,4 +1,4 @@
-"""Configuration loader for K-town server."""
+﻿"""Configuration loader for K-town server."""
 import os
 import yaml
 from dataclasses import dataclass, field
@@ -74,3 +74,4 @@ def load_config(path: str = "config.yaml") -> Config:
         cfg.llm.api_key = env_key
     
     return cfg
+

@@ -1,6 +1,6 @@
-import random,time,uuid
+﻿import random,time,uuid
 from typing import Dict,List,Optional
-from .models import KnowledgeClaim,ClaimSource,ClaimScope
+from models import KnowledgeClaim,ClaimSource,ClaimScope
 
 class KnowledgeEngine:
     def __init__(self):
@@ -52,3 +52,4 @@ class KnowledgeEngine:
 
     def to_dict(self):
         return {"total_claims":len(self.claims),"agent_claims":{k:len(v) for k,v in self.agent_claims.items()}}
+
