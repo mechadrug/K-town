@@ -13,7 +13,7 @@ from agent import populate_agents
 from models import Event, EventType, PlayerAction, TradeOffer
 
 
-def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket]):
+def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket],dialogue_sys=None):
     app=FastAPI(title="K-town",version="0.2.0")
     base=os.path.dirname(os.path.abspath(__file__))
     static_dir=os.path.join(base,'static')
@@ -44,6 +44,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
             "prices": world.prices,
             "resources": world.resources,
+            "price_history": {k: v[-7:] for k, v in world.price_history.items()},
+            "events": [{"type": e.get("type", ""), "action": e.get("action", e.get("payload", "")), "tick": e.get("tick", 0)} for e in tick_engine.current_day_events[-20:]],
             "knowledge": knowledge.to_dict(),
             "player": player,
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
@@ -329,6 +331,96 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         return {'active_quests': [], 'completed_quests': [], 'achievements': [], 'total_completed': 0, 'total_quests': 0}
 
 
+
+    @app.get("/api/dialogue/options/{agent_id}")
+    async def get_dialogue_options(agent_id: str):
+        """获取与指定Agent的对话选项"""
+        if not dialogue_sys:
+            return {"options": [], "tie": 0, "level": "未知"}
+        
+        player = None
+        target = None
+        for a in agents:
+            if a.identity.role.value == "player":
+                player = a
+            if a.identity.id == agent_id:
+                target = a
+        
+        if not player or not target:
+            return {"options": [], "tie": 0, "level": "未知"}
+        
+        tie = target.state.social_ties.get(player.identity.id, 0)
+        options = dialogue_sys.generate_options(player, target)
+        level = dialogue_sys.get_relationship_level(tie)
+        
+        return {"options": options, "tie": round(tie, 1), "level": level, "agent_name": target.identity.name}
+
+    @app.post("/api/dialogue/execute/{agent_id}")
+    async def execute_dialogue(agent_id: str, body: dict = None):
+        """执行对话"""
+        body = body or {}
+        option_id = body.get("option_id", "chat")
+        
+        if not dialogue_sys:
+            return {"success": False, "message": "对话系统未初始化"}
+        
+        player = None
+        target = None
+        for a in agents:
+            if a.identity.role.value == "player":
+                player = a
+            if a.identity.id == agent_id:
+                target = a
+        
+        if not player or not target:
+            return {"success": False, "message": "找不到对话对象"}
+        
+        # 获取选项
+        options = dialogue_sys.generate_options(player, target)
+        option = None
+        for opt in options:
+            if opt["id"] == option_id:
+                option = opt
+                break
+        
+        if not option:
+            return {"success": False, "message": "无效的对话选项"}
+        
+        # 检查AP
+        ap_cost = 1
+        if option.get("energy_cost"):
+            ap_cost = 2
+        if player.state.ap < ap_cost:
+            return {"success": False, "message": f"AP不足（需要{ap_cost}点）"}
+        
+        player.state.ap -= ap_cost
+        
+        # 执行对话
+        result = dialogue_sys.execute_dialogue(player, target, option)
+        
+        # 应用结果
+        tie_change = result["tie_change"]
+        current_tie = target.state.social_ties.get(player.identity.id, 0)
+        target.state.social_ties[player.identity.id] = current_tie + tie_change
+        
+        # 双向关系
+        reverse_tie = player.state.social_ties.get(target.identity.id, 0)
+        player.state.social_ties[target.identity.id] = reverse_tie + tie_change * 0.7
+        
+        # 记录日志
+        tick_engine.daily_agent_logs[player.identity.id].append(
+            f"与{target.identity.name}对话：{result['message']}"
+        )
+        
+        return {
+            "success": result["success"],
+            "message": result["message"],
+            "tie_change": tie_change,
+            "new_tie": round(current_tie + tie_change, 1),
+            "knowledge_gained": result.get("knowledge_gained"),
+            "ap_remaining": player.state.ap
+        }
+
     @app.websocket("/ws")
     async def ws_endpoint(websocket:WebSocket):
         await websocket.accept()
@@ -352,6 +444,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
             "prices": world.prices,
             "resources": world.resources,
+            "price_history": {k: v[-7:] for k, v in world.price_history.items()},
+            "events": [{"type": e.get("type", ""), "action": e.get("action", e.get("payload", "")), "tick": e.get("tick", 0)} for e in tick_engine.current_day_events[-20:]],
                     "knowledge": knowledge.to_dict(),
                     "player": player,
                     "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
@@ -382,6 +476,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
             "prices": world.prices,
             "resources": world.resources,
+            "price_history": {k: v[-7:] for k, v in world.price_history.items()},
+            "events": [{"type": e.get("type", ""), "action": e.get("action", e.get("payload", "")), "tick": e.get("tick", 0)} for e in tick_engine.current_day_events[-20:]],
                                 "knowledge": knowledge.to_dict(),
                                 "player": player,
                                 "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]

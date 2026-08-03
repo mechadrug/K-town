@@ -16,7 +16,7 @@ class ClaimScope(str,Enum):
     PRIVATE="private";GROUP="group";PUBLIC="public"
 
 class EventType(str,Enum):
-    WEATHER_CHANGE="weather_change";RESOURCE_FOUND="resource_found";SOCIAL_ENCOUNTER="social_encounter";ITEM_CRAFTED="item_crafted";RUMOR_SPREAD="rumor_spread";PLAYER_ACTION="player_action";TRADE="trade";PRICE_CHANGE="price_change";WEATHER_IMPACT="weather_impact";SOCIAL_RELATION_CHANGE="social_relation_change";KNOWLEDGE_CONFLICT="knowledge_conflict";AGENT_GOAL_COMPLETE="agent_goal_complete";FESTIVAL="festival";DISASTER="disaster"
+    WEATHER_CHANGE="weather_change";RESOURCE_FOUND="resource_found";SOCIAL_ENCOUNTER="social_encounter";ITEM_CRAFTED="item_crafted";RUMOR_SPREAD="rumor_spread";PLAYER_ACTION="player_action";TRADE="trade";PRICE_CHANGE="price_change";WEATHER_IMPACT="weather_impact";SOCIAL_RELATION_CHANGE="social_relation_change";KNOWLEDGE_CONFLICT="knowledge_conflict";AGENT_GOAL_COMPLETE="agent_goal_complete";FESTIVAL="festival";DISASTER="disaster";MERCHANT_ARRIVAL="merchant_arrival";SKILL_SHARE="skill_share";TOWN_MEETING="town_meeting";MYSTERIOUS_STRANGER="mysterious_stranger";HARVEST_FESTIVAL="harvest_festival";ANIMAL_ATTACK="animal_attack";GOLDEN_DISCOVERY="golden_discovery";BUILDING_UPGRADE="building_upgrade"
 
 @dataclass
 class KnowledgeClaim:

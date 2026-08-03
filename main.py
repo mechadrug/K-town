@@ -12,6 +12,7 @@ from llm import LLMClient
 from tick import TickEngine
 from api import create_app
 from quests import QuestEngine
+from dialogue import DialogueSystem
 import uvicorn
 
 # Global set of connected WebSocket clients
@@ -51,6 +52,10 @@ def init_system():
     quest_engine = QuestEngine()
     engine.quest_engine = quest_engine
 
+    # 初始化对话系统
+    dialogue_sys = DialogueSystem()
+    engine.dialogue_sys = dialogue_sys
+
     # Wire up broadcast callbacks
     async def on_day_summary(summary):
         await broadcast({"type": "day_summary", "data": summary})
@@ -66,6 +71,7 @@ def init_system():
     print("Day 1 events scheduled")
 
     app = create_app(world, agents, bus, logger, knowledge, llm, engine, ws_clients)
+    app = create_app(world, agents, bus, logger, knowledge, llm, engine, ws_clients, dialogue_sys)
     return app, engine, llm, cfg
 
 

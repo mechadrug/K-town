@@ -130,6 +130,23 @@
       <div class="panel">
         <div class="panel-header">📰 每日摘要</div>
         <div class="panel-body" id="daily-summary">
+      <div class="panel">
+        <div class="panel-header">\u{1F4C8} 价格趋势</div>
+        <div class="panel-body">
+          <canvas id="price-chart"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">\u{1F465} 社交网络</div>
+        <div class="panel-body">
+          <canvas id="social-network"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">\u{1F4C5} 事件时间线</div>
+        <div class="panel-body" id="event-timeline" style="max-height:200px;overflow-y:auto;">
+        </div>
+      </div>
           <p style="font-size:0.85em;color:var(--text-secondary)">等待第一天结束...</p>
         </div>
       </div>
@@ -153,5 +170,6 @@
   <div class="tutorial-overlay" id="tutorial-overlay"></div>
 
   <script src="/static/app.js"></script>
+  <script src="/static/visualization.js"></script>
 </body>
 </html>

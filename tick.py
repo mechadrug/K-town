@@ -793,6 +793,52 @@ class TickEngine:
                 self.knowledge.observe(f, "rumor", claim, event.location)
                 self.knowledge.observe(t, "rumor", f"听说{claim}", event.location)
 
+        elif event.type == EventType.MERCHANT_ARRIVAL:
+            for a in self.agents:
+                if a.state.location == 'square':
+                    a.state.mood = Mood.HAPPY
+                    a.state.gold += random.randint(3, 8)
+            self.world.record_supply('food', 5)
+        elif event.type == EventType.SKILL_SHARE:
+            aids = event.payload.get('agents', [])
+            for aid in aids:
+                skill_name = event.payload.get('skill', '新技能')
+                self.knowledge.observe(aid, 'skill', f'学会了{skill_name}', event.location)
+        elif event.type == EventType.TOWN_MEETING:
+            square_agents = [a for a in self.agents if a.state.location == 'square']
+            for a in square_agents:
+                for b in square_agents:
+                    if a.identity.id != b.identity.id:
+                        tie = a.state.social_ties.get(b.identity.id, 0)
+                        a.state.social_ties[b.identity.id] = tie + 0.5
+        elif event.type == EventType.MYSTERIOUS_STRANGER:
+            claims = ['一个陌生人来到了小镇', '有人在森林里看到了奇怪的光', '据说矿洞深处有宝藏']
+            agent_ids = [a.identity.id for a in self.agents]
+            f, t = random.sample(agent_ids, 2)
+            self.bus.schedule(Event(tick=event.tick + 2, type=EventType.RUMOR_SPREAD, 
+                location='square', payload={'claim': random.choice(claims), 'from': f, 'to': t}), event.tick + 2)
+        elif event.type == EventType.HARVEST_FESTIVAL:
+            for a in self.agents:
+                a.state.mood = Mood.HAPPY
+                a.state.food += random.randint(1, 3)
+                a.state.energy = min(100, a.state.energy + 10)
+        elif event.type == EventType.ANIMAL_ATTACK:
+            for a in self.agents:
+                if a.state.location == 'wilderness':
+                    a.state.energy = max(0, a.state.energy - 20)
+                    a.state.mood = Mood.ANXIOUS
+        elif event.type == EventType.GOLDEN_DISCOVERY:
+            aid = event.payload.get('agent_id', '')
+            for a in self.agents:
+                if a.identity.id == aid:
+                    a.state.gold += random.randint(20, 50)
+                    break
+        elif event.type == EventType.BUILDING_UPGRADE:
+            loc = event.location
+            for a in self.agents:
+                if a.state.location == loc:
+                    a.state.energy = min(100, a.state.energy + 5)
+
     async def _handle_action(self, agent, action):
         t = action.get("type", "")
         tgt = action.get("target", "")
