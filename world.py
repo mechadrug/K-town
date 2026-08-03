@@ -1,4 +1,4 @@
-﻿from models import WorldState
+from models import WorldState
 from typing import Dict
 import random
 

@@ -1,4 +1,4 @@
-﻿"""日志系统模块"""
+"""日志系统模块"""
 import sqlite3
 import json
 from typing import List, Dict, Any

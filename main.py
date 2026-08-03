@@ -1,4 +1,4 @@
-﻿"""K-town server entry point."""
+"""K-town server entry point."""
 import asyncio,json
 from typing import Set
 from fastapi import WebSocket
@@ -70,7 +70,6 @@ def init_system():
     engine.scheduler.generate_daily_schedule(1, agent_ids, world)
     print("Day 1 events scheduled")
 
-    app = create_app(world, agents, bus, logger, knowledge, llm, engine, ws_clients)
     app = create_app(world, agents, bus, logger, knowledge, llm, engine, ws_clients, dialogue_sys)
     return app, engine, llm, cfg
 

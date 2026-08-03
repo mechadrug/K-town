@@ -1,4 +1,4 @@
-﻿"""FastAPI + WebSocket API layer."""
+"""FastAPI + WebSocket API layer."""
 import json,asyncio,os
 from typing import Set
 from fastapi import FastAPI,WebSocket,WebSocketDisconnect
@@ -214,9 +214,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
     @app.post("/api/player/action")
     async def player_action(action:dict):
         # 检查玩家AP
-        ap_cost = 1
-        if action.get('type') == 'investigate':
-            ap_cost = 2
+        ap_cost_map = {"move": 1, "work": 2, "investigate": 2, "talk": 1, "rest": 0, "claim": 1, "add_knowledge": 1}
+        ap_cost = ap_cost_map.get(action.get('type', ''), 1)
         for a in agents:
             if a.identity.id == 'agent_player':
                 if a.state.ap < ap_cost:

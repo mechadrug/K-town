@@ -1,4 +1,4 @@
-﻿"""Quest and Achievement system for K-town."""
+"""Quest and Achievement system for K-town."""
 import time
 import uuid
 from typing import Dict, List, Any, Optional

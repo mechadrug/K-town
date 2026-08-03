@@ -1,42 +1,41 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>K-town 边境小镇</title>
+  <title>K-town \u8fb9\u5883\u5c0f\u9547</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <!-- 顶部导航栏 -->
+  <!-- Top Navigation Bar -->
   <nav class="navbar">
     <div class="navbar-brand">
-      <div class="logo">🏘️</div>
-      <h1>K-town 边境小镇</h1>
+      <div class="logo">\U0001f3d9\ufe0f</div>
+      <h1>K-town \u8fb9\u5883\u5c0f\u9547</h1>
     </div>
     <div class="navbar-stats">
-      <div class="stat-badge day"><span class="value" id="stat-day">第1天</span></div>
-      <div class="stat-badge"><span class="value" id="stat-weather">☀️ 晴朗</span></div>
-      <div class="stat-badge"><span class="value" id="stat-time">☀️ 白天</span></div>
+      <div class="stat-badge day"><span class="value" id="stat-day">\u7b2c1\u5929</span></div>
+      <div class="stat-badge"><span class="value" id="stat-weather">\u2600\ufe0f \u6674\u6717</span></div>
+      <div class="stat-badge"><span class="value" id="stat-time">\u2600\ufe0f \u767d\u5929</span></div>
       <div class="stat-badge gold"><span class="value" id="stat-gold">10</span></div>
       <div class="stat-badge energy"><span class="value" id="stat-energy">100</span></div>
-      <div class="stat-badge"><span class="icon">🎯</span><span class="value" id="stat-ap">12/12</span></div>
-      <div class="stat-badge"><span class="value" id="stat-location">广场</span></div>
-      <div class="stat-badge" title="食物价格"><span class="icon">📊</span><span class="value" id="stat-food-price">5g</span></div>
+      <div class="stat-badge"><span class="icon">\ud83c\udfaf</span><span class="value" id="stat-ap">12/12</span></div>
+      <div class="stat-badge"><span class="value" id="stat-location">\u5e7f\u573a</span></div>
     </div>
   </nav>
 
-  <!-- 时间进度条 -->
+  <!-- Time Progress Bar -->
   <div id="time-indicator"></div>
 
-  <!-- 主布局 -->
+  <!-- Main Layout -->
   <div class="main-layout">
-    <!-- 左侧：地图 + 日志 -->
+    <!-- Left: Map + Tabs -->
     <div class="map-section">
-      <!-- 地图 -->
+      <!-- Map -->
       <div class="map-container">
         <div class="map-header">
-          <h2>🗺️ 小镇地图</h2>
-          <span style="font-size:0.8em;color:var(--text-secondary)">点击地点查看详情</span>
+          <h2>\U0001f5fa\ufe0f \u5c0f\u9547\u5730\u56fe</h2>
+          <span style="font-size:0.8em;color:var(--text-secondary)">\u70b9\u51fb\u5730\u70b9\u67e5\u770b\u8be6\u60c5</span>
         </div>
         <div class="map-canvas" id="map-canvas">
           <svg class="map-connections" width="100%" height="100%">
@@ -50,124 +49,118 @@
         </div>
       </div>
 
-      <!-- 日志区域 -->
+      <!-- Tabbed Content -->
       <div class="log-container">
         <div class="log-header">
-          <h2>📋 小镇动态</h2>
+          <h2>\U0001f4cb \u5c0f\u9547\u52a8\u6001</h2>
           <div class="log-tabs">
-            <button class="log-tab active" data-tab="log">事件</button>
-            <button class="log-tab" data-tab="agents">居民</button>
-            <button class="log-tab" data-tab="knowledge">知识</button>
-            <button class="log-tab" data-tab="quests">任务</button>
+            <button class="log-tab active" data-tab="log">\u4e8b\u4ef6</button>
+            <button class="log-tab" data-tab="agents">\u5c45\u6c11</button>
+            <button class="log-tab" data-tab="knowledge">\u77e5\u8bc6</button>
+            <button class="log-tab" data-tab="quests">\u4efb\u52a1</button>
           </div>
         </div>
-
-        <!-- 事件日志 -->
         <div class="tab-content active" id="tab-log">
           <div class="log-content" id="log-content">
-            <div class="log-entry"><span class="log-time">--:--</span><span class="log-icon">🏘️</span><span class="log-text">欢迎来到K-town边境小镇！</span></div>
+            <div class="log-entry"><span class="log-time">--:--</span><span class="log-icon">\U0001f3d9\ufe0f</span><span class="log-text">\u6b22\u8fce\u6765\u5230K-town\u8fb9\u5883\u5c0f\u9547\uff01</span></div>
           </div>
         </div>
-
-        <!-- 居民列表 -->
         <div class="tab-content" id="tab-agents">
           <div class="agent-list" id="agent-list"></div>
         </div>
-
-        <!-- 知识列表 -->
         <div class="tab-content" id="tab-knowledge">
           <div class="knowledge-list" id="knowledge-list"></div>
         </div>
-
-        <!-- 任务列表 -->
         <div class="tab-content" id="tab-quests">
           <div class="quest-list" id="quest-list"></div>
         </div>
       </div>
     </div>
 
-    <!-- 右侧：玩家面板 + 操作 -->
+    <!-- Right Sidebar -->
     <div class="sidebar">
-      <!-- 玩家卡片 -->
+      <!-- Player Card -->
       <div class="panel">
         <div class="player-card">
-          <div class="player-avatar">👤</div>
+          <div class="player-avatar">\ud83d\udc64</div>
           <div class="player-info">
-            <h3>旅行者</h3>
-            <div class="player-role">小镇新居民</div>
+            <h3>\u65c5\u884c\u8005</h3>
+            <div class="player-role">\u5c0f\u9547\u65b0\u5c45\u6c11</div>
           </div>
         </div>
         <div class="player-stats">
           <div class="player-stat">
-            <span>⚡ 体力</span>
+            <span>\u26a1 \u4f53\u529b</span>
             <div class="bar"><div class="bar-fill energy" id="player-energy-bar" style="width:100%"></div></div>
           </div>
           <div class="player-stat">
-            <span>💰 金币</span>
+            <span>\U0001f4b0 \u91d1\u5e01</span>
             <div class="bar"><div class="bar-fill gold" id="player-gold-bar" style="width:2%"></div></div>
+          </div>
+          <div class="player-stat">
+            <span>\ud83c\udfaf \u884c\u52a8\u70b9</span>
+            <div class="bar"><div class="bar-fill ap" id="player-ap-bar" style="width:100%"></div></div>
           </div>
         </div>
       </div>
 
-      <!-- 操作面板 -->
+      <!-- Actions -->
       <div class="panel">
-        <div class="panel-header">🎮 行动</div>
+        <div class="panel-header">\ud83c\udfae \u884c\u52a8</div>
         <div class="action-grid">
-          <button class="action-btn" onclick="movePlayer('square')">🏛️ 去广场</button>
-          <button class="action-btn" onclick="movePlayer('workshop')">🔨 去工坊</button>
-          <button class="action-btn" onclick="movePlayer('wilderness')">🌲 去荒野</button>
-          <button class="action-btn" onclick="movePlayer('school')">🏫 去学校</button>
-          <button class="action-btn" onclick="movePlayer('mine')">⛏️ 去矿洞</button>
-          <button class="action-btn" onclick="doWork('work')">⚒️ 工作</button>
-          <button class="action-btn" onclick="talkToAgent()">💬 聊天</button>
-          <button class="action-btn" onclick="doRest()">💤 休息</button>
-          <button class="action-btn" onclick="addKnowledge()">📖 添加知识</button>
-          <button class="action-btn danger" onclick="resetSimulation()">🔄 重置模拟</button>
+          <button class="action-btn" onclick="movePlayer('square')">\U0001f3db\ufe0f \u53bb\u5e7f\u573a</button>
+          <button class="action-btn" onclick="movePlayer('workshop')">\U0001f528 \u53bb\u5de5\u574a</button>
+          <button class="action-btn" onclick="movePlayer('wilderness')">\ud83c\udf32 \u53bb\u8352\u91ce</button>
+          <button class="action-btn" onclick="movePlayer('school')">\U0001f3eb \u53bb\u5b66\u6821</button>
+          <button class="action-btn" onclick="movePlayer('mine')">\u26cf\ufe0f \u53bb\u77ff\u6d1e</button>
+          <button class="action-btn" onclick="doWork('work')">\u2692\ufe0f \u5de5\u4f5c</button>
+          <button class="action-btn" onclick="talkToAgent()">\U0001f4ac \u804a\u5929</button>
+          <button class="action-btn" onclick="doRest()">\U0001f4a4 \u4f11\u606f</button>
+          <button class="action-btn" onclick="addKnowledge()">\U0001f4d6 \u6dfb\u52a0\u77e5\u8bc6</button>
+          <button class="action-btn danger" onclick="resetSimulation()">\U0001f504 \u91cd\u7f6e\u6a21\u62df</button>
         </div>
       </div>
 
-      <!-- 每日摘要 -->
+      <!-- Daily Summary -->
       <div class="panel">
-        <div class="panel-header">📰 每日摘要</div>
+        <div class="panel-header">\U0001f4f0 \u6bcf\u65e5\u6458\u8981</div>
         <div class="panel-body" id="daily-summary">
-      <div class="panel">
-        <div class="panel-header">\u{1F4C8} 价格趋势</div>
-        <div class="panel-body">
-          <canvas id="price-chart"></canvas>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-header">\u{1F465} 社交网络</div>
-        <div class="panel-body">
-          <canvas id="social-network"></canvas>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-header">\u{1F4C5} 事件时间线</div>
-        <div class="panel-body" id="event-timeline" style="max-height:200px;overflow-y:auto;">
-        </div>
-      </div>
-          <p style="font-size:0.85em;color:var(--text-secondary)">等待第一天结束...</p>
+          <p class="placeholder-text">\u7b49\u5f85\u7b2c\u4e00\u5929\u7ed3\u675f...</p>
         </div>
       </div>
 
-      <!-- 游戏信息 -->
+      <!-- About -->
       <div class="panel">
-        <div class="panel-header">ℹ️ 关于K-town</div>
+        <div class="panel-header">\u2139\ufe0f \u5173\u4e8eK-town</div>
         <div class="panel-body" style="font-size:0.8em;color:var(--text-secondary);line-height:1.6;">
-          <p>K-town是一个由AI居民自主生活的小镇。每位居民有自己的职业、目标和记忆。</p>
-          <p style="margin-top:8px;"><strong>操作提示：</strong></p>
-          <p>• 点击地图地点查看详情</p>
-          <p>• 添加知识影响小镇认知</p>
-          <p>• 与居民聊天建立关系</p>
-          <p>• 完成任务获得奖励</p>
+          <p>K-town\u662f\u4e00\u4e2a\u7531AI\u5c45\u6c11\u81ea\u4e3b\u751f\u6d3b\u7684\u5c0f\u9547\u3002\u6bcf\u4f4d\u5c45\u6c11\u6709\u81ea\u5df1\u7684\u804c\u4e1a\u3001\u76ee\u6807\u548c\u8bb0\u5fc6\u3002</p>
+          <p style="margin-top:8px;"><strong>\u64cd\u4f5c\u63d0\u793a\uff1a</strong></p>
+          <p>\u2022 \u70b9\u51fb\u5730\u56fe\u5730\u70b9\u67e5\u770b\u8be6\u60c5</p>
+          <p>\u2022 \u4e0e\u5c45\u6c11\u804a\u5929\u5efa\u7acb\u5173\u7cfb</p>
+          <p>\u2022 \u6dfb\u52a0\u77e5\u8bc6\u5f71\u54cd\u5c0f\u9547\u8ba4\u77e5</p>
+          <p>\u2022 \u5b8c\u6210\u4efb\u52a1\u83b7\u5f97\u5956\u52b1</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 新手引导 -->
-  <div class="tutorial-overlay" id="tutorial-overlay"></div>
+  <!-- Tutorial Overlay -->
+  <div class="tutorial-overlay" id="tutorial-overlay">
+    <div class="tutorial-card">
+      <div class="tutorial-icon">\U0001f3d9\ufe0f</div>
+      <h2>\u6b22\u8fce\u6765\u5230K-town\u8fb9\u5883\u5c0f\u9547\uff01</h2>
+      <p>\u8fd9\u662f\u4e00\u4e2a\u7531AI\u5c45\u6c11\u81ea\u4e3b\u751f\u6d3b\u7684\u5c0f\u9547\u3002\u4f60\u4f5c\u4e3a\u4e00\u540d\u65c5\u884c\u8005\uff0c\u53ef\u4ee5\u89c2\u5bdf\u548c\u53c2\u4e0e\u5c0f\u9547\u7684\u751f\u6d3b\u3002</p>
+      <div class="tutorial-steps">
+        <div class="tutorial-step"><span class="step-num">1</span>\u901a\u8fc7\u5730\u56fe\u79fb\u52a8\u5230\u4e0d\u540c\u5730\u70b9</div>
+        <div class="tutorial-step"><span class="step-num">2</span>\u4e0e\u5c45\u6c11\u5bf9\u8bdd\u5efa\u7acb\u5173\u7cfb</div>
+        <div class="tutorial-step"><span class="step-num">3</span>\u5de5\u4f5c\u8d5a\u53d6\u91d1\u5e01\u7ef4\u6301\u751f\u8ba1</div>
+        <div class="tutorial-step"><span class="step-num">4</span>\u6dfb\u52a0\u77e5\u8bc6\u5f71\u54cd\u5c0f\u9547\u8ba4\u77e5</div>
+        <div class="tutorial-step"><span class="step-num">5</span>\u5b8c\u6210\u6bcf\u65e5\u76ee\u6807\u83b7\u5f97\u5956\u52b1</div>
+      </div>
+      <p style="font-size:0.85em;color:var(--text-muted);">\u6bcf\u592912\u70b9\u884c\u52a8\u70b9\uff0c\u6bcf\u6b21\u884c\u52a8\u6d88\u80171-2\u70b9\u3002\u5206\u914d\u597d\u4f60\u7684\u884c\u52a8\u5427\uff01</p>
+      <button class="tutorial-btn" onclick="closeTutorial()">\u5f00\u59cb\u63a2\u7d22</button>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
   <script src="/static/visualization.js"></script>

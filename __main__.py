@@ -1,4 +1,4 @@
-﻿"""K-town server - run with: python -m server"""
+"""K-town server - run with: python -m server"""
 from main import main
 import asyncio
 

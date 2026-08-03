@@ -1,4 +1,4 @@
-﻿// K-town 前端应用
+// K-town 前端应用
 (function() {
   'use strict';
 
@@ -73,15 +73,14 @@
   }
 
   // 更新UI
-  
-  showContextTip();
-  updateVisualizations();
+  function updateUI(data) {
     // 顶部状态栏
     const player = data.player || {};
     setText('stat-day', `第${Math.floor(data.tick / 24) + 1}天`);
     setText('stat-weather', getWeatherDisplay(data.weather));
     setText('stat-gold', player.gold || 0);
     setText('stat-energy', Math.round(player.energy || 100));
+    setText('stat-ap', `${player.action_points || 12}/${player.max_ap || 12}`);
     setText('stat-time', getTimeOfDay(data.tick));
     setText('stat-location', getLocationCn(player.location));
 
@@ -96,6 +95,9 @@
 
     // 渲染知识列表
     renderKnowledge(data.knowledge);
+
+    // 渲染任务列表
+    renderQuests(data);
 
     // 更新玩家面板
     updatePlayerPanel(player);
@@ -122,7 +124,7 @@
     };
 
     const locIcons = {
-      square: '🏛️', workshop: '🔨', wilderness: '🌲', school: '🏫', mine: '⛏️'
+      square: '\u{1F3D8}', workshop: '\u{2692}', wilderness: '\u{1F332}', school: '\u{1F4DA}', mine: '\u{26CF}'
     };
 
     const locNames = {
@@ -151,7 +153,7 @@
       }).join('');
 
       locEl.innerHTML = `
-        <div class="loc-marker">${locIcons[id] || '📍'} ${locNames[id] || loc.name}</div>
+        <div class="loc-marker">${locIcons[id] || '\u{1F4CD}'} ${locNames[id] || loc.name}</div>
         <div class="loc-agents">${agentDots}</div>
       `;
 
@@ -167,21 +169,21 @@
     container.innerHTML = '';
 
     const moodEmojis = {
-      happy: '😊', neutral: '😐', anxious: '😰', angry: '😠', sad: '😢'
+      happy: '\u{1F60A}', neutral: '\u{1F610}', anxious: '\u{1F61F}', angry: '\u{1F620}', sad: '\u{1F622}'
     };
 
     agents.forEach(a => {
+      const energy = Math.round(a.energy || 0);
       const item = document.createElement('div');
       item.className = 'agent-item';
+      item.style.borderLeft = `3px solid ${getAgentColor(a.id)}`;
       item.innerHTML = `
         <div class="agent-avatar" style="background:${getAgentColor(a.id)}">${getAgentEmoji(a.id)}</div>
-        <div>
+        <div class="agent-info">
           <div class="agent-name">${a.name}</div>
-          <div class="agent-meta">${a.role_cn || a.role} · ${a.location_cn || a.location}</div>
-        </div>
-        <div class="agent-meta">
-          <span class="mood-indicator mood-${a.mood}">${moodEmojis[a.mood] || '😐'}</span>
-          <div>💰${a.gold} ⚡${Math.round(a.energy)}</div>
+          <div class="agent-role">${a.role_cn || a.role || '居民'} \u00B7 ${getLocationCn(a.location)}</div>
+          <div class="agent-bar"><div class="bar-fill energy" style="width:${energy}%"></div></div>
+          <div class="agent-stats">${moodEmojis[a.mood] || '\u{1F610}'} \u{1F4B0}${a.gold || 0} \u{26A1}${energy}</div>
         </div>
       `;
       item.addEventListener('click', () => showAgentDetail(a));
@@ -194,24 +196,81 @@
     const container = document.getElementById('knowledge-list');
     if (!container) return;
 
-    // 从currentState获取完整知识数据
-    if (!currentState || !currentState.knowledge) return;
+    const k = knowledge || (currentState && currentState.knowledge) || {};
+    const claims = k.claims || [];
+    const agentCounts = k.agent_counts || {};
 
-    const claims = currentState.knowledge.claims || [];
     container.innerHTML = '';
 
+    // 总览信息
+    const summary = document.createElement('div');
+    summary.className = 'knowledge-summary';
+    summary.style.cssText = 'padding:8px 12px;margin-bottom:10px;background:var(--bg-card);border-radius:var(--radius-sm);font-size:0.8em;';
+    summary.innerHTML = `
+      <div style="color:var(--accent);font-weight:600;margin-bottom:4px;">\u{1F4DA} 共 ${claims.length} 条知识</div>
+      <div style="color:var(--text-secondary);">来源分布：${Object.entries(agentCounts).map(([name, count]) => `${name}: ${count}条`).join(' \u00B7 ') || '暂无数据'}</div>
+    `;
+    container.appendChild(summary);
+
+    // 知识条目
     claims.slice(-20).reverse().forEach(c => {
-      const confidence = Math.round(c.confidence * 100);
+      const confidence = Math.round((c.confidence || 0) * 100);
       const item = document.createElement('div');
       item.className = 'knowledge-item';
+      item.style.borderLeftColor = c.solidified ? 'var(--gold)' : 'var(--accent)';
       item.innerHTML = `
-        <div class="claim-text">📖 ${c.claim}</div>
+        <div class="claim-text">\u{1F516} ${c.claim}</div>
         <div class="claim-meta">
-          <span>👤 ${c.created_by}</span>
-          <span>📍 ${c.location}</span>
-          <span>置信度:${confidence}%<span class="confidence-bar"><span class="confidence-fill" style="width:${confidence}%"></span></span></span>
-          ${c.solidified ? '<span style="color:var(--gold)">✓ 已固化</span>' : ''}
+          <span>\u{1F464} ${c.created_by}</span>
+          <span>\u{1F4CD} ${c.location}</span>
+          <span>置信度: ${confidence}%<span class="confidence-bar"><span class="confidence-fill" style="width:${confidence}%"></span></span></span>
+          ${c.solidified ? '<span style="color:var(--gold)">\u2713 已固化</span>' : ''}
         </div>
+      `;
+      container.appendChild(item);
+    });
+
+    if (claims.length === 0) {
+      container.innerHTML += '<p class="placeholder-text">暂无知识记录</p>';
+    }
+  }
+
+  // 渲染任务列表
+  function renderQuests(data) {
+    const container = document.getElementById('quest-list');
+    if (!container) return;
+
+    const active = data.active_quests || (data.quests && data.quests.active) || [];
+    const completed = data.completed_quests || (data.quests && data.quests.completed) || [];
+
+    container.innerHTML = '';
+
+    if (active.length === 0 && completed.length === 0) {
+      container.innerHTML = '<p class="placeholder-text">暂无任务</p>';
+      return;
+    }
+
+    active.forEach(q => {
+      const pct = q.progress_pct || Math.round(((q.progress || 0) / Math.max(q.target || 1, 1)) * 100);
+      const item = document.createElement('div');
+      item.className = 'quest-item';
+      item.innerHTML = `
+        <div class="quest-title">\u{1F3AF} ${q.title}</div>
+        <div class="quest-desc">${q.description || ''}</div>
+        <div class="quest-progress"><div class="quest-progress-fill" style="width:${pct}%"></div></div>
+        <div class="quest-reward">进度: ${q.progress || 0}/${q.target || 1} | 奖励: ${q.reward_text || (q.reward_gold + '金币')}</div>
+      `;
+      container.appendChild(item);
+    });
+
+    completed.forEach(q => {
+      const item = document.createElement('div');
+      item.className = 'quest-item completed';
+      item.innerHTML = `
+        <div class="quest-title">\u2705 ${q.title}</div>
+        <div class="quest-desc">${q.description || ''}</div>
+        <div class="quest-progress"><div class="quest-progress-fill" style="width:100%"></div></div>
+        <div class="quest-reward">奖励: ${q.reward_text || (q.reward_gold + '金币')}</div>
       `;
       container.appendChild(item);
     });
@@ -226,7 +285,7 @@
   }
 
   // 添加日志条目
-  function addLogEntry(text, icon = '📝') {
+  function addLogEntry(text, icon = '\u{1F4C4}') {
     const log = document.getElementById('log-content');
     if (!log) return;
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -237,16 +296,39 @@
     while (log.children.length > 30) log.removeChild(log.lastChild);
   }
 
-  // 添加摘要条目
+  // 添加摘要条目（显示在每日摘要区域）
   function addSummaryEntry(summary) {
-    const log = document.getElementById('log-content');
-    if (!log) return;
+    const container = document.getElementById('daily-summary');
+    if (!container) return;
+
+    // 移除占位符
+    const placeholder = container.querySelector('.placeholder-text');
+    if (placeholder) placeholder.remove();
+
+    const day = summary.day || Math.floor((currentState ? currentState.tick : 0) / 24) + 1;
+    const narrative = summary.overall_summary || summary.narrative || summary.text || '新的一天开始了';
+    const events = summary.key_events || summary.events || [];
+
     const entry = document.createElement('div');
-    entry.className = 'log-entry summary';
-    const day = summary.day || '?';
-    const text = summary.overall_summary || summary.narrative || '新的一天';
-    entry.innerHTML = `<span class="log-time">第${day}天</span><span class="log-icon">📋</span><span class="log-text">${text}</span>`;
-    log.insertBefore(entry, log.firstChild);
+    entry.className = 'summary-entry';
+    entry.style.cssText = 'margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);animation:fadeIn 0.4s ease;';
+
+    let eventsHtml = '';
+    if (events.length > 0) {
+      eventsHtml = `
+        <div style="margin-top:8px;padding-left:12px;border-left:2px solid var(--accent);">
+          ${events.map(e => `<div style="font-size:0.85em;color:var(--text-secondary);margin-bottom:2px;">\u2022 ${e}</div>`).join('')}
+        </div>
+      `;
+    }
+
+    entry.innerHTML = `
+      <div style="font-weight:600;color:var(--gold);margin-bottom:6px;font-size:0.95em;">\u{1F4C5} 第 ${day} 天</div>
+      <div style="line-height:1.6;color:var(--text-primary);font-size:0.9em;">${narrative}</div>
+      ${eventsHtml}
+    `;
+
+    container.insertBefore(entry, container.firstChild);
   }
 
   // 显示Toast消息
@@ -265,7 +347,7 @@
   // 显示地点详情
   function showLocationDetail(id, loc, agentsHere) {
     const locNames = { square: '广场', workshop: '工坊', wilderness: '荒野', school: '学校', mine: '矿洞' };
-    const agentNames = agentsHere.map(a => a.name).join('、') || '无人';
+    const agentNames = agentsHere.map(a => a.name).join('\u3001') || '无人';
     showModal(
       `${locNames[id] || loc.name}`,
       `${loc.description || ''}<br><br>当前在此的居民：${agentNames}`,
@@ -294,8 +376,8 @@
   function showModal(title, bodyHtml, actions = []) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay active';
-    const actionBtns = actions.map(a => 
-      `<button class="tutorial-btn ${a.primary ? 'primary' : 'modal-close'}" onclick="">${a.text}</button>`
+    const actionBtns = actions.map(a =>
+      `<button class="tutorial-btn ${a.primary ? 'primary' : 'modal-close'}">${a.text}</button>`
     ).join('');
     overlay.innerHTML = `
       <div class="modal">
@@ -320,11 +402,11 @@
     overlay.classList.add('active');
 
     const steps = [
-      { icon: '🏘️', title: '欢迎来到 K-town 边境小镇！', desc: '这是一个由AI居民自主生活的小镇。你作为新来的旅行者，可以观察、参与甚至影响小镇的发展。' },
-      { icon: '👥', title: '居民们有自己的生活', desc: '12位居民各有职业、性格和目标。他们会工作、社交、传播知识，过着自主的生活。' },
-      { icon: '🗺️', title: '探索小镇', desc: '点击地图上的地点可以查看详情。使用右侧的操作按钮移动、工作和社交。' },
-      { icon: '📖', title: '知识系统', desc: '居民们会创造、传播和质疑知识。你也可以添加自己的知识，影响小镇的认知。' },
-      { icon: '🎯', title: '开始你的旅程', desc: '完成新手任务，与居民建立关系，探索小镇的秘密。祝你在K-town度过愉快的时光！' }
+      { icon: '\u{1F3D8}', title: '欢迎来到 K-town 边境小镇！', desc: '这是一个由AI居民自主生活的小镇。你作为新来的旅行者，可以观察、参与甚至影响小镇的发展。' },
+      { icon: '\u{1F465}', title: '居民有自己的生活', desc: '12位居民各有职业、性格和目标。他们会工作、社交、传播知识，过着自主的生活。' },
+      { icon: '\u{1F5FA}', title: '探索小镇', desc: '点击地图上的地点可以查看详情。使用右侧的操作按钮移动、工作和社交。' },
+      { icon: '\u{1F4D6}', title: '知识系统', desc: '居民会创造、传播和质疑知识。你也可以添加自己的知识，影响小镇的认知。' },
+      { icon: '\u{1F3AF}', title: '开始你的旅途', desc: '完成新手任务，与居民建立关系，探索小镇的秘密。祝你在K-town度过愉快的光阴！' }
     ];
 
     const stepsHtml = steps.map((s, i) => `
@@ -344,30 +426,35 @@
     document.getElementById('tutorial-start').addEventListener('click', () => {
       overlay.classList.remove('active');
       localStorage.setItem('ktown_tutorial_done', 'true');
-      showToast('欢迎来到K-town！先和广场的梅奶奶打个招呼吧', 'success');
+      showToast('欢迎来到K-town！先和广场的精灵阿姨打个招呼吧', 'success');
     });
   }
 
   // 操作函数
   function movePlayer(location) {
-    sendAction('move', { target: location });
+    const msg = JSON.stringify({ type: 'player_action', action: { type: 'move', location: location } });
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    } else {
+      sendAction('move', { target: location });
+    }
     visitedLocations.add(location);
-    addLogEntry(`移动到了${getLocationCn(location)}`, '🚶');
+    addLogEntry(`移动到了${getLocationCn(location)}`, '\u{1F6B6}');
   }
 
   function doWork(action) {
     sendAction(action, {});
-    addLogEntry(`执行了${getActionName(action)}`, '⚒️');
+    addLogEntry(`执行了${getActionName(action)}`, '\u{2692}');
   }
 
   function doRest() {
     sendAction('rest', {});
-    addLogEntry('休息恢复体力', '💤');
+    addLogEntry('休息恢复体力', '\u{1F6CF}');
   }
 
   function talkToAgent() {
     sendAction('talk', { target: 'nearest' });
-    addLogEntry('和附近的居民聊天', '💬');
+    addLogEntry('和附近的居民聊天', '\u{1F4AC}');
   }
 
   function addKnowledge() {
@@ -376,7 +463,7 @@
     const claim = prompt('知识内容：');
     if (!claim) return;
     sendAction('claim', { subject, claim });
-    addLogEntry(`添加了知识：${subject}`, '📖');
+    addLogEntry(`添加了知识：${subject}`, '\u{1F4D6}');
     showToast('知识已添加！', 'success');
   }
 
@@ -393,6 +480,9 @@
 
   // 发送操作
   function sendAction(type, payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'player_action', action: { type, ...payload } }));
+    }
     fetch('/api/player/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -417,13 +507,13 @@
         if (content) content.classList.add('active');
 
         // 加载对应数据
-        if (target === 'knowledge') loadKnowledge();
-        if (target === 'quests') loadQuests();
+        if (target === 'knowledge' && currentState) renderKnowledge(currentState.knowledge);
+        if (target === 'quests' && currentState) renderQuests(currentState);
       });
     });
   }
 
-  // 加载知识列表
+  // 加载知识列表（API备用）
   function loadKnowledge() {
     fetch('/api/knowledge').then(r => r.json()).then(data => {
       const container = document.getElementById('knowledge-list');
@@ -435,12 +525,12 @@
         item.className = 'knowledge-item';
         item.style.borderLeftColor = c.solidified ? 'var(--gold)' : 'var(--accent)';
         item.innerHTML = `
-          <div class="claim-text">📖 ${c.claim}</div>
+          <div class="claim-text">\u{1F516} ${c.claim}</div>
           <div class="claim-meta">
-            <span>👤 ${c.created_by}</span>
-            <span>📍 ${c.location}</span>
-            <span>置信度:${confidence}%</span>
-            ${c.solidified ? '<span style="color:var(--gold)">✓ 已固化</span>' : ''}
+            <span>\u{1F464} ${c.created_by}</span>
+            <span>\u{1F4CD} ${c.location}</span>
+            <span>置信度: ${confidence}%</span>
+            ${c.solidified ? '<span style="color:var(--gold)">\u2713 已固化</span>' : ''}
           </div>
         `;
         container.appendChild(item);
@@ -448,7 +538,7 @@
     }).catch(() => {});
   }
 
-  // 加载任务列表
+  // 加载任务列表（API备用）
   function loadQuests() {
     fetch('/api/quests').then(r => r.json()).then(data => {
       const container = document.getElementById('quest-list');
@@ -460,7 +550,7 @@
         const item = document.createElement('div');
         item.className = `quest-item ${q.status === 'completed' ? 'completed' : ''}`;
         item.innerHTML = `
-          <div class="quest-title">${q.status === 'completed' ? '✅' : '🎯'} ${q.title}</div>
+          <div class="quest-title">${q.status === 'completed' ? '\u2705' : '\u{1F3AF}'} ${q.title}</div>
           <div class="quest-desc">${q.description}</div>
           <div class="quest-progress"><div class="quest-progress-fill" style="width:${q.progress_pct}%"></div></div>
           <div class="quest-reward">进度: ${q.progress}/${q.target} | 奖励: ${q.reward_text || q.reward_gold + '金币'}</div>
@@ -477,16 +567,16 @@
   }
 
   function getWeatherDisplay(weather) {
-    const map = { clear: '☀️ 晴朗', cloudy: '☁️ 多云', rainy: '🌧️ 下雨', snowy: '❄️ 下雪', windy: '💨 大风' };
-    return map[weather] || '☀️ 晴朗';
+    const map = { clear: '\u2600 晴朗', cloudy: '\u26C5 多云', rainy: '\u{1F327} 下雨', snowy: '\u2744 下雪', windy: '\u{1F32A} 大风' };
+    return map[weather] || '\u2600 晴朗';
   }
 
   function getTimeOfDay(tick) {
     const hour = tick % 24;
-    if (hour >= 6 && hour < 9) return '🌅 早晨';
-    if (hour >= 9 && hour < 14) return '☀️ 白天';
-    if (hour >= 14 && hour < 18) return '🌇 傍晚';
-    return '🌙 夜晚';
+    if (hour >= 6 && hour < 9) return '\u{1F305} 早晨';
+    if (hour >= 9 && hour < 14) return '\u2600 白天';
+    if (hour >= 14 && hour < 18) return '\u{1F306} 傍晚';
+    return '\u{1F303} 夜晚';
   }
 
   function updateTimeIndicator(tick) {
@@ -505,12 +595,12 @@
 
   function getAgentEmoji(id) {
     const map = {
-      agent_elder: '👵', agent_blacksmith: '🔨', agent_carpenter: '🪵',
-      agent_forager: '🌿', agent_scout: '🧭', agent_merchant: '💰',
-      agent_teacher: '📖', agent_farmer: '🌾', agent_storyteller: '📜',
-      agent_healer: '💊', agent_miner: '⛏️', agent_player: '👤'
+      agent_elder: '\u{1F474}', agent_blacksmith: '\u{2692}', agent_carpenter: '\u{1FA93}',
+      agent_forager: '\u{1F344}', agent_scout: '\u{1F985}', agent_merchant: '\u{1F4B5}',
+      agent_teacher: '\u{1F4D6}', agent_farmer: '\u{1F33E}', agent_storyteller: '\u{1F4DC}',
+      agent_healer: '\u{1FA7A}', agent_miner: '\u{26CF}', agent_player: '\u{1F464}'
     };
-    return map[id] || '👤';
+    return map[id] || '\u{1F464}';
   }
 
   function getAgentColor(id) {
@@ -529,14 +619,18 @@
 
   function getEventIcon(type) {
     const map = {
-      weather_change: '🌤️', resource_found: '💎', social_encounter: '👋',
-      item_crafted: '🔨', rumor_spread: '🗣️', trade: '💱', festival: '🎉',
-      disaster: '⚠️', player_action: '🎮'
+      weather_change: '\u{1F324}', resource_found: '\u{1F48E}', social_encounter: '\u{1F44D}',
+      item_crafted: '\u{2692}', rumor_spread: '\u{1F5E3}', trade: '\u{1F4B0}', festival: '\u{1F389}',
+      disaster: '\u26A0', player_action: '\u{1F3AE}'
     };
-    return map[type] || '📝';
+    return map[type] || '\u{1F4C4}';
   }
 
-  // 定期轮询（WebSocket备用）
+  // 占位函数（避免引用错误）
+  function showContextTip() { /* stub */ }
+  function updateVisualizations() { /* stub */ }
+
+  // 定时轮询（WebSocket备用）
   setInterval(() => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       fetch('/api/state').then(r => r.json()).then(data => {

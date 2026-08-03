@@ -1,4 +1,4 @@
-﻿"""K-town 对话系统模块"""
+"""K-town 对话系统模块"""
 import random
 from typing import Dict, List, Any, Optional
 

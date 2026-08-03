@@ -1,4 +1,4 @@
-﻿"""知识引擎模块"""
+"""知识引擎模块"""
 import random,time,uuid
 from typing import Dict,List,Optional
 from models import KnowledgeClaim,ClaimSource,ClaimScope

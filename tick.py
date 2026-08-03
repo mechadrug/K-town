@@ -1,4 +1,4 @@
-﻿"""Tick loop engine."""
+"""Tick loop engine."""
 import asyncio
 import random
 from typing import List, Dict, Any, Callable, Optional, Tuple
@@ -583,6 +583,14 @@ class TickEngine:
             narrative += f"目前{mood_desc}，{change_text}。"
             narrative += f"当前位于{agent._get_location_cn(agent.state.location)}，体力{round(agent.state.energy,1)}点，持有{agent.state.gold}金币。"
 
+            # 确定变化类型（用于前端显示）
+            if gold_change_agent > 5 or energy_change > 5:
+                change_type = "positive"
+            elif gold_change_agent < -5 or energy_change < -10:
+                change_type = "negative"
+            else:
+                change_type = "neutral"
+
             agent_summaries.append({
                 "id": agent.identity.id,
                 "name": agent.identity.name,
@@ -598,6 +606,7 @@ class TickEngine:
                 "gold_change": gold_change_agent,
                 "knowledge_count": len(agent.knowledge),
                 "narrative": narrative,
+                "change_type": change_type,
                 "goal": agent.top_goal().description if agent.top_goal() else "暂无目标"
             })
 
@@ -664,6 +673,7 @@ class TickEngine:
                 "knowledge_change": knowledge_change,
                 "avg_energy": round(avg_energy, 1),
                 "happy_count": happy_count,
+                "anxious_count": anxious_count,
                 "events_count": len(self.current_day_events)
             }
         }
@@ -941,6 +951,4 @@ class TickEngine:
     def stop(self):
         self._running = False
         self.db.close()
-    def stop(self):
-        self._running = False
-        self.db.close()
+    

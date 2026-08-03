@@ -1,4 +1,4 @@
-﻿// K-town 可视化模块
+// K-town 可视化模块
 (function() {
   'use strict';
 

@@ -1,4 +1,4 @@
-﻿import random,time,uuid
+import random,time,uuid
 from typing import List,Optional,Dict,Any
 from models import AgentIdentity,AgentState,Goal,MemoryEntry,Mood,Role,KnowledgeClaim,ClaimSource
 
@@ -65,6 +65,14 @@ class Agent:
                 self.state.energy = max(0, self.state.energy - 10)
                 if self.state.hunger > 60:
                     self.state.mood = Mood.SAD
+
+        # 食物购买（饥饿度高+食物少+有金币→购买食物）
+        if hour == 22 and self.state.hunger > 30 and self.state.food < 3 and self.state.gold > 10:
+            cost = 5  # 基础食物价格
+            max_buy = min(3, self.state.gold // cost)
+            if max_buy > 0:
+                self.state.gold -= max_buy * cost
+                self.state.food += max_buy
 
     def decide(self, hour, agents_here, events):
         n = self.identity.name

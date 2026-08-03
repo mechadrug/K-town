@@ -1,4 +1,4 @@
-﻿"""Configuration loader for K-town server."""
+"""Configuration loader for K-town server."""
 import os
 import yaml
 from dataclasses import dataclass, field

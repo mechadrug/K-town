@@ -1,4 +1,4 @@
-﻿"""事件系统模块"""
+"""事件系统模块"""
 import random
 from typing import Dict,List,Callable
 from models import Event,EventType
