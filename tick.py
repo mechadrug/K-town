@@ -192,6 +192,10 @@ class TickEngine:
                 )
             self.current_day_events = []
             self._llm_calls_today = 0
+            # 重置玩家AP
+            for a in self.agents:
+                if a.identity.role.value == 'player':
+                    a.state.ap = a.state.ap_max
             self.current_day += 1
             # 关系衰减：每天好感度向0回归5%（需要持续维护关系）
             for agent in self.agents:
@@ -705,6 +709,14 @@ class TickEngine:
         t = action.get("type", "")
         tgt = action.get("target", "")
         loc_cn = agent._get_location_cn(agent.state.location)
+        # 玩家行动消耗AP
+        if agent.identity.role.value == 'player' and t in ('move', 'work', 'talk', 'rest', 'investigate'):
+            ap_cost = 2 if t == 'investigate' else 1
+            if agent.state.ap >= ap_cost:
+                agent.state.ap -= ap_cost
+            else:
+                self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
+                return
         if t == "move" and tgt:
             self.world.remove_agent_from_location(agent.identity.id, agent.state.location)
             agent.state.location = tgt

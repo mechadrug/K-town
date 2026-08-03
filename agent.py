@@ -309,7 +309,9 @@ class Agent:
             "food": self.state.food,
             "hunger": round(self.state.hunger, 1),
             "personality": self.identity.personality,
-            "social_ties": {k: round(v, 1) for k, v in self.state.social_ties.items()}
+            "social_ties": {k: round(v, 1) for k, v in self.state.social_ties.items()},
+            "ap": self.state.ap,
+            "ap_max": self.state.ap_max
         }
 
     def _get_role_cn(self, role: str) -> str:

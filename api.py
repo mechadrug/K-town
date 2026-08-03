@@ -209,6 +209,16 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     @app.post("/api/player/action")
     async def player_action(action:dict):
+        # 检查玩家AP
+        ap_cost = 1
+        if action.get('type') == 'investigate':
+            ap_cost = 2
+        for a in agents:
+            if a.identity.id == 'agent_player':
+                if a.state.ap < ap_cost:
+                    return {'status': 'error', 'result': f'AP不足（剩余{a.state.ap}点，需要{ap_cost}点）'}
+                a.state.ap -= ap_cost
+                break
         t=action.get("type","")
         aid=action.get("agent_id","agent_player")
         tgt=action.get("target","")
