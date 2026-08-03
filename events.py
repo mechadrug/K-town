@@ -1,6 +1,6 @@
-import random
+﻿import random
 from typing import Dict,List,Callable
-from .models import Event,EventType
+from models import Event,EventType
 
 class EventBus:
     def __init__(self):
