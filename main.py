@@ -57,7 +57,7 @@ def init_system():
     engine.on_event = on_event
 
     agent_ids = [a.identity.id for a in agents]
-    engine.scheduler.generate_daily_schedule(1, agent_ids)
+    engine.scheduler.generate_daily_schedule(1, agent_ids, world)
     print("Day 1 events scheduled")
 
     app = create_app(world, agents, bus, logger, knowledge, llm, engine, ws_clients)
