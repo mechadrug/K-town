@@ -7,7 +7,7 @@ from events import EventBus, EventScheduler
 from knowledge import KnowledgeEngine
 from logger import Logger
 from llm import LLMClient
-from models import EventType
+from models import EventType, Mood
 from db import Database
 
 
@@ -162,7 +162,7 @@ class TickEngine:
             self.current_day_events = []
             self.current_day += 1
             aids = [a.identity.id for a in self.agents]
-            self.scheduler.generate_daily_schedule(self.current_day, aids)
+            self.scheduler.generate_daily_schedule(self.current_day, aids, self.world)
             # 保存下一天的前置状态
             self._save_current_state()
             if self.on_day_summary:
@@ -299,7 +299,45 @@ class TickEngine:
             item = event.payload.get("item", "unknown")
             aid = event.payload.get("agent_id", "")
             if aid: self.knowledge.observe(aid, "craft", f"制作了{item}", event.location)
-        elif event.type == EventType.RUMOR_SPREAD:
+        elif event.type == EventType.WEATHER_IMPACT:
+            impact = event.payload.get("impact", 0)
+            for a in self.agents:
+                if a.state.location == event.location:
+                    # 天气影响工作效率：降低体力消耗
+                    a.state.energy = max(0, a.state.energy + impact * 10)
+        elif event.type == EventType.SOCIAL_RELATION_CHANGE:
+            agent1 = event.payload.get("agent1", "")
+            agent2 = event.payload.get("agent2", "")
+            change = event.payload.get("change", 0)
+            for a in self.agents:
+                if a.identity.id == agent1:
+                    a.state.social_ties[agent2] = a.state.social_ties.get(agent2, 0) + change
+                elif a.identity.id == agent2:
+                    a.state.social_ties[agent1] = a.state.social_ties.get(agent1, 0) + change
+        elif event.type == EventType.PRICE_CHANGE:
+            # 价格变化，影响交易
+            pass
+        elif event.type == EventType.KNOWLEDGE_CONFLICT:
+            claim1 = event.payload.get("claim1", "")
+            claim2 = event.payload.get("claim2", "")
+            self.knowledge.dispute(claim1, claim2)
+        elif event.type == EventType.AGENT_GOAL_COMPLETE:
+            agent_id = event.payload.get("agent_id", "")
+            goal = event.payload.get("goal", "")
+            for a in self.agents:
+                if a.identity.id == agent_id:
+                    # 完成目标，心情变好
+                    a.state.mood = Mood.HAPPY
+                    a.state.gold += 20
+                    break
+        elif event.type == EventType.FESTIVAL:
+            # 节日，所有人心情变好
+            for a in self.agents:
+                a.state.mood = Mood.HAPPY
+                a.state.energy = min(100, a.state.energy + 10)
+        elif event.type == EventType.DISASTER:
+            # 灾害，资源减少，Agent体力下降
+            for a in self.agenelif event.type == EventType.RUMOR_SPREAD:
             claim = event.payload.get("claim", "")
             f = event.payload.get("from", "")
             t = event.payload.get("to", "")

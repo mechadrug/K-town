@@ -301,7 +301,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             world.add_agent_to_location(a.identity.id, a.state.location)
         # 重新生成第一天事件
         agent_ids = [a.identity.id for a in agents]
-        tick_engine.scheduler.generate_daily_schedule(1, agent_ids)
+        tick_engine.scheduler.generate_daily_schedule(1, agent_ids, world)
         return {"status":"ok", "message":"模拟已重置"}
 
     @app.websocket("/ws")
