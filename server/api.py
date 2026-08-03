@@ -1,4 +1,4 @@
-"""FastAPI + WebSocket API layer."""
+﻿"""FastAPI + WebSocket API layer."""
 import json,asyncio,os
 from typing import Set
 from fastapi import FastAPI,WebSocket,WebSocketDisconnect
@@ -43,17 +43,48 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     @app.get("/api/days")
     async def get_days():
-        return tick_engine.day_summaries
+        # 合并内存和数据库的历史摘要
+        db_summaries = tick_engine.db.get_day_summaries()
+        # 过滤掉已经过期的，保留最新的30天
+        all_summaries = db_summaries + tick_engine.day_summaries
+        # 去重，按day排序
+        seen_days = set()
+        unique_summaries = []
+        for s in sorted(all_summaries, key=lambda x: x["day"]):
+            if s["day"] not in seen_days:
+                seen_days.add(s["day"])
+                unique_summaries.append(s)
+        return unique_summaries[-30:]
 
     @app.get("/api/day/{day}")
     async def get_day(day:int):
-        if 1<=day<=len(tick_engine.day_summaries):
-            return tick_engine.day_summaries[day-1]
+        # 先查内存
+        for s in tick_engine.day_summaries:
+            if s["day"] == day:
+                return s
+        # 再查数据库
+        db_summaries = tick_engine.db.get_day_summaries()
+        for s in db_summaries:
+            if s["day"] == day:
+                return s
         return JSONResponse({"error":"day not found"},status_code=404)
 
     @app.get("/api/logs/decisions")
     async def get_decisions(n:int=50):
         return logger.query_decisions(n)
+
+    @app.get("/api/logs/agents/{day}")
+    async def get_agent_logs(day:int, agent_id:str = None):
+        """获取指定日期的Agent行为日志"""
+        return tick_engine.db.get_agent_logs(day, agent_id)
+
+    @app.get("/api/snapshots/{day}")
+    async def get_snapshot(day:int):
+        """获取指定日期的世界状态快照"""
+        snapshot = tick_engine.db.get_world_snapshot(day)
+        if snapshot:
+            return snapshot
+        return JSONResponse({"error":"snapshot not found"},status_code=404)
 
     @app.post("/api/player/action")
     async def player_action(action:dict):
@@ -81,12 +112,23 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         await websocket.accept()
         ws_clients.add(websocket)
         try:
-            await websocket.send_json({"type":"state","data":{
-                "tick":world.state.tick,"weather":world.state.weather,
-                "agents":[a.to_dict() for a in agents],
-                "locations":world.to_dict()["locations"],
-                "knowledge":knowledge.to_dict()
-            }})
+            # 发送当前状态和历史摘要
+            await websocket.send_json({
+                "type": "state",
+                "data": {
+                    "tick": world.state.tick,
+                    "weather": world.state.weather,
+                    "agents": [a.to_dict() for a in agents],
+                    "locations": world.to_dict()["locations"],
+                    "knowledge": knowledge.to_dict()
+                }
+            })
+            # 发送历史每日摘要
+            for summary in tick_engine.day_summaries[-10:]:
+                await websocket.send_json({
+                    "type": "day_summary",
+                    "data": summary
+                })
             while True:
                 raw=await websocket.receive_text()
                 try:

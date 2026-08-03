@@ -1,128 +1,135 @@
-<!DOCTYPE html>
-<html lang="zh">
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>K-town 小镇模拟器</title>
 <style>
 :root {
-  --bg-primary: #0f0f1a;
-  --bg-secondary: #1a1a2e;
-  --bg-card: #16213e;
-  --bg-hover: #1f3460;
-  --accent: #e94560;
-  --accent-light: #ff6b81;
-  --gold: #f5c542;
-  --green: #00d2a0;
-  --blue: #4fc3f7;
-  --purple: #b388ff;
-  --orange: #ff9800;
-  --text: #e0e0e0;
-  --text-dim: #8892b0;
-  --border: rgba(255,255,255,0.08);
-  --shadow: 0 8px 32px rgba(0,0,0,0.4);
-  --radius: 16px;
-  --radius-sm: 10px;
+  --bg-primary: #0a0a14;
+  --bg-secondary: #121220;
+  --bg-card: #181828;
+  --bg-hover: #20203a;
+  --accent: #ff3366;
+  --accent-light: #ff6699;
+  --gold: #ffd700;
+  --green: #00ff88;
+  --blue: #00bfff;
+  --purple: #aa88ff;
+  --orange: #ff8800;
+  --text: #e0e0ff;
+  --text-dim: #8080a0;
+  --border: rgba(255,255,255,0.06);
+  --shadow: 0 12px 40px rgba(0,0,0,0.5);
+  --radius: 18px;
+  --radius-sm: 12px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1a3e 100%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #141430 100%);
   color: var(--text);
   min-height: 100vh;
-  padding: 24px;
+  padding: 28px;
 }
 
-/* Header */
+/* 头部 */
 .header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 36px;
   position: relative;
 }
 .header h1 {
-  font-size: 2.2em;
+  font-size: 2.5em;
   font-weight: 800;
   background: linear-gradient(135deg, var(--accent), var(--gold));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  margin-bottom: 8px;
 }
 .header .subtitle {
   color: var(--text-dim);
-  font-size: 0.95em;
-  margin-top: 6px;
+  font-size: 1em;
+  margin-top: 4px;
 }
 
-/* Status bar */
+/* 状态栏 */
 .status-bar {
   display: flex;
   justify-content: center;
-  gap: 24px;
-  margin-bottom: 28px;
+  gap: 28px;
+  margin-bottom: 32px;
   flex-wrap: wrap;
 }
 .status-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
+  gap: 10px;
+  padding: 12px 24px;
   background: var(--bg-card);
   border-radius: 50px;
   border: 1px solid var(--border);
-  font-size: 0.9em;
+  font-size: 0.95em;
+  box-shadow: var(--shadow);
 }
 .status-pill .icon {
-  width: 32px; height: 32px;
+  width: 36px; height: 36px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+  font-size: 18px;
 }
-.status-pill .icon.tick { background: rgba(233,69,96,0.2); color: var(--accent); }
-.status-pill .icon.weather { background: rgba(79,195,247,0.2); color: var(--blue); }
-.status-pill .icon.knowledge { background: rgba(0,210,160,0.2); color: var(--green); }
-.status-pill .icon.day { background: rgba(245,197,66,0.2); color: var(--gold); }
-.status-pill b { font-size: 1.1em; }
+.status-pill .icon.tick { background: rgba(255,51,102,0.2); color: var(--accent); }
+.status-pill .icon.weather { background: rgba(0,191,255,0.2); color: var(--blue); }
+.status-pill .icon.knowledge { background: rgba(0,255,136,0.2); color: var(--green); }
+.status-pill .icon.day { background: rgba(255,215,0,0.2); color: var(--gold); }
+.status-pill b { font-size: 1.2em; margin-left: 4px; }
 
-/* Main grid */
+/* 主网格 */
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  max-width: 1200px;
+  gap: 24px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: 28px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
 }
 .card h2 {
-  font-size: 1em;
+  font-size: 1.1em;
   font-weight: 600;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--text);
 }
 .card h2 .dot {
-  width: 8px; height: 8px;
+  width: 10px; height: 10px;
   border-radius: 50%;
   background: var(--accent);
 }
 .card.full { grid-column: 1 / -1; }
 
-/* Map */
+/* 地图 */
 .map-container {
   position: relative;
   width: 100%;
-  height: 320px;
-  background: linear-gradient(135deg, #0a0a15 0%, #141428 100%);
+  height: 360px;
+  background: linear-gradient(135deg, #080810 0%, #101028 100%);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   overflow: hidden;
@@ -131,17 +138,17 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(79,195,247,0.03) 0%, transparent 70%);
+  background: radial-gradient(circle at 50% 50%, rgba(0,191,255,0.04) 0%, transparent 70%);
 }
 .location-zone {
   position: absolute;
   transform: translate(-50%, -50%);
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 11px;
+  padding: 8px 18px;
+  border-radius: 24px;
+  font-size: 13px;
   font-weight: 600;
-  color: rgba(255,255,255,0.7);
-  border: 1px dashed rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.8);
+  border: 1.5px dashed rgba(255,255,255,0.2);
   background: rgba(255,255,255,0.03);
   pointer-events: none;
 }
@@ -149,24 +156,24 @@ body {
 .loc-workshop { left: 22%; top: 28%; }
 .loc-wilderness { left: 78%; top: 72%; }
 
-/* Agents on map */
+/* Agent标记 */
 .agent-marker {
   position: absolute;
-  width: 36px; height: 36px;
+  width: 42px; height: 42px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 9px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   color: white;
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
-  border: 2px solid rgba(255,255,255,0.3);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  border: 2.5px solid rgba(255,255,255,0.3);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.4);
   transform: translate(-50%, -50%);
 }
 .agent-marker:hover {
-  transform: translate(-50%, -50%) scale(1.4);
+  transform: translate(-50%, -50%) scale(1.5);
   z-index: 100;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
 }
 
 .elder { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
@@ -178,184 +185,176 @@ body {
 .teacher { background: linear-gradient(135deg, #3498db, #2980b9); }
 .farmer { background: linear-gradient(135deg, #1abc9c, #16a085); }
 .storyteller { background: linear-gradient(135deg, #e91e63, #c2185b); }
-.player { background: linear-gradient(135deg, #fff, #f0f0f0); color: #333; border: 3px solid var(--accent); }
+.player { background: linear-gradient(135deg, #ffffff, #f0f0f0); color: #333; border: 3px solid var(--accent); }
 
-/* Agent list */
+/* Agent卡片 */
 .agent-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  max-height: 280px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  max-height: 360px;
   overflow-y: auto;
 }
 .agent-card {
-  background: rgba(255,255,255,0.03);
+  background: var(--bg-hover);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--border);
-  transition: all 0.2s;
+  transition: all 0.3s ease;
 }
 .agent-card:hover {
-  background: var(--bg-hover);
-  border-color: rgba(255,255,255,0.15);
+  border-color: var(--accent);
+  background: rgba(255,51,102,0.08);
 }
 .agent-card .name {
   font-weight: 600;
-  font-size: 0.85em;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.agent-card .name .role-dot {
+.agent-card .role-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .agent-card .stats {
-  font-size: 0.75em;
-  color: var(--text-dim);
   display: flex;
   gap: 8px;
+  font-size: 0.85em;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 .agent-card .stats span {
-  display: flex;
-  align-items: center;
-  gap: 3px;
+  color: var(--text-dim);
 }
-
-/* Energy bar */
-.energy-bar {
-  height: 3px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 2px;
-  margin-top: 6px;
+.agent-card .energy-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
   overflow: hidden;
 }
-.energy-bar .fill {
+.agent-card .energy-bar .fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.5s, background 0.5s;
+  border-radius: 3px;
+  transition: width 0.5s ease;
 }
-.energy-high { background: var(--green); }
-.energy-mid { background: var(--gold); }
-.energy-low { background: var(--accent); }
+.energy-high { background: linear-gradient(90deg, var(--green), #00cc6a); }
+.energy-mid { background: linear-gradient(90deg, var(--gold), #ccac00); }
+.energy-low { background: linear-gradient(90deg, var(--accent), #cc2952); }
 
-/* Event log */
+/* 日志容器 */
 .log-container {
   max-height: 200px;
   overflow-y: auto;
-  font-size: 0.8em;
+  padding-right: 8px;
 }
 .log-entry {
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 10px;
-  color: var(--text-dim);
+  font-size: 0.9em;
 }
+.log-entry:last-child { border-bottom: none; }
 .log-entry .tick {
   color: var(--accent);
   font-weight: 600;
-  min-width: 50px;
+  margin-right: 8px;
+  font-size: 0.85em;
 }
-.log-entry .text { flex: 1; }
 
-/* Day summaries */
+/* 每日摘要 */
 .day-card {
-  background: rgba(255,255,255,0.03);
+  background: var(--bg-hover);
   border-radius: var(--radius-sm);
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
 }
 .day-card h3 {
-  font-size: 0.9em;
-  margin-bottom: 8px;
+  font-size: 1.2em;
+  margin-bottom: 12px;
   color: var(--gold);
+}
+.day-card .overall-summary {
+  line-height: 1.6;
+  margin-bottom: 16px;
+  color: var(--text);
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 .day-card .stats-row {
   display: flex;
-  gap: 16px;
-  font-size: 0.8em;
-  color: var(--text-dim);
-  margin-bottom: 8px;
-}
-.day-card .agent-chips {
-  display: flex;
+  gap: 18px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
-  gap: 6px;
 }
-.agent-chip {
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 0.7em;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
+.day-card .stats-row span {
+  font-size: 0.9em;
   color: var(--text-dim);
 }
-.agent-chip.happy { border-color: rgba(0,210,160,0.3); color: var(--green); }
-.agent-chip.sad { border-color: rgba(233,69,96,0.3); color: var(--accent); }
-.agent-chip.anxious { border-color: rgba(245,197,66,0.3); color: var(--gold); }
+.day-card .agent-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.day-card .agent-item {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.day-card .agent-item b {
+  color: var(--accent-light);
+  display: block;
+  margin-bottom: 4px;
+}
 
-/* Connection indicator */
-#ws-status {
-  position: fixed;
-  top: 16px; right: 16px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 0.75em;
-  font-weight: 600;
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
   background: var(--accent);
-  color: white;
-  transition: all 0.3s;
-  z-index: 1000;
-}
-#ws-status.connected {
-  background: var(--green);
+  border-radius: 3px;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-
-/* Responsive */
+/* 响应式 */
 @media (max-width: 768px) {
   .grid { grid-template-columns: 1fr; }
   .agent-grid { grid-template-columns: 1fr; }
-  .status-bar { gap: 10px; }
-  .status-pill { padding: 8px 14px; font-size: 0.8em; }
+  .status-bar { gap: 12px; }
+  .status-pill { padding: 8px 16px; font-size: 0.85em; }
 }
 </style>
 </head>
 <body>
-<div id="ws-status">连接中...</div>
-
 <div class="header">
-  <h1>K-TOWN</h1>
-  <div class="subtitle">多智能体小镇模拟</div>
+  <h1>K-town 小镇模拟器</h1>
+  <div class="subtitle">多智能体生活模拟 · 实时更新</div>
+  <div class="subtitle" id="ws-status" style="color: var(--green); margin-top: 8px;">连接中...</div>
 </div>
 
 <div class="status-bar">
   <div class="status-pill">
-    <div class="icon tick">T</div>
-    <span>Tick <b id="tick">0</b></span>
+    <div class="icon tick">⏱️</div>
+    <span>Tick: <b id="tick">0</b></span>
   </div>
   <div class="status-pill">
-    <div class="icon weather">W</div>
-    <span><b id="weather">-</b></span>
+    <div class="icon weather">🌤️</div>
+    <span>天气: <b id="weather">-</b></span>
   </div>
   <div class="status-pill">
-    <div class="icon knowledge">K</div>
-    <span>知识 <b id="knowledge">0</b></span>
-  </div>
-  <div class="status-pill">
-    <div class="icon day">D</div>
+    <div class="icon day">📅</div>
     <span>第 <b id="day">1</b> 天</span>
+  </div>
+  <div class="status-pill">
+    <div class="icon knowledge">📚</div>
+    <span>知识: <b id="knowledge">0</b> 条</span>
   </div>
 </div>
 
@@ -363,24 +362,24 @@ body {
   <div class="card">
     <h2><span class="dot"></span>小镇地图</h2>
     <div class="map-container" id="map">
-      <div class="location-zone loc-square">广场</div>
-      <div class="location-zone loc-workshop">工坊</div>
-      <div class="location-zone loc-wilderness">荒野</div>
+      <div class="location-zone loc-square">🏘️ 广场</div>
+      <div class="location-zone loc-workshop">🔨 工坊</div>
+      <div class="location-zone loc-wilderness">🌿 荒野</div>
     </div>
   </div>
 
   <div class="card">
-    <h2><span class="dot"></span>Agent 状态</h2>
+    <h2><span class="dot"></span>居民状态</h2>
     <div class="agent-grid" id="agent-grid"></div>
   </div>
 
   <div class="card full">
-    <h2><span class="dot"></span>每日行为日志</h2>
+    <h2><span class="dot"></span>实时行为日志</h2>
     <div class="log-container" id="log-container"></div>
   </div>
 
   <div class="card full">
-    <h2><span class="dot"></span>每日摘要</h2>
+    <h2><span class="dot"></span>每日总结</h2>
     <div id="day-summaries"></div>
   </div>
 </div>
@@ -391,28 +390,41 @@ let ws, currentState = {}, daySummaries = [], logs = [];
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onopen = () => {
-    document.getElementById('ws-status').textContent = '已连接';
+    document.getElementById('ws-status').textContent = '✅ 已连接';
     document.getElementById('ws-status').classList.add('connected');
   };
   ws.onclose = () => {
-    document.getElementById('ws-status').textContent = '已断开';
+    document.getElementById('ws-status').textContent = '❌ 已断开，重连中...';
     document.getElementById('ws-status').classList.remove('connected');
     setTimeout(connect, 2000);
   };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'state') updateState(msg.data);
-    if (msg.type === 'day_summary') { daySummaries.push(msg.data); render(); }
-    if (msg.type === 'event') { logs.unshift(msg.data); if(logs.length>50)logs.pop(); render(); }
+    if (msg.type === 'day_summary') { 
+      daySummaries.push(msg.data); 
+      if (daySummaries.length > 30) daySummaries.shift();
+      render(); 
+    }
+    if (msg.type === 'event') { 
+      logs.unshift(msg.data); 
+      if(logs.length>100) logs.pop(); 
+      render(); 
+    }
   };
 }
 
 function updateState(data) {
   currentState = data;
   document.getElementById('tick').textContent = data.tick;
-  document.getElementById('weather').textContent = data.weather;
+  document.getElementById('weather').textContent = getWeatherCn(data.weather);
   document.getElementById('day').textContent = Math.floor(data.tick / 24) + 1;
   document.getElementById('knowledge').textContent = data.knowledge?.total_claims || 0;
+}
+
+function getWeatherCn(weather) {
+  const map = {clear: '晴朗', rain: '下雨', snow: '下雪', wind: '大风', fog: '大雾'};
+  return map[weather] || weather;
 }
 
 function render() { renderMap(); renderAgents(); renderLogs(); renderDays(); }
@@ -422,20 +434,39 @@ function renderMap() {
   const map = document.getElementById('map');
   map.querySelectorAll('.agent-marker').forEach(e => e.remove());
   const pos = { square: {x:50,y:50}, workshop: {x:22,y:28}, wilderness: {x:78,y:72} };
-  const cls = { agent_elder:'elder', agent_blacksmith:'blacksmith', agent_carpenter:'carpenter',
-    agent_forager:'forager', agent_scout:'scout', agent_merchant:'merchant', agent_teacher:'teacher',
-    agent_farmer:'farmer', agent_storyteller:'storyteller', agent_player:'player' };
+  const clsMap = { 
+    agent_elder:'elder', agent_blacksmith:'blacksmith', agent_carpenter:'carpenter',
+    agent_forager:'forager', agent_scout:'scout', agent_merchant:'merchant', 
+    agent_teacher:'teacher', agent_farmer:'farmer', agent_storyteller:'storyteller', 
+    agent_player:'player' 
+  };
+  const emojiMap = {
+    agent_elder:'👵', agent_blacksmith:'🔨', agent_carpenter:'🪵',
+    agent_forager:'🌿', agent_scout:'🧭', agent_merchant:'💰', 
+    agent_teacher:'📖', agent_farmer:'🌾', agent_storyteller:'📜', 
+    agent_player:'👤'
+  };
   currentState.agents.forEach((a, i) => {
     const d = document.createElement('div');
-    d.className = 'agent-marker ' + (cls[a.id] || '');
+    d.className = 'agent-marker ' + (clsMap[a.id] || '');
     const p = pos[a.location] || {x:50,y:50};
-    const off = (i % 4) * 10 - 15;
+    const off = (i % 4) * 12 - 18;
     d.style.left = (p.x + off) + '%';
-    d.style.top = (p.y + Math.floor(i/4) * 8) + '%';
-    d.textContent = a.name.split(' ')[0];
-    d.title = `${a.name} | 体力:${a.energy} | ${a.mood} | ${a.location} | 金币:${a.gold}`;
+    d.style.top = (p.y + Math.floor(i/4) * 10) + '%';
+    d.textContent = emojiMap[a.id] || '👤';
+    d.title = `${a.name} | 体力:${a.energy} | ${getMoodEmoji(a.mood)}${getMoodCn(a.mood)} | ${a.location_cn} | 金币:${a.gold}`;
     map.appendChild(d);
   });
+}
+
+function getMoodEmoji(mood) {
+  const map = {happy:'😊', neutral:'😐', anxious:'😰', angry:'😠', sad:'😢'};
+  return map[mood] || '❓';
+}
+
+function getMoodCn(mood) {
+  const map = {happy:'心情愉快', neutral:'心情平静', anxious:'有些焦虑', angry:'非常生气', sad:'心情低落'};
+  return map[mood] || '心情未知';
 }
 
 function renderAgents() {
@@ -443,10 +474,13 @@ function renderAgents() {
   const g = document.getElementById('agent-grid');
   g.innerHTML = currentState.agents.map(a => {
     const ec = a.energy > 60 ? 'energy-high' : a.energy > 30 ? 'energy-mid' : 'energy-low';
-    const mc = a.mood === 'happy' ? 'style="color:var(--green)"' : a.mood === 'sad' ? 'style="color:var(--accent)"' : 'style="color:var(--gold)"';
     return `<div class="agent-card">
-      <div class="name"><span class="role-dot" style="background:var(--${a.role==='elder'?'purple':a.role==='blacksmith'?'orange':a.role==='forager'?'green':'blue'})"></span>${a.name}</div>
-      <div class="stats"><span ${mc}>${a.mood}</span><span>💰${a.gold}</span><span>📍${a.location}</span></div>
+      <div class="name"><span class="role-dot" style="background:var(--${a.role==='elder'?'purple':a.role==='blacksmith'?'orange':a.role==='forager'?'green':'blue'})"></span>${a.role_cn} ${a.name}</div>
+      <div class="stats">
+        <span>${getMoodEmoji(a.mood)} ${getMoodCn(a.mood)}</span>
+        <span>💰 ${a.gold}</span>
+        <span>📍 ${a.location_cn}</span>
+      </div>
       <div class="energy-bar"><div class="fill ${ec}" style="width:${a.energy}%"></div></div>
     </div>`;
   }).join('');
@@ -454,29 +488,48 @@ function renderAgents() {
 
 function renderLogs() {
   const c = document.getElementById('log-container');
-  c.innerHTML = logs.map(l => `<div class="log-entry"><span class="tick">T${l.tick||''}</span><span class="text">${l.action||l.type||''}</span></div>`).join('');
+  c.innerHTML = logs.slice(0, 50).map(l => `<div class="log-entry"><span class="tick">T${l.tick||''}</span><span class="text">${l.action||l.type||''}</span></div>`).join('');
 }
 
 function renderDays() {
   const d = document.getElementById('day-summaries');
   d.innerHTML = daySummaries.slice().reverse().map(s => `
     <div class="day-card">
-      <h3>第 ${s.day} 天</h3>
+      <h3>📅 第 ${s.day} 天总结</h3>
+      <div class="overall-summary">${s.overall_summary}</div>
       <div class="stats-row">
-        <span>天气: ${s.weather}</span>
-        <span>知识: ${s.knowledge_claims} 条</span>
-        <span>事件: ${s.events_count} 次</span>
+        <span>🌤️ 天气: ${getWeatherCn(s.weather)}</span>
+        <span>📚 知识增长: +${s.stats.knowledge_change}</span>
+        <span>💰 总金币变化: ${s.stats.gold_change >= 0 ? '+' + s.stats.gold_change : s.stats.gold_change}</span>
+        <span>😊 开心人数: ${s.stats.happy_count}/10</span>
       </div>
-      <div class="agent-chips">
-        ${s.agents.map(a => `<span class="agent-chip ${a.mood}">${a.name} (${a.energy})</span>`).join('')}
+      <div class="agent-list">
+        ${s.agents.map(a => `
+          <div class="agent-item">
+            <b>${getRoleEmoji(a.role)} ${a.role_cn} ${a.name}</b>
+            📍 ${a.location_cn} · 体力 ${a.energy}${a.energy_change >= 0 ? '+' + a.energy_change : a.energy_change} · 金币 ${a.gold}${a.gold_change >= 0 ? '+' + a.gold_change : a.gold_change}<br>
+            ${a.mood_desc}，今日行为：${a.behavior_summary}
+          </div>
+        `).join('')}
       </div>
     </div>`).join('');
 }
 
+function getRoleEmoji(role) {
+  const map = {
+    elder:'👵', blacksmith:'🔨', carpenter:'🪵',
+    forager:'🌿', scout:'🧭', merchant:'💰', 
+    teacher:'📖', farmer:'🌾', storyteller:'📜', player:'👤'
+  };
+  return map[role] || '👤';
+}
+
+// 初始化连接
 connect();
+// 定时刷新状态
 setInterval(() => {
   fetch('/api/state').then(r => r.json()).then(d => { updateState(d); render(); });
-}, 3000);
+}, 2000);
 </script>
 </body>
 </html>
