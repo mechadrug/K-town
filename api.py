@@ -42,6 +42,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "locations": world.to_dict()["locations"],
             "agents": [a.to_dict() for a in agents],
             "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
+            "prices": world.prices,
+            "resources": world.resources,
             "knowledge": knowledge.to_dict(),
             "player": player,
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
@@ -348,6 +350,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                     "agents": [a.to_dict() for a in agents],
                     "locations": world.to_dict()["locations"],
             "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
+            "prices": world.prices,
+            "resources": world.resources,
                     "knowledge": knowledge.to_dict(),
                     "player": player,
                     "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
@@ -376,6 +380,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                                 "agents": [a.to_dict() for a in agents],
                                 "locations": world.to_dict()["locations"],
             "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
+            "prices": world.prices,
+            "resources": world.resources,
                                 "knowledge": knowledge.to_dict(),
                                 "player": player,
                                 "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
