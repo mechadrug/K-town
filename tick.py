@@ -1,7 +1,7 @@
-﻿"""Tick loop engine."""
+"""Tick loop engine."""
 import asyncio
 import random
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, Tuple
 from world import World
 from events import EventBus, EventScheduler
 from knowledge import KnowledgeEngine
@@ -37,6 +37,12 @@ class TickEngine:
         self.prev_total_gold: int = 0
         # 每日行为日志
         self.daily_agent_logs: Dict[str, List[str]] = {}
+        # 数据库写入缓冲（每10个Tick写入一次）
+        self._pending_snapshots: List[Tuple[int, int, Dict[str, Any]]] = []
+        self._tick_since_last_db_write: int = 0
+        self._db_write_interval: int = 10
+        # 已处理事件去重集合（避免重复处理相同事件）
+        self._processed_event_keys: set = set()
         # 加载历史摘要
         self._load_history()
     
@@ -54,9 +60,13 @@ class TickEngine:
         # 初始化前一天状态
         self._save_current_state()
         self._running = True
-        while self._running:
-            await self.step()
-            await asyncio.sleep(self.rate)
+        try:
+            while self._running:
+                await self.step()
+                await asyncio.sleep(self.rate)
+        finally:
+            # 确保退出时刷新所有缓冲数据到数据库
+            self._flush_db_writes()
 
     def _save_current_state(self):
         """保存当前状态作为前一天的基准"""
@@ -66,6 +76,13 @@ class TickEngine:
         # 初始化当天的agent行为日志
         self.daily_agent_logs = {a.identity.id: [] for a in self.agents}
 
+    def _flush_db_writes(self):
+        """将缓冲的数据库写入批量刷新到数据库"""
+        if self._pending_snapshots:
+            for tick, day, state in self._pending_snapshots:
+                self.db.save_world_snapshot(tick, day, state)
+            self._pending_snapshots.clear()
+
     async def step(self):
         tick = self.world.state.tick + 1
         hour = tick % 24
@@ -73,10 +90,22 @@ class TickEngine:
         self.world.advance(tick)
         self.bus.flush_scheduled(tick)
 
-        # 保存世界快照
-        self.db.save_world_snapshot(tick, self.current_day, self.world.state.__dict__)
+        # 缓冲世界快照，每10个Tick批量写入一次数据库
+        self._pending_snapshots.append(
+            (tick, self.current_day, self.world.state.__dict__.copy())
+        )
+        self._tick_since_last_db_write += 1
+        if self._tick_since_last_db_write >= self._db_write_interval:
+            self._flush_db_writes()
+            self._tick_since_last_db_write = 0
 
+        # 事件处理：使用去重键避免重复处理相同事件
         for event in self.bus.all_events:
+            event_key = (event.type.value, event.location, event.tick,
+                         str(event.payload)[:100])
+            if event_key in self._processed_event_keys:
+                continue
+            self._processed_event_keys.add(event_key)
             self.current_day_events.append({
                 "tick": tick, "type": event.type.value,
                 "location": event.location, "payload": str(event.payload)[:100],
@@ -84,19 +113,19 @@ class TickEngine:
             await self._process_event(event)
         self.bus.clear_events()
 
+        # 构建位置映射（仅构建一次，后续复用）
         loc_map: Dict[str, list] = {}
         for a in self.agents:
             loc_map.setdefault(a.state.location, []).append(a.identity.id)
         for loc_id, loc_data in self.world.locations.items():
             loc_data["agents"] = loc_map.get(loc_id, [])
 
+        # Agent循环：事件已清空，无需重复获取事件列表
         for agent in self.agents:
-            evts = self.bus.get_events_at(agent.state.location)
-            evt_strs = [f"{e.type.value} at {e.location}" for e in evts]
             here = loc_map.get(agent.state.location, [])
-            agent.perceive(evt_strs)
+            agent.perceive([])  # 事件已在上面清空，传入空列表
             agent.think(hour)
-            action = agent.decide(hour, here, evt_strs)
+            action = agent.decide(hour, here, [])
             # 记录行为日志
             self.daily_agent_logs[agent.identity.id].append(f"{hour}点: {action['desc']}")
             self.logger.log_decision(tick, agent.identity.id, action["desc"], action["type"],
@@ -197,6 +226,7 @@ class TickEngine:
             "weather": self.world.state.weather,
             "overall_summary": overall_summary,
             "agents": agent_summaries,
+            "important_events": important_events,
             "stats": {
                 "total_gold": current_total_gold,
                 "gold_change": gold_change,
@@ -277,11 +307,11 @@ class TickEngine:
             agent.state.energy -= 8
             # 不同职业工作产出不同
             role = agent.identity.role.value
-            if role in ["blacksmith", "carpenter"]:
+            if role in ("blacksmith", "carpenter"):
                 # 铁匠和木匠产出工具，卖给商人
                 agent.state.gold += 5
                 agent.state.inventory.append("tool")
-            elif role in ["forager", "farmer"]:
+            elif role in ("forager", "farmer"):
                 # 采集者和农民产出食物
                 agent.state.gold += 3
                 agent.state.inventory.append("food")
@@ -308,6 +338,5 @@ class TickEngine:
 
     def stop(self):
         self._running = False
+        self._flush_db_writes()
         self.db.close()
-
-
