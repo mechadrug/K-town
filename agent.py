@@ -46,6 +46,19 @@ class Agent:
         if hour>=21 or hour<6:
             self.state.energy = min(100, self.state.energy+15)
 
+        # 食物消耗（每天1-3单位，晚上结算）
+        if hour == 21:
+            food_need = random.randint(1, 3)
+            if self.state.food >= food_need:
+                self.state.food -= food_need
+                self.state.hunger = max(0, self.state.hunger - 30)
+            else:
+                # 食物不足→饥饿度上升，体力和心情下降
+                self.state.hunger = min(100, self.state.hunger + 40)
+                self.state.energy = max(0, self.state.energy - 10)
+                if self.state.hunger > 60:
+                    self.state.mood = Mood.SAD
+
     def decide(self, hour, agents_here, events):
         n = self.identity.name
         p = self.identity.personality
@@ -254,6 +267,8 @@ class Agent:
             "location_cn": self._get_location_cn(self.state.location),
             "goal": g.description if g else "暂无目标",
             "knowledge_count": len(self.knowledge),
+            "food": self.state.food,
+            "hunger": round(self.state.hunger, 1),
             "personality": self.identity.personality,
             "social_ties": {k: round(v, 1) for k, v in self.state.social_ties.items()}
         }

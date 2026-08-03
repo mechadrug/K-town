@@ -29,7 +29,7 @@ class AgentTask:
 
 @dataclass
 class AgentState:
-    energy:float=100.0;mood:Mood=Mood.NEUTRAL;gold:int=0;location:str="";current_task:Optional[AgentTask]=None;inventory:List[str]=field(default_factory=list);social_ties:Dict[str,float]=field(default_factory=dict)
+    energy:float=100.0;mood:Mood=Mood.NEUTRAL;gold:int=0;location:str="";current_task:Optional[AgentTask]=None;inventory:List[str]=field(default_factory=list);social_ties:Dict[str,float]=field(default_factory=dict);food:int=5;hunger:float=0
 
 @dataclass
 class AgentIdentity:
