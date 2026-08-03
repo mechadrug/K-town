@@ -116,6 +116,8 @@ class TickEngine:
                 "location": event.location, "payload": str(event.payload)[:100],
             })
             await self._process_event(event)
+            # 自动固化高置信度知识
+            self.knowledge.auto_solidify()
         self.bus.clear_events()
 
         # 优化循环，减少重复计算

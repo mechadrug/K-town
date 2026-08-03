@@ -29,13 +29,63 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
     async def get_knowledge():
         """获取所有知识列表"""
         claims = list(knowledge.claims.values())
-        return {"total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "scope": c.scope.value, "created_by": c.created_by, "location": c.location, "created_at": c.created_at, "solidified": c.solidified, "version": c.version} for c in claims]}
+        return {"total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "scope": c.scope.value, "created_by": c.created_by, "location": c.location, "created_at": c.created_at, "solidified": c.solidified, "version": c.version, "contradicted_by": c.contradicted_by} for c in claims]}
 
-    @app.get("/api/knowledge/{agent_id}")
-    async def get_agent_knowledge(agent_id:str):
-        """获取指定Agent的知识列表"""
-        claims = knowledge.agent_knowledge(agent_id)
-        return {"agent_id": agent_id, "total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "scope": c.scope.value, "location": c.location, "created_at": c.created_at, "solidified": c.solidified} for c in claims]}
+    @app.get("/api/knowledge/public")
+    async def get_public_knowledge():
+        """获取所有公共知识"""
+        claims = knowledge.get_public_knowledge()
+        return {"total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "created_at": c.created_at, "solidified": c.solidified} for c in claims]}
+
+    @app.get("/api/knowledge/solidified")
+    async def get_solidified_knowledge():
+        """获取所有已固化的知识"""
+        claims = knowledge.get_solidified_knowledge()
+        return {"total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "created_at": c.created_at} for c in claims]}
+
+    @app.get("/api/knowledge/search")
+    async def search_knowledge(subject: str = None, location: str = None, agent_id: str = None):
+        """搜索知识"""
+        if subject:
+            claims = knowledge.search_by_subject(subject)
+        elif location:
+            claims = knowledge.search_by_location(location)
+        elif agent_id:
+            claims = knowledge.search_by_agent(agent_id)
+        else:
+            claims = list(knowledge.claims.values())
+        return {"total": len(claims), "claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location} for c in claims]}
+
+    @app.get("/api/knowledge/{claim_id}")
+    async def get_claim(claim_id: str):
+        """获取指定知识的详细信息"""
+        claim = knowledge.claims.get(claim_id)
+        if not claim:
+            return JSONResponse({"error": "knowledge not found"}, status_code=404)
+        return {
+            "id": claim.id,
+            "subject": claim.subject,
+            "claim": claim.claim,
+            "source": claim.source.value,
+            "confidence": claim.confidence,
+            "scope": claim.scope.value,
+            "created_by": claim.created_by,
+            "location": claim.location,
+            "created_at": claim.created_at,
+            "solidified": claim.solidified,
+            "version": claim.version,
+            "contradicted_by": claim.contradicted_by,
+            "version_history": knowledge.get_version_history(claim_id),
+            "conflicting_claims": [{"id": c.id, "claim": c.claim, "confidence": c.confidence} for c in knowledge.get_conflicting_claims(claim_id)]
+        }
+
+    @app.post("/api/knowledge/solidify/{claim_id}")
+    async def solidify_claim(claim_id: str):
+        """手动固化知识"""
+        success = knowledge.solidify(claim_id)
+        if success:
+            return {"status": "ok", "message": "知识已固化"}
+        return JSONResponse({"error": "固化失败"}, status_code=400)
 
     @app.get("/api/agents/{agent_id}")
     async def get_agent(agent_id:str):
@@ -102,14 +152,12 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         # 获取世界快照
         snapshot = tick_engine.db.get_world_snapshot(day)
         # 获取事件时间线
-        events = logger.query_world_events(500)
-        base = (day-1)*24
-        day_events = [e for e in events if base <= e["tick"] < base + 24]
+        events = tick_engine.db.get_events(day)
         return {
             "summary": summary,
             "agent_logs": agent_logs,
             "snapshot": snapshot,
-            "events": day_events
+            "events": events
         }
 
     @app.get("/api/replay")
@@ -162,8 +210,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         tick_engine.day_summaries = []
         tick_engine.current_day = 1
         tick_engine.current_day_events = []
-        tick_engine._load_history()
-        # 重新初始化世界和Agent
+        # 重新初始化所有模块
         world.__init__()
         bus.__init__()
         knowledge.__init__()
