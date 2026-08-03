@@ -118,6 +118,19 @@ class Agent:
         if best_friend and best_tie > 50 and random.random() < 0.25:
             if self.knowledge:
                 return {'type': 'talk', 'desc': f'{n}和挚友分享自己的知识', 'target': best_friend}
+
+        # 知识驱动：评估持有知识对决策的影响
+        knowledge_modifier = self._evaluate_knowledge_impact()
+
+        # 危险知识→回避相关地点
+        for loc, modifier in knowledge_modifier.items():
+            if modifier < 0.8 and self.state.location == loc:
+                # 这个地点有危险，考虑离开
+                if random.random() < 0.3:
+                    locations = ['square', 'workshop', 'wilderness', 'school', 'mine']
+                    locations.remove(loc)
+                    target = random.choice(locations)
+                    return {'type': 'move', 'desc': f'{n}想起了一些不好的传闻，决定去{self._get_location_cn(target)}', 'target': target}
         
         # 调查事件（开放性高的人更喜欢调查）
         if events:
@@ -146,6 +159,38 @@ class Agent:
         
         # 默认观察
         return {"type":"observe","desc": f"{n}在附近观察环境","target":""}
+
+
+    def _evaluate_knowledge_impact(self) -> Dict[str, float]:
+        """评估持有知识对当前决策的影响，返回各地点的修正权重"""
+        location_modifier = {}
+        knowledge_text = " ".join([k.claim.lower() for k in self.knowledge])
+        
+        # 危险知识 → 减少去相关地点
+        if "狼" in knowledge_text or "危险" in knowledge_text or "野兽" in knowledge_text:
+            location_modifier["wilderness"] = location_modifier.get("wilderness", 1.0) * 0.5
+        if "坍塌" in knowledge_text or "矿洞" in knowledge_text:
+            location_modifier["mine"] = location_modifier.get("mine", 1.0) * 0.6
+        if "森林" in knowledge_text and "危险" in knowledge_text:
+            location_modifier["wilderness"] = location_modifier.get("wilderness", 1.0) * 0.7
+        
+        # 机会知识 → 增加去相关地点
+        if "草药" in knowledge_text or "丰富" in knowledge_text:
+            location_modifier["wilderness"] = location_modifier.get("wilderness", 1.0) * 1.3
+        if "矿" in knowledge_text and "丰富" in knowledge_text:
+            location_modifier["mine"] = location_modifier.get("mine", 1.0) * 1.3
+        if "集市" in knowledge_text or "交易" in knowledge_text:
+            location_modifier["square"] = location_modifier.get("square", 1.0) * 1.2
+        
+        return location_modifier
+    
+    def _get_knowledge_summary(self) -> str:
+        """获取Agent的知识摘要，用于日志"""
+        if not self.knowledge:
+            return ""
+        recent = sorted(self.knowledge, key=lambda k: k.confidence, reverse=True)[:3]
+        return "；".join([k.claim for k in recent])
+
 
     def _get_work_slot(self, hour):
         if self.identity.role in [Role.ELDER, Role.TEACHER, Role.STORYTELLER, Role.MERCHANT]:
