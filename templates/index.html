@@ -93,7 +93,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 .card {
@@ -124,11 +124,65 @@ body {
 }
 .card.full { grid-column: 1 / -1; }
 
+/* 玩家面板 */
+.player-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.player-stat {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  border: 1px solid var(--border);
+}
+.player-stat .label {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  margin-bottom: 4px;
+}
+.player-stat .value {
+  font-size: 1.5em;
+  font-weight: 700;
+}
+
+/* 操作面板 */
+.action-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.action-btn {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  font-size: 0.95em;
+}
+.action-btn:hover {
+  background: var(--accent-light);
+}
+.action-btn:disabled {
+  background: var(--text-dim);
+  cursor: not-allowed;
+}
+.action-btn.secondary {
+  background: var(--blue);
+}
+.action-btn.secondary:hover {
+  background: #33ccff;
+}
+
 /* 地图 */
 .map-container {
   position: relative;
   width: 100%;
-  height: 420px;
+  height: 480px;
   background: linear-gradient(135deg, #080810 0%, #101028 100%);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -164,7 +218,7 @@ body {
   width: 42px; height: 42px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
+  font-size: 18px; font-weight: 700;
   color: white;
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
@@ -196,7 +250,7 @@ body {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 14px;
-  max-height: 420px;
+  max-height: 480px;
   overflow-y: auto;
 }
 .agent-card {
@@ -247,73 +301,6 @@ body {
 .energy-mid { background: linear-gradient(90deg, var(--gold), #ccac00); }
 .energy-low { background: linear-gradient(90deg, var(--accent), #cc2952); }
 
-/* 日志容器 */
-.log-container {
-  max-height: 200px;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-.log-entry {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.9em;
-}
-.log-entry:last-child { border-bottom: none; }
-.log-entry .tick {
-  color: var(--accent);
-  font-weight: 600;
-  margin-right: 8px;
-  font-size: 0.85em;
-}
-
-/* 每日摘要 */
-.day-card {
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-  padding: 20px;
-  margin-bottom: 16px;
-  border: 1px solid var(--border);
-}
-.day-card h3 {
-  font-size: 1.2em;
-  margin-bottom: 12px;
-  color: var(--gold);
-}
-.day-card .overall-summary {
-  line-height: 1.6;
-  margin-bottom: 16px;
-  color: var(--text);
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-}
-.day-card .stats-row {
-  display: flex;
-  gap: 18px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.day-card .stats-row span {
-  font-size: 0.9em;
-  color: var(--text-dim);
-}
-.day-card .agent-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-.day-card .agent-item {
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  padding: 12px;
-  font-size: 0.9em;
-  line-height: 1.5;
-}
-.day-card .agent-item b {
-  color: var(--accent-light);
-  display: block;
-  margin-bottom: 4px;
-}
-
 /* 知识卡片 */
 .knowledge-card {
   background: var(--bg-hover);
@@ -345,24 +332,25 @@ body {
   color: var(--blue);
 }
 
-/* 回放控制 */
-.replay-controls {
+/* 搜索框 */
+.search-box {
   display: flex;
   gap: 12px;
-  align-items: center;
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-.replay-controls input {
-  padding: 8px 12px;
+.search-box input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--text);
-  font-size: 0.9em;
+  font-size: 0.95em;
 }
-.replay-controls button {
-  padding: 8px 18px;
+.search-box button {
+  padding: 10px 20px;
   border-radius: var(--radius-sm);
   border: none;
   background: var(--accent);
@@ -371,12 +359,37 @@ body {
   cursor: pointer;
   transition: background 0.3s ease;
 }
-.replay-controls button:hover {
+.search-box button:hover {
   background: var(--accent-light);
 }
-.replay-controls button:disabled {
-  background: var(--text-dim);
-  cursor: not-allowed;
+
+/* 交易列表 */
+.trade-offer {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.trade-offer .info {
+  font-size: 0.9em;
+}
+.trade-offer .actions {
+  display: flex;
+  gap: 8px;
+}
+.trade-offer button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: var(--green);
+  color: #000;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85em;
 }
 
 /* 滚动条 */
@@ -398,6 +411,8 @@ body {
   .agent-grid { grid-template-columns: 1fr; }
   .status-bar { gap: 12px; }
   .status-pill { padding: 8px 16px; font-size: 0.85em; }
+  .player-panel { grid-template-columns: 1fr; }
+  .action-panel { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -433,6 +448,42 @@ body {
 
 <div class="grid">
   <div class="card">
+    <h2><span class="dot"></span>玩家状态</h2>
+    <div class="player-panel">
+      <div class="player-stat">
+        <div class="label">体力</div>
+        <div class="value" id="player-energy">100</div>
+      </div>
+      <div class="player-stat">
+        <div class="label">金币</div>
+        <div class="value" id="player-gold">10</div>
+      </div>
+      <div class="player-stat">
+        <div class="label">位置</div>
+        <div class="value" id="player-location">广场</div>
+      </div>
+      <div class="player-stat">
+        <div class="label">心情</div>
+        <div class="value" id="player-mood">😊</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>玩家操作</h2>
+    <div class="action-panel">
+      <button class="action-btn" onclick="movePlayer('square')">移动到广场</button>
+      <button class="action-btn" onclick="movePlayer('workshop')">移动到工坊</button>
+      <button class="action-btn" onclick="movePlayer('wilderness')">移动到荒野</button>
+      <button class="action-btn" onclick="movePlayer('school')">移动到学校</button>
+      <button class="action-btn" onclick="movePlayer('mine')">移动到矿洞</button>
+      <button class="action-btn secondary" onclick="openAddKnowledge()">添加知识</button>
+      <button class="action-btn secondary" onclick="openTrade()">发起交易</button>
+    </div>
+    <div id="action-log" style="max-height: 150px; overflow-y: auto;"></div>
+  </div>
+
+  <div class="card">
     <h2><span class="dot"></span>小镇地图</h2>
     <div class="map-container" id="map">
       <div class="location-zone loc-square">🏘️ 广场</div>
@@ -450,29 +501,71 @@ body {
 
   <div class="card full">
     <h2><span class="dot"></span>知识库</h2>
+    <div class="search-box">
+      <input type="text" id="knowledge-search" placeholder="搜索知识主题...">
+      <button onclick="searchKnowledge()">搜索</button>
+      <button onclick="loadKnowledge()" class="secondary">显示全部</button>
+      <button onclick="loadPublicKnowledge()" class="secondary">公共知识</button>
+    </div>
     <div id="knowledge-list"></div>
   </div>
 
   <div class="card full">
-    <h2><span class="dot"></span>实时行为日志</h2>
-    <div class="log-container" id="log-container"></div>
+    <h2><span class="dot"></span>交易列表</h2>
+    <div id="trade-list"></div>
   </div>
 
   <div class="card full">
     <h2><span class="dot"></span>每日总结</h2>
     <div id="day-summaries"></div>
   </div>
+</div>
 
-  <div class="card full">
-    <h2><span class="dot"></span>历史回放</h2>
-    <div class="replay-controls">
-      <label>起始日: <input type="number" id="replay-start" value="1" min="1"></label>
-      <label>结束日: <input type="number" id="replay-end" value="5" min="1"></label>
-      <button onclick="loadReplay()">加载回放</button>
-      <button onclick="playReplay()" id="play-btn" disabled>播放</button>
-      <button onclick="pauseReplay()" id="pause-btn" disabled>暂停</button>
+<!-- 添加知识弹窗 -->
+<div id="add-knowledge-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+  <div style="background: var(--bg-card); padding: 28px; border-radius: var(--radius); width: 90%; max-width: 500px;">
+    <h3 style="margin-bottom: 20px;">添加知识</h3>
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 6px;">主题</label>
+      <input type="text" id="knowledge-subject" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);">
     </div>
-    <div id="replay-content"></div>
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 6px;">内容</label>
+      <textarea id="knowledge-claim" rows="4" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);"></textarea>
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button onclick="closeAddKnowledge()" style="padding: 10px 20px; border-radius: var(--radius-sm); border: none; background: var(--text-dim); color: white; cursor: pointer;">取消</button>
+      <button onclick="submitKnowledge()" style="padding: 10px 20px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: white; cursor: pointer;">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- 交易弹窗 -->
+<div id="trade-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+  <div style="background: var(--bg-card); padding: 28px; border-radius: var(--radius); width: 90%; max-width: 500px;">
+    <h3 style="margin-bottom: 20px;">发起交易</h3>
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 6px;">交易对象</label>
+      <select id="trade-target" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);">
+        <option value="">选择Agent</option>
+      </select>
+    </div>
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 6px;">物品</label>
+      <select id="trade-item" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);">
+        <option value="tool">工具</option>
+        <option value="food">食物</option>
+        <option value="material">材料</option>
+      </select>
+    </div>
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 6px;">价格（金币）</label>
+      <input type="number" id="trade-price" min="1" value="10" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);">
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button onclick="closeTrade()" style="padding: 10px 20px; border-radius: var(--radius-sm); border: none; background: var(--text-dim); color: white; cursor: pointer;">取消</button>
+      <button onclick="submitTrade()" style="padding: 10px 20px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: white; cursor: pointer;">提交</button>
+    </div>
   </div>
 </div>
 
@@ -503,6 +596,9 @@ function connect() {
       if(logs.length>100) logs.pop(); 
       render(); 
     }
+    if (msg.type === 'player_action_result') {
+      addActionLog(msg.data.result);
+    }
   };
 }
 
@@ -518,17 +614,101 @@ async function resetSimulation() {
   }
 }
 
-function updateState(data) {
-  currentState = data;
-  document.getElementById('tick').textContent = data.tick;
-  document.getElementById('weather').textContent = data.weather_name || getWeatherCn(data.weather);
-  document.getElementById('day').textContent = Math.floor(data.tick / 24) + 1;
-  document.getElementById('knowledge').textContent = data.knowledge?.total_claims || 0;
-  loadKnowledge();
+function movePlayer(location) {
+  fetch('/api/player/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'move', target: location })
+  });
+}
+
+function openAddKnowledge() {
+  document.getElementById('add-knowledge-modal').style.display = 'flex';
+}
+
+function closeAddKnowledge() {
+  document.getElementById('add-knowledge-modal').style.display = 'none';
+}
+
+function submitKnowledge() {
+  const subject = document.getElementById('knowledge-subject').value;
+  const claim = document.getElementById('knowledge-claim').value;
+  if (!subject || !claim) {
+    alert('请填写主题和内容');
+    return;
+  }
+  fetch('/api/player/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'claim', subject, claim })
+  });
+  closeAddKnowledge();
+  document.getElementById('knowledge-subject').value = '';
+  document.getElementById('knowledge-claim').value = '';
+}
+
+function openTrade() {
+  // 填充Agent列表
+  const select = document.getElementById('trade-target');
+  select.innerHTML = '<option value="">选择Agent</option>';
+  if (currentState.agents) {
+    currentState.agents.forEach(a => {
+      if (a.id !== 'agent_player') {
+        select.innerHTML += `<option value="${a.id}">${a.name} (${a.role_cn})</option>`;
+      }
+    });
+  }
+  document.getElementById('trade-modal').style.display = 'flex';
+}
+
+function closeTrade() {
+  document.getElementById('trade-modal').style.display = 'none';
+}
+
+function submitTrade() {
+  const target = document.getElementById('trade-target').value;
+  const item = document.getElementById('trade-item').value;
+  const price = parseInt(document.getElementById('trade-price').value);
+  if (!target) {
+    alert('请选择交易对象');
+    return;
+  }
+  fetch('/api/player/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'trade', target, item, price })
+  });
+  closeTrade();
+}
+
+function addActionLog(result) {
+  const log = document.getElementById('action-log');
+  const entry = document.createElement('div');
+  entry.style.cssText = 'padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.85em;';
+  entry.textContent = `${new Date().toLocaleTimeString()}: ${result}`;
+  log.insertBefore(entry, log.firstChild);
+  if (log.children.length > 10) log.removeChild(log.lastChild);
+}
+
+async function searchKnowledge() {
+  const query = document.getElementById('knowledge-search').value;
+  if (!query) {
+    alert('请输入搜索关键词');
+    return;
+  }
+  const response = await fetch(`/api/knowledge/search?subject=${encodeURIComponent(query)}`);
+  const data = await response.json();
+  renderKnowledge(data.claims);
 }
 
 async function loadKnowledge() {
   const response = await fetch('/api/knowledge');
+  const data = await response.json();
+  renderKnowledge(data.claims);
+}
+
+async function loadPublicKnowledge() {
+  const response = await fetch('/api/knowledge/public');
   const data = await response.json();
   renderKnowledge(data.claims);
 }
@@ -549,6 +729,7 @@ function renderKnowledge(claims) {
         <span>创建者: ${c.created_by}</span>
         <span>位置: ${getLocationCn(c.location)}</span>
         ${c.solidified ? '<span style="color:var(--gold)">已固化</span>' : ''}
+        ${c.contradicted_by && c.contradicted_by.length > 0 ? '<span style="color:var(--accent)">有冲突</span>' : ''}
       </div>
     </div>
   `).join('');
@@ -564,56 +745,62 @@ function getLocationCn(location) {
   return map[location] || location;
 }
 
+function updateState(data) {
+  currentState = data;
+  document.getElementById('tick').textContent = data.tick;
+  document.getElementById('weather').textContent = data.weather_name || getWeatherCn(data.weather);
+  document.getElementById('day').textContent = Math.floor(data.tick / 24) + 1;
+  document.getElementById('knowledge').textContent = data.knowledge?.total_claims || 0;
+  
+  // 更新玩家状态
+  if (data.player) {
+    document.getElementById('player-energy').textContent = data.player.energy;
+    document.getElementById('player-gold').textContent = data.player.gold;
+    document.getElementById('player-location').textContent = data.player.location_cn;
+    document.getElementById('player-mood').textContent = getMoodEmoji(data.player.mood);
+  }
+  
+  // 更新交易列表
+  renderTradeOffers(data.trade_offers || []);
+  // 自动刷新知识列表
+  loadKnowledge();
+}
+
+function getMoodEmoji(mood) {
+  const map = {happy:'😊', neutral:'😐', anxious:'😰', angry:'😠', sad:'😢'};
+  return map[mood] || '❓';
+}
+
+function renderTradeOffers(offers) {
+  const container = document.getElementById('trade-list');
+  if (!offers || offers.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-dim)">暂无交易</div>';
+    return;
+  }
+  container.innerHTML = offers.map((t, i) => `
+    <div class="trade-offer">
+      <div class="info">${t.from} → ${t.to}: ${t.item} (${t.price}金币) <span style="color:var(--gold)">${t.status}</span></div>
+      <div class="actions">
+        ${t.status === 'pending' ? `<button onclick="acceptTrade(${i})">接受</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function acceptTrade(offerId) {
+  fetch('/api/player/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'accept_trade', offer_id: offerId })
+  });
+}
+
 function getWeatherCn(weather) {
   const map = {clear: '晴朗', rain: '下雨', snow: '下雪', wind: '大风', fog: '大雾', cloudy: '多云'};
   return map[weather] || weather;
 }
 
-function render() { renderMap(); renderAgents(); renderLogs(); renderDays(); }
-
-async function loadReplay() {
-  const start = parseInt(document.getElementById('replay-start').value);
-  const end = parseInt(document.getElementById('replay-end').value);
-  const response = await fetch(`/api/replay?start_day=${start}&end_day=${end}`);
-  replayData = await response.json();
-  document.getElementById('play-btn').disabled = false;
-  document.getElementById('replay-content').innerHTML = `<div style="color:var(--green)">已加载 ${start} 到 ${end} 天的回放数据</div>`;
-}
-
-function playReplay() {
-  if (!replayData || !replayData.days) return;
-  let currentIndex = 0;
-  document.getElementById('pause-btn').disabled = false;
-  document.getElementById('play-btn').disabled = true;
-  replayInterval = setInterval(() => {
-    if (currentIndex >= replayData.days.length) {
-      pauseReplay();
-      return;
-    }
-    const day = replayData.days[currentIndex];
-    const content = document.getElementById('replay-content');
-    content.innerHTML = `
-      <div class="day-card">
-        <h3>📅 第 ${day.summary?.day || currentIndex + 1} 天回放</h3>
-        <div class="overall-summary">${day.summary?.overall_summary || '无摘要数据'}</div>
-        <div class="stats-row">
-          <span>事件数量: ${day.events?.length || 0}</span>
-          <span>Agent日志数量: ${day.agent_logs?.length || 0}</span>
-        </div>
-      </div>
-    `;
-    currentIndex++;
-  }, 2000);
-}
-
-function pauseReplay() {
-  if (replayInterval) {
-    clearInterval(replayInterval);
-    replayInterval = null;
-  }
-  document.getElementById('pause-btn').disabled = true;
-  document.getElementById('play-btn').disabled = false;
-}
+function render() { renderMap(); renderAgents(); renderDays(); }
 
 function renderMap() {
   if (!currentState.agents) return;
@@ -651,11 +838,6 @@ function renderMap() {
   });
 }
 
-function getMoodEmoji(mood) {
-  const map = {happy:'😊', neutral:'😐', anxious:'😰', angry:'😠', sad:'😢'};
-  return map[mood] || '❓';
-}
-
 function getMoodCn(mood) {
   const map = {happy:'心情愉快', neutral:'心情平静', anxious:'有些焦虑', angry:'非常生气', sad:'心情低落'};
   return map[mood] || '心情未知';
@@ -676,11 +858,6 @@ function renderAgents() {
       <div class="energy-bar"><div class="fill ${ec}" style="width:${a.energy}%"></div></div>
     </div>`;
   }).join('');
-}
-
-function renderLogs() {
-  const c = document.getElementById('log-container');
-  c.innerHTML = logs.slice(0, 50).map(l => `<div class="log-entry"><span class="tick">T${l.tick||''}</span><span class="text">${l.action||l.type||''}</span></div>`).join('');
 }
 
 function renderDays() {
