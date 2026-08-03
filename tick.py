@@ -43,6 +43,10 @@ class TickEngine:
         self._db_write_interval: int = 10
         # 已处理事件去重集合（避免重复处理相同事件）
         self._processed_event_keys: set = set()
+        # LLM调用追踪（每天限制次数）
+        self._llm_calls_today = 0
+        self._llm_daily_limit = 10
+        self._llm_cache = {}  # 缓存相同输入的结果
         # 自动重置
         if auto_reset:
             self.db.reset()
@@ -153,12 +157,17 @@ class TickEngine:
                         agent.state.mood = Mood.NEUTRAL
                     elif agent.state.mood == Mood.NEUTRAL:
                         agent.state.mood = Mood.ANXIOUS
-            action = agent.decide(hour, here, evt_strs)
-            # 记录行为日志
+            # LLM辅助决策检测（仅在关键场景调用）
+            llm_action = await self._try_llm_decision(agent, hour, here, evt_strs)
+            if llm_action:
+                action = llm_action
+                self.logger.log_decision(tick, agent.identity.id, action['desc'], action['type'],
+                                     agent.top_goal().description if agent.top_goal() else '', 0.9, 'llm')
+            else:
+                action = agent.decide(hour, here, evt_strs)
+                self.logger.log_decision(tick, agent.identity.id, action['desc'], action['type'],
+                                     agent.top_goal().description if agent.top_goal() else '', 0.8, 'rule')
             self.daily_agent_logs[agent.identity.id].append(f"{hour}点: {action['desc']}")
-            self.logger.log_decision(tick, agent.identity.id, action["desc"], action["type"],
-                                     agent.top_goal().description if agent.top_goal() else "", 0.8, "rule")
-            await self._handle_action(agent, action)
             if action["type"] in ("talk", "work", "trade", "move"):
                 evt = {"tick": tick, "agent": agent.identity.name, "action": action["desc"], "location": agent.state.location}
                 self.current_day_events.append(evt)
@@ -179,6 +188,7 @@ class TickEngine:
                     behaviors=self.daily_agent_logs.get(agent.identity.id, [])
                 )
             self.current_day_events = []
+            self._llm_calls_today = 0
             self.current_day += 1
             # 关系衰减：每天好感度向0回归5%（需要持续维护关系）
             for agent in self.agents:
@@ -196,6 +206,140 @@ class TickEngine:
             self._save_current_state()
             if self.on_day_summary:
                 await self.on_day_summary(summary)
+
+
+    async def _try_llm_decision(self, agent, hour, agents_here, events) -> Optional[Dict[str, Any]]:
+        """尝试LLM辅助决策，仅在关键场景调用"""
+        # 检查每日限制
+        if self._llm_calls_today >= self._llm_daily_limit:
+            return None
+        
+        # 检测是否需要LLM介入
+        scenario = None
+        context = {}
+        
+        # 场景1：情绪危机（体力低+心情差）
+        if agent.state.energy < 25 and agent.state.mood in (Mood.SAD, Mood.ANGRY):
+            scenario = "emotional_crisis"
+            context = {
+                "energy": agent.state.energy,
+                "mood": agent.state.mood.value,
+                "personality": agent.identity.personality,
+                "location": agent.state.location
+            }
+        
+        # 场景2：知识冲突
+        elif agent.knowledge:
+            conflicting = [k for k in agent.knowledge if k.contradicted_by]
+            if conflicting:
+                scenario = "knowledge_conflict"
+                context = {
+                    "conflicting_knowledge": [{"claim": k.claim, "conflicts": k.contradicted_by} for k in conflicting[:2]],
+                    "personality": agent.identity.personality
+                }
+        
+        # 场景3：社交困境（朋友需要帮忙但自己很累）
+        elif agent.state.energy < 35 and agents_here:
+            best_friend = None
+            best_tie = 30
+            for other_id in agents_here:
+                tie = agent.state.social_ties.get(other_id, 0)
+                if tie > best_tie:
+                    best_tie = tie
+                    best_friend = other_id
+            if best_friend:
+                scenario = "social_dilemma"
+                context = {
+                    "energy": agent.state.energy,
+                    "friend": best_friend,
+                    "tie_strength": best_tie,
+                    "location": agent.state.location
+                }
+        
+        if not scenario:
+            return None
+        
+        # 检查缓存
+        cache_key = f"{agent.identity.id}_{scenario}_{agent.state.energy}_{hour}"
+        if cache_key in self._llm_cache:
+            return self._llm_cache[cache_key]
+        
+        # 生成prompt
+        prompt = self._generate_llm_prompt(agent, scenario, context)
+        
+        # 调用LLM
+        try:
+            response = await self.llm.call(prompt, system="你是K-town小镇的居民。根据你的状态和性格，决定你接下来做什么。用一句话描述你的行动。")
+            self._llm_calls_today += 1
+            
+            # 解析响应
+            action = self._parse_llm_response(agent, response)
+            if action:
+                self._llm_cache[cache_key] = action
+                return action
+        except Exception:
+            pass
+        
+        return None
+    
+    def _generate_llm_prompt(self, agent, scenario, context) -> str:
+        """为不同场景生成LLM prompt"""
+        n = agent.identity.name
+        role = agent._get_role_cn(agent.identity.role.value)
+        p = agent.identity.personality
+        
+        if scenario == "emotional_crisis":
+            return (
+                f"你是{n}，一个{role}。"
+                f"你现在的体力只有{int(context['energy'])}点，心情{context['mood']}。"
+                f"你的性格：外向{p['extraversion']:.1f}、尽责{p['conscientiousness']:.1f}、开放{p['openness']:.1f}、宜人{p['agreeableness']:.1f}、稳定{p['stability']:.1f}。"
+                f"你目前在{context['location']}。请用一句话描述你会做什么来改善现状。"
+            )
+        elif scenario == "knowledge_conflict":
+            conflicts = context["conflicting_knowledge"]
+            conflict_text = "；".join([f"你知道{c['claim']}，但有人质疑它" for c in conflicts])
+            return (
+                f"你是{n}，一个{role}。{conflict_text}。"
+                f"你的性格：开放{p['openness']:.1f}、宜人{p['agreeableness']:.1f}。"
+                f"你会如何处理这个知识冲突？用一句话描述。"
+            )
+        elif scenario == "social_dilemma":
+            return (
+                f"你是{n}，一个{role}。你的好朋友{context['friend']}需要帮助。"
+                f"但你现在的体力只有{int(context['energy'])}点，感觉很累。"
+                f"你们的好感度是{context['tie_strength']:.1f}。"
+                f"你会怎么做？用一句话描述。"
+            )
+        return ""
+    
+    def _parse_llm_response(self, agent, response: str) -> Optional[Dict[str, Any]]:
+        """解析LLM返回的行动描述"""
+        if not response:
+            return None
+        
+        response = response.strip()
+        if len(response) > 100:
+            response = response[:100]
+        
+        # 判断行动类型
+        action_type = "observe"
+        if "休息" in response or "睡" in response:
+            action_type = "rest"
+        elif "聊天" in response or "说话" in response or "告诉" in response:
+            action_type = "talk"
+        elif "工作" in response or "做" in response or "制作" in response:
+            action_type = "work"
+        elif "去" in response or "走" in response or "移动" in response:
+            action_type = "move"
+        elif "调查" in response or "探索" in response or "看" in response:
+            action_type = "investigate"
+        
+        return {
+            "type": action_type,
+            "desc": response,
+            "target": ""
+        }
+
 
     def _generate_day_summary(self, day: int) -> Dict[str, Any]:
         """生成中文每日叙事摘要"""
