@@ -1,5 +1,5 @@
 ﻿import random,time,uuid
-from typing import List,Optional
+from typing import List,Optional,Dict,Any
 from models import AgentIdentity,AgentState,Goal,MemoryEntry,Mood,Role,KnowledgeClaim,ClaimSource
 
 class Agent:
@@ -22,54 +22,107 @@ class Agent:
             for m in self.memory_short[-5:]:
                 self.memory_long.append(MemoryEntry(summary=m,importance=7.0,location=self.state.location))
             self.memory_short = self.memory_short[:-5]
-        if self.state.energy<20: self.state.mood=Mood.SAD
-        elif self.state.energy<50: self.state.mood=Mood.ANXIOUS
-        elif self.state.energy>80: self.state.mood=Mood.HAPPY
+        
+        # 人格影响情绪稳定性
+        stability = self.identity.personality.get("stability", 0.5)
+        
+        if self.state.energy<20: 
+            self.state.mood=Mood.SAD
+        elif self.state.energy<50:
+            # 情绪稳定性高的Agent不容易焦虑
+            if stability > 0.7:
+                self.state.mood=Mood.NEUTRAL
+            else:
+                self.state.mood=Mood.ANXIOUS
+        elif self.state.energy>80:
+            self.state.mood=Mood.HAPPY
+        
+        # 情绪稳定性低→体力下降时更容易心情差
+        if stability < 0.3 and self.state.energy < 40:
+            if random.random() < 0.3:
+                self.state.mood = Mood.ANGRY if random.random() < 0.5 else Mood.SAD
+        
         self.state.energy = max(0, self.state.energy-1)
         if hour>=21 or hour<6:
             self.state.energy = min(100, self.state.energy+15)
 
     def decide(self, hour, agents_here, events):
         n = self.identity.name
-        # 低体力优先休息
-        if self.state.energy<20: return {"type":"rest","desc": f"{n}体力不支，正在休息","target":""}
-        # 晚上睡觉
-        if hour>=21 or hour<6: return {"type":"sleep","desc": f"{n}正在睡觉","target":""}
+        p = self.identity.personality
+        
+        # 低体力优先休息（但尽责性高的人会坚持工作）
+        conscientiousness = p.get("conscientiousness", 0.5)
+        rest_threshold = 20 - int(conscientiousness * 10)  # 尽责性高→阈值更低（更晚休息）
+        
+        if self.state.energy < rest_threshold:
+            return {"type":"rest","desc": f"{n}体力不支，正在休息","target":""}
+        
+        # 晚上睡觉（但开放性高的人可能熬夜探索）
+        openness = p.get("openness", 0.5)
+        if hour>=21 or hour<6:
+            if openness > 0.7 and hour < 23 and self.state.energy > 40:
+                return {"type":"investigate","desc": f"{n}趁着夜色外出探索","target":""}
+            return {"type":"sleep","desc": f"{n}正在睡觉","target":""}
+        
         # 获取该角色的工作时间和地点
         work_slot = self._get_work_slot(hour)
+        
         # 如果在工作地点，执行工作
-        if work_slot and self.state.location == work_slot["loc"]:
-            return self._role(work_slot)
-        # 如果在广场且有多人，开心的话就社交
-        if self.state.location == "square" and len(agents_here) > 1 and ("social" in self.identity.traits or self.state.mood == Mood.HAPPY):
-            return {"type":"talk","desc": f"{n}和周围的人聊天","target":""}
-        # 调查事件
+        # 尽责性高→更可能在工作时间工作
+        if work_slot and self.state.location == work_slot['loc']:
+            if random.random() < (0.6 + conscientiousness * 0.3):
+                return self._role(work_slot)
+        
+        # 社交决策：外向性高+宜人性高→更可能社交
+        extraversion = p.get("extraversion", 0.5)
+        agreeableness = p.get("agreeableness", 0.5)
+        
+        if self.state.location == "square" and len(agents_here) > 1:
+            social_chance = 0.3 + extraversion * 0.4 + agreeableness * 0.2
+            if "social" in self.identity.traits:
+                social_chance += 0.15
+            if self.state.mood == Mood.HAPPY:
+                social_chance += 0.1
+            if random.random() < social_chance:
+                return {"type":"talk","desc": f"{n}和周围的人聊天","target":""}
+        
+        # 调查事件（开放性高的人更喜欢调查）
         if events:
-            return {"type":"investigate","desc": f"{n}去调查附近的事件","target":""}
+            investigate_chance = 0.2 + openness * 0.4
+            if random.random() < investigate_chance:
+                return {"type":"investigate","desc": f"{n}去调查附近的事件","target":""}
+        
         # 移动到工作地点
-        if work_slot and self.state.location != work_slot["loc"]:
-            return {"type":"move","desc": f"{n}前往{self._get_location_cn(work_slot['loc'])}","target":work_slot["loc"]}
+        if work_slot and self.state.location != work_slot['loc']:
+            # 尽责性高→更愿意去工作
+            if random.random() < (0.5 + conscientiousness * 0.3):
+                loc = work_slot["loc"]
+                return {"type":"move","desc": f"{n}前往{self._get_location_cn(loc)}","target":loc}
+        
         # 商人去广场交易
         if self.identity.role == Role.MERCHANT and self.state.location != "square":
             return {"type":"move","desc": f"{n}前往广场做生意","target":"square"}
+        
+        # 开放性高→可能随机探索
+        if openness > 0.6 and random.random() < 0.2:
+            locations = ["square", "workshop", "wilderness", "school", "mine"]
+            if self.state.location in locations:
+                locations.remove(self.state.location)
+            target = random.choice(locations)
+            return {"type":"move","desc": f"{n}想去{self._get_location_cn(target)}看看","target":target}
+        
         # 默认观察
         return {"type":"observe","desc": f"{n}在附近观察环境","target":""}
 
     def _get_work_slot(self, hour):
-        """根据角色返回工作时间和地点"""
-        # 广场工作时间：长者、教师、讲故事的人、商人
         if self.identity.role in [Role.ELDER, Role.TEACHER, Role.STORYTELLER, Role.MERCHANT]:
             slots = [(6,10,"square"),(12,14,"square"),(17,20,"square")]
-        # 工坊工作时间：铁匠、木工
         elif self.identity.role in [Role.BLACKSMITH, Role.CARPENTER]:
             slots = [(8,12,"workshop"),(13,17,"workshop")]
-        # 荒野工作时间：采集者、农民、侦察兵
         elif self.identity.role in [Role.FORAGER, Role.FARMER, Role.SCOUT]:
             slots = [(7,12,"wilderness"),(13,18,"wilderness")]
-        # 学校工作时间：医生
         elif self.identity.role == Role.HEALER:
             slots = [(8,12,"school"),(13,17,"school")]
-        # 矿洞工作时间：矿工
         elif self.identity.role == Role.MINER:
             slots = [(6,12,"mine"),(13,16,"mine")]
         else:
@@ -80,7 +133,6 @@ class Agent:
         return None
 
     def _role(self, slot):
-        """根据角色返回工作描述"""
         n = self.identity.name
         role_actions = {
             Role.ELDER: ("talk", f"{n}在广场给年轻人分享古老的故事和知识"),
@@ -100,7 +152,6 @@ class Agent:
         return {"type": action_type, "desc": desc, "target": ""}
     
     def _get_location_cn(self, location: str) -> str:
-        """获取地点中文名"""
         loc_map = {"square": "广场", "workshop": "工坊", "wilderness": "荒野", "school": "学校", "mine": "矿洞"}
         return loc_map.get(location, location)
 
@@ -124,45 +175,51 @@ class Agent:
             "location": self.state.location,
             "location_cn": self._get_location_cn(self.state.location),
             "goal": g.description if g else "暂无目标",
-            "knowledge_count": len(self.knowledge)
+            "knowledge_count": len(self.knowledge),
+            "personality": self.identity.personality
         }
 
     def _get_role_cn(self, role: str) -> str:
-        """获取职业中文名"""
         role_map = {
-            "elder": "长者",
-            "blacksmith": "铁匠",
-            "carpenter": "木匠",
-            "forager": "采集者",
-            "scout": "侦察兵",
-            "merchant": "商人",
-            "teacher": "教师",
-            "farmer": "农民",
-            "storyteller": "讲故事的人",
-            "healer": "医生",
-            "miner": "矿工",
-            "player": "旅行者"
+            "elder": "长者", "blacksmith": "铁匠", "carpenter": "木匠",
+            "forager": "采集者", "scout": "侦察兵", "merchant": "商人",
+            "teacher": "教师", "farmer": "农民", "storyteller": "讲故事的人",
+            "healer": "医生", "miner": "矿工", "player": "旅行者"
         }
         return role_map.get(role, role)
 
 def populate_agents():
     agents = []
     agent_data = [
-        ("agent_elder", "梅奶奶", Role.ELDER, ["wise", "social", "patient"], "square", 30),
-        ("agent_blacksmith", "铁匠托林", Role.BLACKSMITH, ["diligent", "proud", "honest"], "workshop", 50),
-        ("agent_carpenter", "木匠莉娜", Role.CARPENTER, ["creative", "precise", "quiet"], "workshop", 40),
-        ("agent_forager", "采集者费尔南", Role.FORAGER, ["observant", "resourceful", "independent"], "wilderness", 15),
-        ("agent_scout", "侦察兵罗文", Role.SCOUT, ["curious", "brave", "restless"], "wilderness", 20),
-        ("agent_merchant", "商人维斯珀", Role.MERCHANT, ["social", "shrewd", "charming"], "square", 100),
-        ("agent_teacher", "教师奥尔登", Role.TEACHER, ["social", "patient", "knowledgeable"], "square", 35),
-        ("agent_farmer", "农民克莱", Role.FARMER, ["patient", "diligent", "quiet"], "wilderness", 25),
-        ("agent_storyteller", "讲故事的人艾莉丝", Role.STORYTELLER, ["social", "creative", "charismatic"], "square", 20),
-        ("agent_player", "旅行者", Role.PLAYER, ["adaptable", "curious"], "square", 10),
-        ("agent_healer", "医生希尔达", Role.HEALER, ["careful", "gentle", "knowledgeable"], "school", 45),
-        ("agent_miner", "矿工戈尔", Role.MINER, ["brave", "dilient", "quiet"], "mine", 55)
+        # id, name, role, traits, location, gold, personality
+        # personality: extraversion, conscientiousness, openness, agreeableness, stability
+        ("agent_elder", "梅奶奶", Role.ELDER, ["wise", "social", "patient"], "square", 30,
+         {"extraversion": 0.6, "conscientiousness": 0.7, "openness": 0.5, "agreeableness": 0.9, "stability": 0.8}),
+        ("agent_blacksmith", "铁匠托林", Role.BLACKSMITH, ["diligent", "proud", "honest"], "workshop", 50,
+         {"extraversion": 0.4, "conscientiousness": 0.9, "openness": 0.3, "agreeableness": 0.5, "stability": 0.7}),
+        ("agent_carpenter", "木匠莉娜", Role.CARPENTER, ["creative", "precise", "quiet"], "workshop", 40,
+         {"extraversion": 0.3, "conscientiousness": 0.8, "openness": 0.6, "agreeableness": 0.7, "stability": 0.6}),
+        ("agent_forager", "采集者费尔南", Role.FORAGER, ["observant", "resourceful", "independent"], "wilderness", 15,
+         {"extraversion": 0.3, "conscientiousness": 0.6, "openness": 0.7, "agreeableness": 0.4, "stability": 0.5}),
+        ("agent_scout", "侦察兵罗文", Role.SCOUT, ["curious", "brave", "restless"], "wilderness", 20,
+         {"extraversion": 0.5, "conscientiousness": 0.4, "openness": 0.9, "agreeableness": 0.5, "stability": 0.3}),
+        ("agent_merchant", "商人维斯珀", Role.MERCHANT, ["social", "shrewd", "charming"], "square", 100,
+         {"extraversion": 0.8, "conscientiousness": 0.6, "openness": 0.7, "agreeableness": 0.4, "stability": 0.6}),
+        ("agent_teacher", "教师奥尔登", Role.TEACHER, ["social", "patient", "knowledgeable"], "square", 35,
+         {"extraversion": 0.6, "conscientiousness": 0.7, "openness": 0.6, "agreeableness": 0.8, "stability": 0.7}),
+        ("agent_farmer", "农民克莱", Role.FARMER, ["patient", "diligent", "quiet"], "wilderness", 25,
+         {"extraversion": 0.3, "conscientiousness": 0.8, "openness": 0.3, "agreeableness": 0.6, "stability": 0.8}),
+        ("agent_storyteller", "讲故事的人艾莉丝", Role.STORYTELLER, ["social", "creative", "charismatic"], "square", 20,
+         {"extraversion": 0.9, "conscientiousness": 0.4, "openness": 0.8, "agreeableness": 0.7, "stability": 0.4}),
+        ("agent_player", "旅行者", Role.PLAYER, ["adaptable", "curious"], "square", 10,
+         {"extraversion": 0.6, "conscientiousness": 0.5, "openness": 0.7, "agreeableness": 0.6, "stability": 0.5}),
+        ("agent_healer", "医生希尔达", Role.HEALER, ["careful", "gentle", "knowledgeable"], "school", 45,
+         {"extraversion": 0.5, "conscientiousness": 0.8, "openness": 0.5, "agreeableness": 0.9, "stability": 0.7}),
+        ("agent_miner", "矿工戈尔", Role.MINER, ["brave", "diligent", "quiet"], "mine", 55,
+         {"extraversion": 0.2, "conscientiousness": 0.9, "openness": 0.2, "agreeableness": 0.5, "stability": 0.6}),
     ]
-    for aid, name, role, traits, loc, gold in agent_data:
-        a = Agent(AgentIdentity(id=aid, name=name, role=role, traits=traits), location=loc)
+    for aid, name, role, traits, loc, gold, personality in agent_data:
+        a = Agent(AgentIdentity(id=aid, name=name, role=role, traits=traits, personality=personality), location=loc)
         a.state.gold = gold
         agents.append(a)
     # 初始化社交关系
@@ -190,4 +247,3 @@ def populate_agents():
             desc, pri, urg = goals_map[a.identity.id]
             a.add_goal(desc, pri, urg)
     return agents
-

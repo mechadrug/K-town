@@ -34,6 +34,7 @@ class AgentState:
 @dataclass
 class AgentIdentity:
     id:str;name:str;role:Role;traits:List[str]=field(default_factory=list);skills:Dict[str,int]=field(default_factory=dict)
+    personality: Dict[str, float] = field(default_factory=lambda: {"extraversion": 0.5, "conscientiousness": 0.5, "openness": 0.5, "agreeableness": 0.5, "stability": 0.5})
 
 @dataclass
 class Goal:
