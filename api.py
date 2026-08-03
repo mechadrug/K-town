@@ -1,4 +1,4 @@
-ï»¿"""FastAPI + WebSocket API layer."""
+"""FastAPI + WebSocket API layer."""
 import json,asyncio,os
 from typing import Set
 from fastapi import FastAPI,WebSocket,WebSocketDisconnect
@@ -43,11 +43,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     @app.get("/api/days")
     async def get_days():
-        # åˆå¹¶å†…å­˜å’Œæ•°æ®åº“çš„å†å²æ‘˜è¦
+        # ºÏ²¢ÄÚ´æºÍÊı¾İ¿âµÄÀúÊ·ÕªÒª
         db_summaries = tick_engine.db.get_day_summaries()
-        # è¿‡æ»¤æ‰å·²ç»è¿‡æœŸçš„ï¼Œä¿ç•™æœ€æ–°çš„30å¤©
+        # ¹ıÂËµôÒÑ¾­¹ıÆÚµÄ£¬±£Áô×îĞÂµÄ30Ìì
         all_summaries = db_summaries + tick_engine.day_summaries
-        # å»é‡ï¼ŒæŒ‰dayæ’åº
+        # È¥ÖØ£¬°´dayÅÅĞò
         seen_days = set()
         unique_summaries = []
         for s in sorted(all_summaries, key=lambda x: x["day"]):
@@ -58,11 +58,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     @app.get("/api/day/{day}")
     async def get_day(day:int):
-        # å…ˆæŸ¥å†…å­˜
+        # ÏÈ²éÄÚ´æ
         for s in tick_engine.day_summaries:
             if s["day"] == day:
                 return s
-        # å†æŸ¥æ•°æ®åº“
+        # ÔÙ²éÊı¾İ¿â
         db_summaries = tick_engine.db.get_day_summaries()
         for s in db_summaries:
             if s["day"] == day:
@@ -75,16 +75,81 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     @app.get("/api/logs/agents/{day}")
     async def get_agent_logs(day:int, agent_id:str = None):
-        """è·å–æŒ‡å®šæ—¥æœŸçš„Agentè¡Œä¸ºæ—¥å¿—"""
+        """»ñÈ¡Ö¸¶¨ÈÕÆÚµÄAgentĞĞÎªÈÕÖ¾"""
         return tick_engine.db.get_agent_logs(day, agent_id)
 
     @app.get("/api/snapshots/{day}")
     async def get_snapshot(day:int):
-        """è·å–æŒ‡å®šæ—¥æœŸçš„ä¸–ç•ŒçŠ¶æ€å¿«ç…§"""
+        """»ñÈ¡Ö¸¶¨ÈÕÆÚµÄÊÀ½ç×´Ì¬¿ìÕÕ"""
         snapshot = tick_engine.db.get_world_snapshot(day)
         if snapshot:
             return snapshot
         return JSONResponse({"error":"snapshot not found"},status_code=404)
+    @app.get("/api/history/{day}")
+    async def get_history(day:int):
+        """»ñÈ¡Ö¸¶¨ÈÕÆÚµÄÍêÕûÀúÊ·×´Ì¬£¨¿ìÕÕ + ÕªÒª + ÈÕÖ¾£©"""
+        snapshot = tick_engine.db.get_world_snapshot(day)
+        agent_logs = tick_engine.db.get_agent_logs(day)
+        day_summary = None
+        for s in tick_engine.day_summaries:
+            if s["day"] == day:
+                day_summary = s
+                break
+        if day_summary is None:
+            db_summaries = tick_engine.db.get_day_summaries()
+            for s in db_summaries:
+                if s["day"] == day:
+                    day_summary = s
+                    break
+        world_events = logger.query_world_events(500)
+        if day > 0:
+            base = (day - 1) * 24
+            world_events = [e for e in world_events if base <= e["tick"] < base + 24]
+        decisions = logger.query_decisions(500)
+        if day > 0:
+            base = (day - 1) * 24
+            decisions = [d for d in decisions if base <= d["tick"] < base + 24]
+        return {
+            "day": day,
+            "snapshot": snapshot,
+            "day_summary": day_summary,
+            "agent_logs": agent_logs,
+            "world_events": world_events,
+            "decisions": decisions
+        }
+
+    @app.get("/api/replay")
+    async def get_replay(start_day: int = 1, end_day: int = None):
+        """»ñÈ¡Ö¸¶¨Ê±¼ä·¶Î§µÄÀúÊ·Êı¾İÓÃÓÚ»Ø·Å"""
+        if end_day is None:
+            end_day = start_day
+        if start_day > end_day:
+            start_day, end_day = end_day, start_day
+        end_day = min(end_day, start_day + 30)
+        days_data = []
+        all_summaries = tick_engine.day_summaries + tick_engine.db.get_day_summaries()
+        seen = set()
+        unique_summaries = []
+        for s in sorted(all_summaries, key=lambda x: x["day"]):
+            if s["day"] not in seen and start_day <= s["day"] <= end_day:
+                seen.add(s["day"])
+                unique_summaries.append(s)
+        for day in range(start_day, end_day + 1):
+            snapshot = tick_engine.db.get_world_snapshot(day)
+            agent_logs = tick_engine.db.get_agent_logs(day)
+            summary = next((s for s in unique_summaries if s["day"] == day), None)
+            days_data.append({
+                "day": day,
+                "snapshot": snapshot,
+                "day_summary": summary,
+                "agent_logs": agent_logs
+            })
+        return {
+            "start_day": start_day,
+            "end_day": end_day,
+            "days": days_data
+        }
+
 
     @app.post("/api/player/action")
     async def player_action(action:dict):
@@ -112,7 +177,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         await websocket.accept()
         ws_clients.add(websocket)
         try:
-            # å‘é€å½“å‰çŠ¶æ€å’Œå†å²æ‘˜è¦
+            # ·¢ËÍµ±Ç°×´Ì¬ºÍÀúÊ·ÕªÒª
             await websocket.send_json({
                 "type": "state",
                 "data": {
@@ -123,7 +188,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                     "knowledge": knowledge.to_dict()
                 }
             })
-            # å‘é€å†å²æ¯æ—¥æ‘˜è¦
+            # ·¢ËÍÀúÊ·Ã¿ÈÕÕªÒª
             for summary in tick_engine.day_summaries[-10:]:
                 await websocket.send_json({
                     "type": "day_summary",

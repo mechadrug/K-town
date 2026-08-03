@@ -8,6 +8,8 @@ class World:
             "square": {"id": "square", "name": "广场", "type": "square", "agents": [], "description": "小镇的公共集会场所，用于交流、交易和公告发布"},
             "workshop": {"id": "workshop", "name": "工坊", "type": "workshop", "agents": [], "description": "制作工具、加工材料、技术研发的场所"},
             "wilderness": {"id": "wilderness", "name": "荒野", "type": "wilderness", "agents": [], "description": "采集资源、探索未知、发现新知识的区域"},
+            "school": {"id": "school", "name": "学校", "type": "school", "agents": [], "description": "教学育人、治病救人的场所"},
+            "mine": {"id": "mine", "name": "矿洞", "type": "mine", "agents": [], "description": "采集矿石、挖掘珍贵矿物的地下洞穴"},
         }
         self.state.locations = self.locations
         self._weathers = ["clear", "cloudy", "rainy", "snowy", "windy"]
@@ -22,7 +24,9 @@ class World:
         self.resources = {
             "square": {"food": 10, "materials": 5},
             "workshop": {"food": 0, "materials": 20},
-            "wilderness": {"food": 50, "materials": 30}
+            "wilderness": {"food": 50, "materials": 30},
+            "school": {"food": 5, "materials": 10},
+            "mine": {"food": 0, "materials": 50}
         }
 
     def advance(self, tick: int):

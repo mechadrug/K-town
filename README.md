@@ -1,90 +1,82 @@
-# K-town
+﻿# K-town 多智能体小镇模拟器
 
-一个多智能体小镇模拟游戏。居民是独立的 AI 智能体，拥有持久记忆、知识、目标和社会关系。
+## 项目简介
+K-town 是一个多智能体小镇模拟游戏，开发者只设定世界规则、资源、初始人物和事件种子；小镇居民通过感知、记忆、交互、学习、传播知识和创造物品，逐渐形成自己的社会结构。玩家既可以旁观，也可以作为真人居民进入其中，和agent共同改变世界。
 
-## v0.1 功能
-
-- 2D 小镇地图（广场、工坊、荒野）
-- 10 个 AI 智能体，各有角色、日程和目标
-- 5 种事件类型（天气、资源、社交、制作、谣言）
-- 知识系统：观察 → 传播 → 质疑 → 固化
-- 玩家可以进入小镇并影响事件
-- WebSocket 实时同步 + HTTP API
-- 日志与回放系统
+## 核心特性
+- 🤖 **10+智能Agent**：每个Agent有独立的身份、状态、记忆、目标、知识系统
+- 🌍 **动态世界**：天气变化、资源分布、事件生成，世界会随时间自主进化
+- 📚 **知识自进化**：知识可以创建、传播、质疑、修正、固化，形成小镇专属的知识库
+- 📊 **实时监控**：网页控制台实时查看小镇状态、Agent行为、每日摘要
+- ⏪ **历史回放**：支持查看任意日期的小镇历史，回放发展过程
+- 💾 **数据持久化**：所有历史数据保存到SQLite，重启后数据不丢失
 
 ## 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 服务端 | Go 1.21+ (tick 循环, 事件总线, Agent 状态机) |
-| 客户端 | Godot 4.x GDScript (2D 渲染, WebSocket) |
-| LLM | LongCat-2.0 (OpenAI 兼容 API) |
+- **后端**：Python 3.11+、FastAPI、Uvicorn
+- **前端**：HTML5、CSS3、JavaScript、WebSocket
+- **数据库**：SQLite
+- **LLM支持**：可集成LongCat等LLM服务，用于知识生成和决策
 
 ## 快速开始
+### 环境要求
+- Python 3.11+
+- pip包管理器
 
-### 服务端
+### 安装依赖
+```powershell
+pip install -r requirements.txt
+```
 
-` + "`powershell`" + `
-# 安装依赖
-go mod tidy
+### 运行服务
+```powershell
+python main.py
+```
 
-# 运行（默认 tick 率 1s）
-go run cmd/server
-
-# 构建
-go build -o ktown-server cmd/server
-` + "`" + `
-
-配置 ` + "`config.yaml`" + `：
-
-` + "`yaml`" + `
-llm:
-  base_url: https://api.longcat.chat/anthropic
-  api_key: your_key_here
-  model: LongCat-2.0
-` + "`" + `
-
-### 客户端
-
-1. 打开 Godot 4.x
-2. 导入 ` + "`client/project.godot`" + `
-3. 运行 Main 场景
+### 访问控制台
+浏览器打开 http://localhost:8090 即可访问小镇模拟器控制台
 
 ## 项目结构
-
-` + "`" + `
+```
 K-town/
-├── cmd/server          # Go 入口
-├── internal/           # Go 模块
-│   ├── config/         # 配置加载
-│   ├── world/          # 世界状态
-│   ├── event/          # 事件总线
-│   ├── agent/          # Agent 系统
-│   ├── knowledge/      # 知识引擎
-│   ├── log/            # 日志系统
-│   ├── api/            # HTTP/WebSocket API
-│   ├── tick/           # Tick 循环
-│   └── llm/            # LLM 客户端
-├── client/             # Godot 客户端
-│   ├── scenes/         # 场景文件
-│   └── scripts/        # GDScript
-├── docs/               # 文档
-│   ├── product/        # 产品设计
-│   ├── architecture/   # 架构设计
-│   └── plans/          # 实施计划
-└── config.yaml         # 配置文件（本地）
-` + "`" + `
+├── main.py                # 服务入口
+├── models.py              # 数据模型和枚举
+├── world.py               # 世界状态管理
+├── agent.py               # Agent系统
+├── events.py              # 事件系统
+├── knowledge.py           # 知识引擎
+├── tick.py                # Tick循环引擎
+├── api.py                 # REST API和WebSocket
+├── config.py              # 配置加载
+├── config.yaml            # 配置文件
+├── db.py                  # 数据库持久化
+├── logger.py              # 日志系统
+├── templates/
+│   └── index.html         # 前端控制台
+├── docs/
+│   ├── product/           # 产品设计文档
+│   ├── architecture/      # 架构设计文档
+│   ├── plans/             # 开发计划
+│   ├── development-progress.md # 开发进度
+│   └── handoff.md         # 交接记录
+└── requirements.txt       # 依赖列表
+```
 
-## API 端点
+## 配置说明
+编辑config.yaml文件可以配置：
+- 服务端口
+- LLM服务地址和密钥
+- Tick速度
+- 世界设定
+- Agent数量
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| WS | /ws | WebSocket 实时同步 |
-| GET | /api/state | 完整世界状态 |
-| GET | /api/agents/:id | Agent 详情 |
-| GET | /api/timeline?day=N | 事件时间线 |
-| POST | /api/player/action | 玩家动作 |
+## 后续计划
+- 添加更多职业和地点
+- 集成LLM生成更复杂的知识
+- 完善历史回放功能
+- 优化性能，支持更多Agent同时运行
+
+## 贡献指南
+欢迎提交Issue和Pull Request，共同完善K-town项目。
 
 ## 许可证
-
-MIT
+MIT License

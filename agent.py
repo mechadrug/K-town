@@ -66,6 +66,12 @@ class Agent:
         # 荒野工作时间：采集者、农民、侦察兵
         elif self.identity.role in [Role.FORAGER, Role.FARMER, Role.SCOUT]:
             slots = [(7,12,"wilderness"),(13,18,"wilderness")]
+        # 学校工作时间：医生
+        elif self.identity.role == Role.HEALER:
+            slots = [(8,12,"school"),(13,17,"school")]
+        # 矿洞工作时间：矿工
+        elif self.identity.role == Role.MINER:
+            slots = [(6,12,"mine"),(13,16,"mine")]
         else:
             slots = [(9,17,"square")]
         for start, end, loc in slots:
@@ -86,6 +92,8 @@ class Agent:
             Role.MERCHANT: ("trade", f"{n}在广场摆摊，和居民们交易商品"),
             Role.TEACHER: ("talk", f"{n}在广场教孩子们读书写字"),
             Role.STORYTELLER: ("talk", f"{n}在广场给大家讲有趣的冒险故事"),
+            Role.HEALER: ("work", f"{n}在学校救治病人，配制药剂"),
+            Role.MINER: ("work", f"{n}在矿洞挖掘矿石，叮叮当当忙个不停"),
             Role.PLAYER: ("observe", f"{n}在小镇里四处探索，发现新鲜事")
         }
         action_type, desc = role_actions.get(self.identity.role, ("work", f"{n}在工作"))
@@ -93,7 +101,7 @@ class Agent:
     
     def _get_location_cn(self, location: str) -> str:
         """获取地点中文名"""
-        loc_map = {"square": "广场", "workshop": "工坊", "wilderness": "荒野"}
+        loc_map = {"square": "广场", "workshop": "工坊", "wilderness": "荒野", "school": "学校", "mine": "矿洞"}
         return loc_map.get(location, location)
 
     def add_goal(self, desc, priority=5.0, urgency=0.5):
@@ -131,6 +139,8 @@ class Agent:
             "teacher": "教师",
             "farmer": "农民",
             "storyteller": "讲故事的人",
+            "healer": "医生",
+            "miner": "矿工",
             "player": "旅行者"
         }
         return role_map.get(role, role)
@@ -147,7 +157,9 @@ def populate_agents():
         ("agent_teacher", "教师奥尔登", Role.TEACHER, ["social", "patient", "knowledgeable"], "square", 35),
         ("agent_farmer", "农民克莱", Role.FARMER, ["patient", "diligent", "quiet"], "wilderness", 25),
         ("agent_storyteller", "讲故事的人艾莉丝", Role.STORYTELLER, ["social", "creative", "charismatic"], "square", 20),
-        ("agent_player", "旅行者", Role.PLAYER, ["adaptable", "curious"], "square", 10)
+        ("agent_player", "旅行者", Role.PLAYER, ["adaptable", "curious"], "square", 10),
+        ("agent_healer", "医生希尔达", Role.HEALER, ["careful", "gentle", "knowledgeable"], "school", 45),
+        ("agent_miner", "矿工戈尔", Role.MINER, ["brave", "dilient", "quiet"], "mine", 55)
     ]
     for aid, name, role, traits, loc, gold in agent_data:
         a = Agent(AgentIdentity(id=aid, name=name, role=role, traits=traits), location=loc)
@@ -169,7 +181,9 @@ def populate_agents():
         "agent_teacher": ("教导镇民知识", 8, 0.3),
         "agent_farmer": ("种植丰收庄稼", 10, 0.6),
         "agent_storyteller": ("收集有趣故事", 7, 0.3),
-        "agent_player": ("探索小镇秘密", 6, 0.2)
+        "agent_player": ("探索小镇秘密", 6, 0.2),
+        "agent_healer": ("救治更多病人", 9, 0.5),
+        "agent_miner": ("采集稀有矿石", 8, 0.6)
     }
     for a in agents:
         if a.identity.id in goals_map:

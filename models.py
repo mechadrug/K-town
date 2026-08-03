@@ -1,10 +1,10 @@
-﻿from dataclasses import dataclass,field
+from dataclasses import dataclass,field
 from enum import Enum
 from typing import Optional,Dict,List,Any
 import time,uuid
 
 class Role(str,Enum):
-    ELDER="elder";BLACKSMITH="blacksmith";CARPENTER="carpenter";FORAGER="forager";SCOUT="scout";MERCHANT="merchant";TEACHER="teacher";FARMER="farmer";STORYTELLER="storyteller";PLAYER="player"
+    ELDER="elder";BLACKSMITH="blacksmith";CARPENTER="carpenter";FORAGER="forager";SCOUT="scout";MERCHANT="merchant";TEACHER="teacher";FARMER="farmer";STORYTELLER="storyteller";HEALER="healer";MINER="miner";PLAYER="player"
 
 class Mood(str,Enum):
     HAPPY="happy";NEUTRAL="neutral";ANXIOUS="anxious";ANGRY="angry";SAD="sad"
