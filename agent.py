@@ -205,6 +205,45 @@ class Agent:
         return "；".join([k.claim for k in recent])
 
 
+
+    def evaluate_trade(self, market_prices: Dict[str, int]) -> Optional[Dict[str, Any]]:
+        """评估是否需要进行交易，返回交易决策"""
+        # 商人：低买高卖
+        if self.identity.role == Role.MERCHANT:
+            # 找最便宜的供应商
+            best_deal = None
+            best_profit = 0
+            for resource, price in market_prices.items():
+                base_price = 5  # 假设基础价格
+                if price < base_price * 0.8:  # 价格低于基础价格80%→买入
+                    profit = base_price - price
+                    if profit > best_profit:
+                        best_profit = profit
+                        best_deal = {"action": "buy", "resource": resource, "price": price}
+                elif self.state.inventory and resource in self.state.inventory:
+                    # 有库存且价格高于基础价格→卖出
+                    if price > base_price * 1.2:
+                        profit = price - base_price
+                        if profit > best_profit:
+                            best_profit = profit
+                            best_deal = {"action": "sell", "resource": resource, "price": price}
+            return best_deal
+        
+        # 普通Agent：饥饿时买食物
+        if self.state.hunger > 30 and self.state.food < 2:
+            food_price = market_prices.get("food", 5)
+            if self.state.gold >= food_price:
+                return {"action": "buy", "resource": "food", "price": food_price}
+        
+        # 产出者：有富余产品时卖出
+        if self.identity.role in (Role.FORAGER, Role.FARMER) and self.state.food > 5:
+            food_price = market_prices.get("food", 5)
+            if food_price > 4:  # 价格好时卖出
+                return {"action": "sell", "resource": "food", "price": food_price}
+        
+        return None
+
+
     def _get_work_slot(self, hour):
         if self.identity.role in [Role.ELDER, Role.TEACHER, Role.STORYTELLER, Role.MERCHANT]:
             slots = [(6,10,"square"),(12,14,"square"),(17,20,"square")]

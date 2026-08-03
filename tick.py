@@ -341,6 +341,35 @@ class TickEngine:
         }
 
 
+
+    async def _execute_trade(self, agent, trade: Dict[str, Any]):
+        """执行交易"""
+        action = trade.get("action")
+        resource = trade.get("resource")
+        price = trade.get("price", 5)
+        
+        if action == "buy":
+            if agent.state.gold >= price:
+                agent.state.gold -= price
+                if resource == "food":
+                    agent.state.food += 1
+                else:
+                    agent.state.inventory.append(resource)
+                self.world.record_demand(resource)
+                self.daily_agent_logs[agent.identity.id].append(f"以{price}金币购买了{resource}")
+        elif action == "sell":
+            if resource == "food" and agent.state.food > 0:
+                agent.state.food -= 1
+                agent.state.gold += price
+                self.world.record_supply(resource)
+                self.daily_agent_logs[agent.identity.id].append(f"以{price}金币卖出了{resource}")
+            elif resource in agent.state.inventory:
+                agent.state.inventory.remove(resource)
+                agent.state.gold += price
+                self.world.record_supply(resource)
+                self.daily_agent_logs[agent.identity.id].append(f"以{price}金币卖出了{resource}")
+
+
     def _generate_day_summary(self, day: int) -> Dict[str, Any]:
         """生成中文每日叙事摘要"""
         weather_name = self.world.get_weather_name()
