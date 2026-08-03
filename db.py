@@ -62,14 +62,25 @@ class Database:
         self.conn.commit()
     
     def reset(self):
-        """重置数据库，清空所有数据"""
+        """重置数据库，清空所有数据（包括Logger的表）"""
         cursor = self.conn.cursor()
-        cursor.execute("DELETE FROM day_summaries")
-        cursor.execute("DELETE FROM agent_logs")
-        cursor.execute("DELETE FROM world_snapshots")
-        cursor.execute("DELETE FROM events")
+        # 清空所有数据表
+        tables = [
+            "day_summaries", "agent_logs", "world_snapshots", "events",
+            "world_events", "agent_decisions", "knowledge_changes", "player_actions"
+        ]
+        for table in tables:
+            try:
+                cursor.execute(f"DELETE FROM {table}")
+            except sqlite3.OperationalError:
+                pass  # 表可能不存在，跳过
         self.conn.commit()
-    
+        # 重置sqlite_sequence（自增ID）
+        try:
+            cursor.execute("DELETE FROM sqlite_sequence")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
     def save_day_summary(self, summary: Dict[str, Any]):
         """保存每日摘要"""
         cursor = self.conn.cursor()

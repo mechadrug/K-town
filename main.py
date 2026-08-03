@@ -11,6 +11,7 @@ from logger import Logger
 from llm import LLMClient
 from tick import TickEngine
 from api import create_app
+from quests import QuestEngine
 import uvicorn
 
 # Global set of connected WebSocket clients
@@ -45,6 +46,10 @@ def init_system():
     print(f"Spawned {len(agents)} agents")
 
     engine = TickEngine(world, bus, agents, knowledge, logger, llm, cfg.tick.rate, cfg.tick.day_length)
+
+    # 初始化任务系统
+    quest_engine = QuestEngine()
+    engine.quest_engine = quest_engine
 
     # Wire up broadcast callbacks
     async def on_day_summary(summary):

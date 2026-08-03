@@ -46,9 +46,6 @@ class TickEngine:
         # 自动重置
         if auto_reset:
             self.db.reset()
-        # 自动重置
-        if auto_reset:
-            self.db.reset()
         # 加载历史摘要
         self._load_history()
     
@@ -115,7 +112,6 @@ class TickEngine:
             # 保存事件到数据库
             self.db.save_event(tick, self.current_day, event.type.value, event.location, event.payload)
             # 保存事件到数据库
-            self.db.save_event(tick, self.current_day, event.type.value, event.location, event.payload)
             self.current_day_events.append({
                 "tick": tick, "type": event.type.value,
                 "location": event.location, "payload": str(event.payload)[:100],
@@ -174,36 +170,95 @@ class TickEngine:
                 await self.on_day_summary(summary)
 
     def _generate_day_summary(self, day: int) -> Dict[str, Any]:
-        """生成中文每日详细摘要"""
-        # 计算整体变化
+        """生成中文每日叙事摘要"""
+        weather_name = self.world.get_weather_name()
         current_total_gold = sum(a.state.gold for a in self.agents)
         gold_change = current_total_gold - self.prev_total_gold
         knowledge_change = len(self.knowledge.claims) - self.prev_knowledge_count
-        avg_energy = sum(a.state.energy for a in self.agents) / len(self.agents)
+        avg_energy = sum(a.state.energy for a in self.agents) / max(1, len(self.agents))
         happy_count = sum(1 for a in self.agents if a.state.mood.value == "happy")
-        
-        # 生成每个agent的变化描述
+        anxious_count = sum(1 for a in self.agents if a.state.mood.value in ("anxious", "sad", "angry"))
+
+        # 生成每个居民的叙事描述
         agent_summaries = []
         prev_state_map = {a["id"]: a for a in self.prev_agent_states}
+        location_agents: Dict[str, List[str]] = {}
+        for agent in self.agents:
+            loc = agent.state.location
+            location_agents.setdefault(loc, []).append(agent.identity.name)
+
         for agent in self.agents:
             prev = prev_state_map.get(agent.identity.id, {})
             energy_change = round(agent.state.energy - prev.get("energy", 100), 1)
             gold_change_agent = agent.state.gold - prev.get("gold", 0)
-            knowledge_count = len(agent.knowledge)
-            
-            # 行为摘要
             behavior_log = self.daily_agent_logs.get(agent.identity.id, [])
-            behavior_summary = "，".join(behavior_log[-5:]) if behavior_log else "今天没有活动记录"
-            
+
+            # 统计行为类型
+            work_count = sum(1 for b in behavior_log if "工作" in b or "锻造" in b or "采集" in b or "耕种" in b or "挖掘" in b or "制作" in b or "救治" in b)
+            talk_count = sum(1 for b in behavior_log if "聊天" in b or "讲" in b or "教" in b)
+            move_count = sum(1 for b in behavior_log if "前往" in b or "移动" in b)
+            rest_count = sum(1 for b in behavior_log if "休息" in b or "睡觉" in b)
+            trade_count = sum(1 for b in behavior_log if "交易" in b or "摆摊" in b)
+
             # 心情描述
-            mood_desc = {
-                "happy": "心情愉快",
-                "neutral": "心情平静",
-                "anxious": "有些焦虑",
-                "angry": "非常生气",
-                "sad": "心情低落"
-            }.get(agent.state.mood.value, "心情未知")
-            
+            mood_map = {
+                "happy": "心情愉快", "neutral": "心情平静",
+                "anxious": "有些焦虑", "angry": "非常生气", "sad": "心情低落"
+            }
+            mood_desc = mood_map.get(agent.state.mood.value, "心情未知")
+
+            # 生成叙事描述
+            narrative_parts = []
+            if work_count > 0:
+                role_work_desc = {
+                    "blacksmith": f"在工坊勤劳地锻造了{work_count}次工具",
+                    "carpenter": f"在工坊精心制作了{work_count}次木工家具",
+                    "forager": f"前往荒野采集了{work_count}次食物和草药",
+                    "farmer": f"在田地里耕种了{work_count}次庄稼",
+                    "scout": f"探索了{work_count}次未知区域",
+                    "healer": f"在学校救治了{work_count}次病人",
+                    "miner": f"在矿洞挖掘了{work_count}次矿石",
+                    "merchant": f"在广场摆摊交易了{trade_count}次" if trade_count > 0 else "在广场打理生意",
+                    "elder": f"给年轻人们分享了{work_count}次古老的知识",
+                    "teacher": f"教导了{work_count}次孩子们读书写字",
+                    "storyteller": f"讲述了{work_count}次有趣的冒险故事",
+                    "player": "在小镇里四处探索"
+                }
+                narrative_parts.append(role_work_desc.get(agent.identity.role.value, f"完成了{work_count}次工作"))
+            if talk_count > 0:
+                narrative_parts.append(f"和镇民们交谈了{talk_count}次")
+            if move_count > 0:
+                narrative_parts.append(f"在小镇中往返了{move_count}次")
+            if rest_count > 0:
+                narrative_parts.append(f"休息了{rest_count}次恢复体力")
+
+            if not narrative_parts:
+                narrative_parts.append("今天比较悠闲，在附近散步观察")
+
+            # 变化描述
+            changes = []
+            if energy_change > 5:
+                changes.append("精神饱满")
+            elif energy_change < -10:
+                changes.append("显得有些疲惫")
+            elif energy_change < -5:
+                changes.append("体力有所下降")
+
+            if gold_change_agent > 10:
+                changes.append(f"收入了{gold_change_agent}金币，小有积蓄")
+            elif gold_change_agent > 0:
+                changes.append(f"赚了{gold_change_agent}金币")
+            elif gold_change_agent < -5:
+                changes.append(f"花费了{abs(gold_change_agent)}金币")
+
+            change_text = "，".join(changes) if changes else "状态平稳"
+
+            # 组合叙事
+            narrative = f"{agent.identity.name}（{self._get_role_cn(agent.identity.role.value)}）"
+            narrative += "，".join(narrative_parts) + "。"
+            narrative += f"目前{mood_desc}，{change_text}。"
+            narrative += f"当前位于{self._get_location_cn(agent.state.location)}，体力{round(agent.state.energy,1)}点，持有{agent.state.gold}金币。"
+
             agent_summaries.append({
                 "id": agent.identity.id,
                 "name": agent.identity.name,
@@ -217,28 +272,66 @@ class TickEngine:
                 "mood_desc": mood_desc,
                 "gold": agent.state.gold,
                 "gold_change": gold_change_agent,
-                "knowledge_count": knowledge_count,
-                "behavior_summary": behavior_summary,
+                "knowledge_count": len(agent.knowledge),
+                "narrative": narrative,
                 "goal": agent.top_goal().description if agent.top_goal() else "暂无目标"
             })
-        
+
         # 重大事件摘要
         important_events = []
         for evt in self.current_day_events:
-            if evt.get("type") in [EventType.WEATHER_CHANGE.value, EventType.RESOURCE_FOUND.value, EventType.ITEM_CRAFTED.value]:
-                important_events.append(evt.get("payload", evt.get("action", "未知事件")))
-        
-        # 整体摘要
-        overall_summary = f"第{day}天结束，天气{self.world.state.weather}。城镇共有{len(self.agents)}位居民，"
-        overall_summary += f"平均体力{round(avg_energy,1)}点，其中有{happy_count}位居民心情愉快。"
-        overall_summary += f"今天知识库新增{knowledge_change}条知识，城镇总金币变化{'+'+str(gold_change) if gold_change>=0 else gold_change}。"
+            t = evt.get("type", "")
+            if t == EventType.WEATHER_CHANGE.value:
+                important_events.append(f"天气变为{self.world.get_weather_name(evt.get('payload', ''))}")
+            elif t == EventType.RESOURCE_FOUND.value:
+                important_events.append(f"在{self._get_location_cn(evt.get('location', ''))}发现了新资源")
+            elif t == EventType.ITEM_CRAFTED.value:
+                important_events.append(f"有人制作了新的{evt.get('payload', '物品')}")
+            elif t == EventType.FESTIVAL.value:
+                important_events.append("全镇举办了节日庆典")
+            elif t == EventType.DISASTER.value:
+                important_events.append(f"发生了{evt.get('type', '灾害')}，居民们受到了影响")
+            elif t == EventType.RUMOR_SPREAD.value:
+                important_events.append("镇上有新的传闻在流传")
+            elif t == EventType.SOCIAL_RELATION_CHANGE.value:
+                important_events.append("一些居民之间的关系发生了变化")
+
+        # 整体叙事摘要
+        overall = f"第{day}天过去了，{weather_name}的天空下，小镇迎来了新的变化。"
+        overall += f"镇上的{len(self.agents)}位居民"
+        if happy_count >= len(self.agents) * 0.6:
+            overall += "大多心情愉快，整个小镇洋溢着欢乐的气氛。"
+        elif anxious_count >= len(self.agents) * 0.4:
+            overall += "中有不少人显得焦虑，似乎有什么事情困扰着大家。"
+        else:
+            overall += "各司其职，过着平静的生活。"
+
+        overall += f"今天平均体力为{round(avg_energy,1)}点。"
+        if knowledge_change > 0:
+            overall += f"知识库新增了{knowledge_change}条知识，小镇的文化更加丰富了。"
+        if gold_change > 0:
+            overall += f"全镇金币总量增加了{gold_change}，经济有所增长。"
+        elif gold_change < -10:
+            overall += f"全镇金币总量减少了{abs(gold_change)}，需要更加节约。"
+
         if important_events:
-            overall_summary += f"今天发生的重大事件有：{'；'.join(important_events[:3])}。"
-        
+            overall += f"今天发生的重大事件：{'；'.join(important_events[:5])}。"
+
+        # 地点动态
+        location_dynamics = []
+        for loc_id, agents_here in location_agents.items():
+            if len(agents_here) >= 3:
+                location_dynamics.append(f"{self._get_location_cn(loc_id)}非常热闹，有{len(agents_here)}位居民聚集")
+            elif len(agents_here) == 0:
+                location_dynamics.append(f"{self._get_location_cn(loc_id)}空无一人")
+        if location_dynamics:
+            overall += " " + "，".join(location_dynamics) + "。"
+
         return {
             "day": day,
             "weather": self.world.state.weather,
-            "overall_summary": overall_summary,
+            "weather_name": weather_name,
+            "overall_summary": overall,
             "agents": agent_summaries,
             "stats": {
                 "total_gold": current_total_gold,
@@ -250,8 +343,6 @@ class TickEngine:
                 "events_count": len(self.current_day_events)
             }
         }
-    
-    def _get_role_cn(self, role: str) -> str:
         """获取职业中文名"""
         role_map = {
             "elder": "长者",
@@ -360,50 +451,81 @@ class TickEngine:
     async def _handle_action(self, agent, action):
         t = action.get("type", "")
         tgt = action.get("target", "")
+        loc_cn = self._get_location_cn(agent.state.location)
         if t == "move" and tgt:
             self.world.remove_agent_from_location(agent.identity.id, agent.state.location)
             agent.state.location = tgt
             self.world.add_agent_to_location(agent.identity.id, tgt)
             agent.state.energy -= 5
+            self.daily_agent_logs[agent.identity.id].append(f"移动到了{self._get_location_cn(tgt)}")
         elif t == "work":
             agent.state.energy -= 8
-            # 不同职业工作产出不同
             role = agent.identity.role.value
+            work_knowledge = {
+                "blacksmith": ("锻造", f"在工坊锻造了优质的工具"),
+                "carpenter": ("木工", f"在工坊制作了精美的木家具"),
+                "forager": ("采集", f"在森林里采集了新鲜的食材和草药"),
+                "farmer": ("农耕", f"在田地里辛勤耕种，期待丰收"),
+                "scout": ("探索", f"探索了荒野的未知区域，绘制了新地图"),
+                "healer": ("医疗", f"在学校救治了病人，配制药剂"),
+                "miner": ("采矿", f"在矿洞深处挖掘出珍贵的矿石"),
+                "merchant": ("商业", f"在广场打理生意，了解市场行情"),
+                "elder": ("知识", f"给年轻人们讲述了古老的传说和智慧"),
+                "teacher": ("教育", f"教导孩子们读书写字，传播知识"),
+                "storyteller": ("故事", f"给大家讲述精彩的冒险故事"),
+            }
+            if role in work_knowledge:
+                subject, desc = work_knowledge[role]
+                self.knowledge.observe(agent.identity.id, subject, desc, agent.state.location)
             if role in ["blacksmith", "carpenter"]:
-                # 铁匠和木匠产出工具，卖给商人
                 agent.state.gold += 5
                 agent.state.inventory.append("tool")
             elif role in ["forager", "farmer"]:
-                # 采集者和农民产出食物
                 agent.state.gold += 3
                 agent.state.inventory.append("food")
             elif role == "scout":
-                # 侦察兵探索获得金币
                 agent.state.gold += 4
             elif role == "healer":
-                # 医生治疗获得金币
                 agent.state.gold += 4
             elif role == "miner":
-                # 矿工采集矿石获得金币
                 agent.state.gold += 5
             else:
                 agent.state.gold += 2
+            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}工作")
         elif t == "rest":
             agent.state.energy = min(100, agent.state.energy + 10)
+            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}休息恢复体力")
         elif t == "sleep":
             agent.state.energy = min(100, agent.state.energy + 20)
+            self.daily_agent_logs[agent.identity.id].append("睡觉休息")
         elif t == "talk":
             agent.state.energy -= 2
-            # 社交获得少量金币
             agent.state.gold += 1
+            # 社交时传播知识
+            claims = self.knowledge.agent_knowledge(agent.identity.id)
+            if claims and len(claims) > 0:
+                top = max(claims, key=lambda c: c.confidence)
+                if top.confidence > 0.5:
+                    self.knowledge.propagate(top.id, agent.identity.id, "nearby_agents", 0.7)
+            self.daily_agent_logs[agent.identity.id].append(f"和{loc_cn}的人聊天")
         elif t == "trade":
-            # 商人交易获得更多金币
             if agent.identity.role.value == "merchant":
                 agent.state.gold += 8
             else:
                 agent.state.gold += 2
+            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}进行交易")
+        elif t == "investigate":
+            agent.state.energy -= 3
+            self.knowledge.observe(agent.identity.id, "investigate", f"在{loc_cn}调查了周围的情况", agent.state.location)
+            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查周围环境")
+        elif t == "observe":
+            agent.state.energy -= 1
+            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}观察四周")
         agent.state.energy = max(0, min(100, agent.state.energy))
 
+    def stop(self):
+        self._running = False
+        self.db.close()
     def stop(self):
         self._running = False
         self.db.close()

@@ -1,739 +1,155 @@
 ﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>K-town 小镇模拟器 v0.2</title>
-<style>
-:root {
-  --bg-primary: #0a0a14;
-  --bg-secondary: #121220;
-  --bg-card: #181828;
-  --bg-hover: #20203a;
-  --accent: #ff3366;
-  --accent-light: #ff6699;
-  --gold: #ffd700;
-  --green: #00ff88;
-  --blue: #00bfff;
-  --purple: #aa88ff;
-  --orange: #ff8800;
-  --text: #e0e0ff;
-  --text-dim: #8080a0;
-  --border: rgba(255,255,255,0.06);
-  --shadow: 0 12px 40px rgba(0,0,0,0.5);
-  --radius: 16px;
-  --radius-sm: 10px;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: var(--bg-primary);
-  color: var(--text);
-  min-height: 100vh;
-  padding: 20px;
-}
-
-/* 顶部导航 */
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  margin-bottom: 20px;
-  border: 1px solid var(--border);
-  flex-wrap: wrap;
-  gap: 16px;
-}
-.navbar h1 {
-  font-size: 1.5em;
-  background: linear-gradient(135deg, var(--accent), var(--gold));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.nav-stats {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-.nav-stat {
-  text-align: center;
-}
-.nav-stat .label {
-  font-size: 0.75em;
-  color: var(--text-dim);
-}
-.nav-stat .value {
-  font-size: 1.1em;
-  font-weight: 700;
-}
-.nav-actions {
-  display: flex;
-  gap: 8px;
-}
-.nav-btn {
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: var(--accent);
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 0.85em;
-}
-.nav-btn.secondary {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-/* 主容器 */
-.main-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  max-width: 1800px;
-  margin: 0 auto;
-}
-
-/* 地图区域 */
-.map-section {
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  padding: 20px;
-  border: 1px solid var(--border);
-}
-.map-container {
-  position: relative;
-  width: 100%;
-  height: 500px;
-  background: linear-gradient(135deg, #080810 0%, #101028 100%);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-
-/* 位置标记 */
-.location-zone {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.8);
-  border: 1px dashed rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.03);
-  pointer-events: none;
-}
-.loc-square { left: 50%; top: 35%; }
-.loc-workshop { left: 25%; top: 20%; }
-.loc-wilderness { left: 75%; top: 70%; }
-.loc-school { left: 25%; top: 70%; }
-.loc-mine { left: 75%; top: 20%; }
-
-/* Agent标记 */
-.agent-marker {
-  position: absolute;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
-  color: white;
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-  border: 2px solid rgba(255,255,255,0.3);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  transform: translate(-50%, -50%);
-}
-.agent-marker:hover {
-  transform: translate(-50%, -50%) scale(1.4);
-  z-index: 100;
-}
-
-.elder { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
-.blacksmith { background: linear-gradient(135deg, #e67e22, #d35400); }
-.carpenter { background: linear-gradient(135deg, #a0522d, #8b4513); }
-.forager { background: linear-gradient(135deg, #27ae60, #1e8449); }
-.scout { background: linear-gradient(135deg, #2ecc71, #27ae60); }
-.merchant { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #333; }
-.teacher { background: linear-gradient(135deg, #3498db, #2980b9); }
-.farmer { background: linear-gradient(135deg, #1abc9c, #16a085); }
-.storyteller { background: linear-gradient(135deg, #e91e63, #c2185b); }
-.healer { background: linear-gradient(135deg, #00b894, #00cec9); }
-.miner { background: linear-gradient(135deg, #636e72, #2d3436); }
-.player { background: linear-gradient(135deg, #ffffff, #f0f0f0); color: #333; border: 3px solid var(--accent); }
-
-/* 右侧面板 */
-.right-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* 标签页 */
-.tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--bg-card);
-  padding: 4px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-.tab {
-  flex: 1;
-  padding: 10px;
-  text-align: center;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-.tab.active {
-  background: var(--accent);
-  color: white;
-}
-.tab:not(.active):hover {
-  background: var(--bg-hover);
-}
-
-/* 标签页内容 */
-.tab-content {
-  display: none;
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  padding: 16px;
-  border: 1px solid var(--border);
-  max-height: 600px;
-  overflow-y: auto;
-}
-.tab-content.active {
-  display: block;
-}
-
-/* 卡片样式 */
-.card h3 {
-  font-size: 0.95em;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* 玩家信息 */
-.player-info {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-.player-stat {
-  background: var(--bg-hover);
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  text-align: center;
-}
-.player-stat .label {
-  font-size: 0.75em;
-  color: var(--text-dim);
-  margin-bottom: 4px;
-}
-.player-stat .value {
-  font-size: 1.1em;
-  font-weight: 600;
-}
-
-/* Agent列表 */
-.agent-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-.agent-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-.agent-item:last-child { border-bottom: none; }
-.agent-item .avatar {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
-}
-.agent-item .info {
-  flex: 1;
-  min-width: 0;
-}
-.agent-item .name {
-  font-size: 0.9em;
-  font-weight: 500;
-}
-.agent-item .details {
-  font-size: 0.75em;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
-/* 知识卡片 */
-.knowledge-card {
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-}
-.knowledge-card .subject {
-  font-weight: 600;
-  color: var(--gold);
-  margin-bottom: 4px;
-  font-size: 0.9em;
-}
-.knowledge-card .claim {
-  line-height: 1.5;
-  margin-bottom: 6px;
-  font-size: 0.85em;
-}
-.knowledge-card .meta {
-  display: flex;
-  gap: 12px;
-  font-size: 0.75em;
-  color: var(--text-dim);
-  flex-wrap: wrap;
-}
-.knowledge-card .confidence { color: var(--green); }
-.knowledge-card .source { color: var(--blue); }
-
-/* 搜索框 */
-.search-box {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.search-box input {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--text);
-  font-size: 0.85em;
-}
-
-/* 每日摘要 */
-.summary-item {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-.summary-item:last-child { border-bottom: none; }
-.summary-item .day {
-  font-weight: 600;
-  color: var(--gold);
-  margin-bottom: 4px;
-}
-.summary-item .content {
-  font-size: 0.85em;
-  line-height: 1.5;
-}
-
-/* 操作按钮 */
-.action-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.action-btn {
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: var(--accent);
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s ease;
-  font-size: 0.85em;
-}
-.action-btn:hover { background: var(--accent-light); }
-.action-btn.secondary { background: var(--blue); }
-.action-btn.secondary:hover { background: #33ccff; }
-
-/* 滚动条 */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--bg-secondary); border-radius: 2px; }
-::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
-
-/* 响应式 */
-@media (max-width: 1000px) {
-  .main-container { grid-template-columns: 1fr; }
-  .navbar { flex-direction: column; align-items: flex-start; }
-  .nav-stats { width: 100%; justify-content: space-between; }
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-town 边境小镇</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<!-- 顶部导航 -->
-<div class="navbar">
-  <h1>🏘️ K-town 小镇模拟器</h1>
-  <div class="nav-stats">
-    <div class="nav-stat">
-      <div class="label">Tick</div>
-      <div class="value" id="tick">0</div>
+  <!-- 顶部导航栏 -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <div class="logo">🏘️</div>
+      <h1>K-town 边境小镇</h1>
     </div>
-    <div class="nav-stat">
-      <div class="label">天气</div>
-      <div class="value" id="weather">-</div>
+    <div class="navbar-stats">
+      <div class="stat-badge day"><span class="value" id="stat-day">第1天</span></div>
+      <div class="stat-badge"><span class="value" id="stat-weather">☀️ 晴朗</span></div>
+      <div class="stat-badge"><span class="value" id="stat-time">☀️ 白天</span></div>
+      <div class="stat-badge gold"><span class="value" id="stat-gold">10</span></div>
+      <div class="stat-badge energy"><span class="value" id="stat-energy">100</span></div>
+      <div class="stat-badge"><span class="value" id="stat-location">广场</span></div>
     </div>
-    <div class="nav-stat">
-      <div class="label">第几天</div>
-      <div class="value" id="day">1</div>
-    </div>
-    <div class="nav-stat">
-      <div class="label">知识</div>
-      <div class="value" id="knowledge">0</div>
-    </div>
-    <div class="nav-stat">
-      <div class="label">居民</div>
-      <div class="value" id="population">12</div>
-    </div>
-  </div>
-  <div class="nav-actions">
-    <button class="nav-btn" onclick="resetSimulation()">🔄 重置模拟</button>
-  </div>
-</div>
+  </nav>
 
-<!-- 主容器 -->
-<div class="main-container">
-  <!-- 左侧：地图 -->
-  <div class="map-section">
-    <div class="map-container" id="map">
-      <div class="location-zone loc-square">🏘️ 广场</div>
-      <div class="location-zone loc-workshop">🔨 工坊</div>
-      <div class="location-zone loc-wilderness">🌿 荒野</div>
-      <div class="location-zone loc-school">🏫 学校</div>
-      <div class="location-zone loc-mine">⛏️ 矿洞</div>
-    </div>
-  </div>
+  <!-- 时间进度条 -->
+  <div id="time-indicator"></div>
 
-  <!-- 右侧：标签页 -->
-  <div class="right-panel">
-    <!-- 标签页导航 -->
-    <div class="tabs">
-      <div class="tab active" data-tab="player">👤 玩家</div>
-      <div class="tab" data-tab="agents">👥 居民</div>
-      <div class="tab" data-tab="knowledge">📚 知识</div>
-      <div class="tab" data-tab="summary">📅 摘要</div>
-    </div>
-
-    <!-- 玩家标签页 -->
-    <div class="tab-content active" id="tab-player">
-      <div class="card">
-        <h3>👤 玩家状态</h3>
-        <div class="player-info">
-          <div class="player-stat">
-            <div class="label">体力</div>
-            <div class="value" id="player-energy">100</div>
-          </div>
-          <div class="player-stat">
-            <div class="label">金币</div>
-            <div class="value" id="player-gold">10</div>
-          </div>
-          <div class="player-stat">
-            <div class="label">位置</div>
-            <div class="value" id="player-location">广场</div>
-          </div>
-          <div class="player-stat">
-            <div class="label">心情</div>
-            <div class="value" id="player-mood">😊</div>
-          </div>
+  <!-- 主布局 -->
+  <div class="main-layout">
+    <!-- 左侧：地图 + 日志 -->
+    <div class="map-section">
+      <!-- 地图 -->
+      <div class="map-container">
+        <div class="map-header">
+          <h2>🗺️ 小镇地图</h2>
+          <span style="font-size:0.8em;color:var(--text-secondary)">点击地点查看详情</span>
+        </div>
+        <div class="map-canvas" id="map-canvas">
+          <svg class="map-connections" width="100%" height="100%">
+            <line x1="50%" y1="30%" x2="20%" y2="25%"/>
+            <line x1="50%" y1="30%" x2="80%" y2="25%"/>
+            <line x1="50%" y1="30%" x2="22%" y2="70%"/>
+            <line x1="50%" y1="30%" x2="80%" y2="70%"/>
+            <line x1="20%" y1="25%" x2="22%" y2="70%"/>
+            <line x1="80%" y1="25%" x2="80%" y2="70%"/>
+          </svg>
         </div>
       </div>
-      <div class="card" style="margin-top: 12px;">
-        <h3>⚡ 快捷操作</h3>
-        <div class="action-buttons">
-          <button class="action-btn" onclick="movePlayer('square')">广场</button>
-          <button class="action-btn" onclick="movePlayer('workshop')">工坊</button>
-          <button class="action-btn" onclick="movePlayer('wilderness')">荒野</button>
-          <button class="action-btn" onclick="movePlayer('school')">学校</button>
-          <button class="action-btn" onclick="movePlayer('mine')">矿洞</button>
-          <button class="action-btn secondary" onclick="openAddKnowledge()">添加知识</button>
+
+      <!-- 日志区域 -->
+      <div class="log-container">
+        <div class="log-header">
+          <h2>📋 小镇动态</h2>
+          <div class="log-tabs">
+            <button class="log-tab active" data-tab="log">事件</button>
+            <button class="log-tab" data-tab="agents">居民</button>
+            <button class="log-tab" data-tab="knowledge">知识</button>
+            <button class="log-tab" data-tab="quests">任务</button>
+          </div>
+        </div>
+
+        <!-- 事件日志 -->
+        <div class="tab-content active" id="tab-log">
+          <div class="log-content" id="log-content">
+            <div class="log-entry"><span class="log-time">--:--</span><span class="log-icon">🏘️</span><span class="log-text">欢迎来到K-town边境小镇！</span></div>
+          </div>
+        </div>
+
+        <!-- 居民列表 -->
+        <div class="tab-content" id="tab-agents">
+          <div class="agent-list" id="agent-list"></div>
+        </div>
+
+        <!-- 知识列表 -->
+        <div class="tab-content" id="tab-knowledge">
+          <div class="knowledge-list" id="knowledge-list"></div>
+        </div>
+
+        <!-- 任务列表 -->
+        <div class="tab-content" id="tab-quests">
+          <div class="quest-list" id="quest-list"></div>
         </div>
       </div>
     </div>
 
-    <!-- 居民标签页 -->
-    <div class="tab-content" id="tab-agents">
-      <div class="card">
-        <h3>👥 居民列表 (12人)</h3>
-        <div class="agent-list" id="agent-list"></div>
-      </div>
-    </div>
-
-    <!-- 知识标签页 -->
-    <div class="tab-content" id="tab-knowledge">
-      <div class="card">
-        <h3>📚 知识库</h3>
-        <div class="search-box">
-          <input type="text" id="knowledge-search" placeholder="搜索知识主题...">
-          <button class="action-btn secondary" onclick="searchKnowledge()">搜索</button>
-          <button class="action-btn" onclick="loadKnowledge()">全部</button>
+    <!-- 右侧：玩家面板 + 操作 -->
+    <div class="sidebar">
+      <!-- 玩家卡片 -->
+      <div class="panel">
+        <div class="player-card">
+          <div class="player-avatar">👤</div>
+          <div class="player-info">
+            <h3>旅行者</h3>
+            <div class="player-role">小镇新居民</div>
+          </div>
         </div>
-        <div id="knowledge-list"></div>
+        <div class="player-stats">
+          <div class="player-stat">
+            <span>⚡ 体力</span>
+            <div class="bar"><div class="bar-fill energy" id="player-energy-bar" style="width:100%"></div></div>
+          </div>
+          <div class="player-stat">
+            <span>💰 金币</span>
+            <div class="bar"><div class="bar-fill gold" id="player-gold-bar" style="width:2%"></div></div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- 摘要标签页 -->
-    <div class="tab-content" id="tab-summary">
-      <div class="card">
-        <h3>📅 每日摘要</h3>
-        <div id="daily-summary"></div>
+      <!-- 操作面板 -->
+      <div class="panel">
+        <div class="panel-header">🎮 行动</div>
+        <div class="action-grid">
+          <button class="action-btn" onclick="movePlayer('square')">🏛️ 去广场</button>
+          <button class="action-btn" onclick="movePlayer('workshop')">🔨 去工坊</button>
+          <button class="action-btn" onclick="movePlayer('wilderness')">🌲 去荒野</button>
+          <button class="action-btn" onclick="movePlayer('school')">🏫 去学校</button>
+          <button class="action-btn" onclick="movePlayer('mine')">⛏️ 去矿洞</button>
+          <button class="action-btn" onclick="doWork('work')">⚒️ 工作</button>
+          <button class="action-btn" onclick="talkToAgent()">💬 聊天</button>
+          <button class="action-btn" onclick="doRest()">💤 休息</button>
+          <button class="action-btn" onclick="addKnowledge()">📖 添加知识</button>
+          <button class="action-btn danger" onclick="resetSimulation()">🔄 重置模拟</button>
+        </div>
+      </div>
+
+      <!-- 每日摘要 -->
+      <div class="panel">
+        <div class="panel-header">📰 每日摘要</div>
+        <div class="panel-body" id="daily-summary">
+          <p style="font-size:0.85em;color:var(--text-secondary)">等待第一天结束...</p>
+        </div>
+      </div>
+
+      <!-- 游戏信息 -->
+      <div class="panel">
+        <div class="panel-header">ℹ️ 关于K-town</div>
+        <div class="panel-body" style="font-size:0.8em;color:var(--text-secondary);line-height:1.6;">
+          <p>K-town是一个由AI居民自主生活的小镇。每位居民有自己的职业、目标和记忆。</p>
+          <p style="margin-top:8px;"><strong>操作提示：</strong></p>
+          <p>• 点击地图地点查看详情</p>
+          <p>• 添加知识影响小镇认知</p>
+          <p>• 与居民聊天建立关系</p>
+          <p>• 完成任务获得奖励</p>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- 添加知识弹窗 -->
-<div id="add-knowledge-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
-  <div style="background: var(--bg-card); padding: 24px; border-radius: var(--radius); width: 90%; max-width: 400px;">
-    <h3 style="margin-bottom: 16px;">添加知识</h3>
-    <div style="margin-bottom: 12px;">
-      <label style="display: block; margin-bottom: 4px; font-size: 0.85em;">主题</label>
-      <input type="text" id="knowledge-subject" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);">
-    </div>
-    <div style="margin-bottom: 16px;">
-      <label style="display: block; margin-bottom: 4px; font-size: 0.85em;">内容</label>
-      <textarea id="knowledge-claim" rows="3" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text);"></textarea>
-    </div>
-    <div style="display: flex; gap: 8px; justify-content: flex-end;">
-      <button onclick="closeAddKnowledge()" style="padding: 8px 16px; border-radius: var(--radius-sm); border: none; background: var(--text-dim); color: white; cursor: pointer;">取消</button>
-      <button onclick="submitKnowledge()" style="padding: 8px 16px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: white; cursor: pointer;">提交</button>
-    </div>
-  </div>
-</div>
+  <!-- 新手引导 -->
+  <div class="tutorial-overlay" id="tutorial-overlay"></div>
 
-<script>
-let ws, currentState = {}, dailySummaries = [];
-
-// 标签页切换
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-  });
-});
-
-function connect() {
-  ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onopen = () => console.log("WebSocket connected");
-  ws.onclose = () => setTimeout(connect, 2000);
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'state') updateState(msg.data);
-    if (msg.type === 'day_summary') { 
-      dailySummaries.push(msg.data); 
-      if (dailySummaries.length > 20) dailySummaries.shift();
-      renderSummary(); 
-    }
-  };
-}
-
-function updateState(data) {
-  currentState = data;
-  document.getElementById('tick').textContent = data.tick;
-  document.getElementById('weather').textContent = getWeatherCn(data.weather);
-  document.getElementById('day').textContent = Math.floor(data.tick / 24) + 1;
-  document.getElementById('knowledge').textContent = data.knowledge?.total_claims || 0;
-  document.getElementById('population').textContent = data.agents?.length || 0;
-  
-  // 更新玩家状态
-  if (data.player) {
-    document.getElementById('player-energy').textContent = data.player.energy;
-    document.getElementById('player-gold').textContent = data.player.gold;
-    document.getElementById('player-location').textContent = data.player.location_cn;
-    document.getElementById('player-mood').textContent = getMoodEmoji(data.player.mood);
-  }
-  
-  render();
-}
-
-function getWeatherCn(weather) {
-  const map = {clear: '☀️晴朗', rain: '🌧️下雨', snow: '❄️下雪', wind: '💨大风', fog: '🌫️大雾', cloudy: '☁️多云'};
-  return map[weather] || weather;
-}
-
-function getMoodEmoji(mood) {
-  const map = {happy:'😊', neutral:'😐', anxious:'😰', angry:'😠', sad:'😢'};
-  return map[mood] || '❓';
-}
-
-function render() { renderMap(); renderAgentList(); renderSummary(); loadKnowledge(); }
-
-function movePlayer(location) {
-  fetch('/api/player/action', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'move', target: location })
-  });
-}
-
-function openAddKnowledge() { document.getElementById('add-knowledge-modal').style.display = 'flex'; }
-function closeAddKnowledge() { document.getElementById('add-knowledge-modal').style.display = 'none'; }
-
-function submitKnowledge() {
-  const subject = document.getElementById('knowledge-subject').value;
-  const claim = document.getElementById('knowledge-claim').value;
-  if (!subject || !claim) return alert('请填写主题和内容');
-  fetch('/api/player/action', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'claim', subject, claim })
-  });
-  closeAddKnowledge();
-  document.getElementById('knowledge-subject').value = '';
-  document.getElementById('knowledge-claim').value = '';
-}
-
-async function resetSimulation() {
-  if (!confirm('确定要重置模拟吗？')) return;
-  await fetch('/api/reset', { method: 'POST' });
-  location.reload();
-}
-
-function renderMap() {
-  if (!currentState.agents) return;
-  const map = document.getElementById('map');
-  map.querySelectorAll('.agent-marker').forEach(e => e.remove());
-  const pos = { 
-    square: {x:50,y:35}, workshop: {x:25,y:20}, wilderness: {x:75,y:70},
-    school: {x:25,y:70}, mine: {x:75,y:20}
-  };
-  const clsMap = { 
-    agent_elder:'elder', agent_blacksmith:'blacksmith', agent_carpenter:'carpenter',
-    agent_forager:'forager', agent_scout:'scout', agent_merchant:'merchant', 
-    agent_teacher:'teacher', agent_farmer:'farmer', agent_storyteller:'storyteller', 
-    agent_healer:'healer', agent_miner:'miner', agent_player:'player' 
-  };
-  const emojiMap = {
-    agent_elder:'👵', agent_blacksmith:'🔨', agent_carpenter:'🪵',
-    agent_forager:'🌿', agent_scout:'🧭', agent_merchant:'💰', 
-    agent_teacher:'📖', agent_farmer:'🌾', agent_storyteller:'📜', 
-    agent_healer:'💊', agent_miner:'⛏️', agent_player:'👤'
-  };
-  const locCnMap = {square:'广场', workshop:'工坊', wilderness:'荒野', school:'学校', mine:'矿洞'};
-  
-  currentState.agents.forEach((a, i) => {
-    const d = document.createElement('div');
-    d.className = 'agent-marker ' + (clsMap[a.id] || '');
-    const p = pos[a.location] || {x:50,y:50};
-    const off = (i % 4) * 8 - 12;
-    d.style.left = (p.x + off) + '%';
-    d.style.top = (p.y + Math.floor(i/4) * 6) + '%';
-    d.textContent = emojiMap[a.id] || '👤';
-    d.title = `${a.name} | 体力:${a.energy} | ${getMoodEmoji(a.mood)}${a.mood} | ${locCnMap[a.location]} | 金币:${a.gold}`;
-    map.appendChild(d);
-  });
-}
-
-function renderAgentList() {
-  if (!currentState.agents) return;
-  const list = document.getElementById('agent-list');
-  const locCnMap = {square:'广场', workshop:'工坊', wilderness:'荒野', school:'学校', mine:'矿洞'};
-  const roleCnMap = {elder:'长者', blacksmith:'铁匠', carpenter:'木匠', forager:'采集者', scout:'侦察兵', merchant:'商人', teacher:'教师', farmer:'农民', storyteller:'讲故事的人', healer:'医生', miner:'矿工', player:'玩家'};
-  
-  list.innerHTML = currentState.agents.map(a => {
-    const cls = {
-      elder:'elder', blacksmith:'blacksmith', carpenter:'carpenter',
-      forager:'forager', scout:'scout', merchant:'merchant', 
-      teacher:'teacher', farmer:'farmer', storyteller:'storyteller', 
-      healer:'healer', miner:'miner', player:'player'
-    }[a.role] || '';
-    const emoji = {
-      agent_elder:'👵', agent_blacksmith:'🔨', agent_carpenter:'🪵',
-      agent_forager:'🌿', agent_scout:'🧭', agent_merchant:'💰', 
-      agent_teacher:'📖', agent_farmer:'🌾', agent_storyteller:'📜', 
-      agent_healer:'💊', agent_miner:'⛏️', agent_player:'👤'
-    }[a.id] || '👤';
-    
-    return `
-      <div class="agent-item">
-        <div class="avatar ${cls}">${emoji}</div>
-        <div class="info">
-          <div class="name">${roleCnMap[a.role] || a.role} ${a.name}</div>
-          <div class="details">📍 ${locCnMap[a.location] || a.location} · 💰 ${a.gold} · ⚡ ${a.energy} · ${getMoodEmoji(a.mood)}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderSummary() {
-  const container = document.getElementById('daily-summary');
-  if (!dailySummaries || dailySummaries.length === 0) {
-    container.innerHTML = '<div style="color:var(--text-dim);font-size:0.85em">暂无摘要，等待一天结束...</div>';
-    return;
-  }
-  container.innerHTML = dailySummaries.slice().reverse().map(s => `
-    <div class="summary-item">
-      <div class="day">📅 第 ${s.day} 天</div>
-      <div class="content">${s.overall_summary || '无摘要'}</div>
-      <div style="margin-top: 6px; font-size:0.75em; color:var(--text-dim)">
-        📚 知识增长: +${s.stats?.knowledge_change || 0} · 💰 金币变化: ${s.stats?.gold_change >= 0 ? '+' : ''}${s.stats?.gold_change || 0} · 😊 开心: ${s.stats?.happy_count || 0}/${s.agents?.length || 12}
-      </div>
-    </div>
-  `).join('');
-}
-
-async function loadKnowledge() {
-  const response = await fetch('/api/knowledge');
-  const data = await response.json();
-  renderKnowledge(data.claims || []);
-}
-
-async function searchKnowledge() {
-  const query = document.getElementById('knowledge-search').value;
-  if (!query) return loadKnowledge();
-  const response = await fetch(`/api/knowledge/search?subject=${encodeURIComponent(query)}`);
-  const data = await response.json();
-  renderKnowledge(data.claims || []);
-}
-
-function renderKnowledge(claims) {
-  const container = document.getElementById('knowledge-list');
-  if (!claims || claims.length === 0) {
-    container.innerHTML = '<div style="color:var(--text-dim);font-size:0.85em">暂无知识</div>';
-    return;
-  }
-  const locCnMap = {square:'广场', workshop:'工坊', wilderness:'荒野', school:'学校', mine:'矿洞'};
-  const sourceCnMap = {observation:'观察', conversation:'对话', reasoning:'推理', rumor:'传闻', player:'玩家'};
-  
-  container.innerHTML = claims.map(c => `
-    <div class="knowledge-card">
-      <div class="subject">📖 ${c.subject}</div>
-      <div class="claim">${c.claim}</div>
-      <div class="meta">
-        <span class="confidence">置信度: ${c.confidence.toFixed(2)}</span>
-        <span class="source">来源: ${sourceCnMap[c.source] || c.source}</span>
-        <span>创建者: ${c.created_by}</span>
-        <span>位置: ${locCnMap[c.location] || c.location}</span>
-        ${c.solidified ? '<span style="color:var(--gold)">✅ 已固化</span>' : ''}
-        ${c.contradicted_by?.length > 0 ? '<span style="color:var(--accent)">⚠️ 有冲突</span>' : ''}
-      </div>
-    </div>
-  `).join('');
-}
-
-// 初始化
-connect();
-setInterval(() => {
-  fetch('/api/state').then(r => r.json()).then(updateState);
-}, 3000);
-</script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

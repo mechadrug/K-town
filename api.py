@@ -3,6 +3,7 @@ import json,asyncio,os
 from typing import Set
 from fastapi import FastAPI,WebSocket,WebSocketDisconnect
 from fastapi.responses import JSONResponse,HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from world import World
 from events import EventBus
 from knowledge import KnowledgeEngine
@@ -15,6 +16,10 @@ from models import Event, EventType, PlayerAction, TradeOffer
 def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket]):
     app=FastAPI(title="K-town",version="0.2.0")
     base=os.path.dirname(os.path.abspath(__file__))
+    static_dir=os.path.join(base,'static')
+    if os.path.exists(static_dir):
+        app.mount('/static',StaticFiles(directory=static_dir),name='static')
+    # 挂载静态文件
 
     @app.get("/")
     async def index():
@@ -36,6 +41,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "weather_name": world.get_weather_name(),
             "locations": world.to_dict()["locations"],
             "agents": [a.to_dict() for a in agents],
+            "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
             "knowledge": knowledge.to_dict(),
             "player": player,
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
@@ -303,6 +309,13 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         agent_ids = [a.identity.id for a in agents]
         tick_engine.scheduler.generate_daily_schedule(1, agent_ids, world)
         return {"status":"ok", "message":"模拟已重置"}
+    @app.get("/api/quests")
+    async def get_quests():
+        """获取任务列表"""
+        if hasattr(tick_engine, 'quest_engine') and tick_engine.quest_engine:
+            return tick_engine.quest_engine.to_dict()
+        return {'active_quests': [], 'completed_quests': [], 'achievements': [], 'total_completed': 0, 'total_quests': 0}
+
 
     @app.websocket("/ws")
     async def ws_endpoint(websocket:WebSocket):
@@ -324,6 +337,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                     "weather_name": world.get_weather_name(),
                     "agents": [a.to_dict() for a in agents],
                     "locations": world.to_dict()["locations"],
+            "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
                     "knowledge": knowledge.to_dict(),
                     "player": player,
                     "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
@@ -351,6 +365,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                                 "weather_name": world.get_weather_name(),
                                 "agents": [a.to_dict() for a in agents],
                                 "locations": world.to_dict()["locations"],
+            "knowledge_claims": [{"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value, "confidence": c.confidence, "created_by": c.created_by, "location": c.location, "solidified": c.solidified} for c in knowledge.claims.values()],
                                 "knowledge": knowledge.to_dict(),
                                 "player": player,
                                 "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers]
