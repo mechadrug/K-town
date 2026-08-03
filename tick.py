@@ -47,6 +47,9 @@ class TickEngine:
         self._llm_calls_today = 0
         self._llm_daily_limit = 10
         self._llm_cache = {}  # 缓存相同输入的结果
+        # 经济监控
+        self._daily_gold_sunk = 0  # 当日金币回收量
+        self._gold_sink_actions = []  # 金币回收事件记录
         # 自动重置
         if auto_reset:
             self.db.reset()
@@ -368,6 +371,34 @@ class TickEngine:
                 agent.state.gold += price
                 self.world.record_supply(resource)
                 self.daily_agent_logs[agent.identity.id].append(f"以{price}金币卖出了{resource}")
+
+
+
+    def _apply_gold_sinks(self):
+        """应用金币回收机制，防止通胀"""
+        for agent in self.agents:
+            # 食物税：每天固定消耗金币买食物
+            if agent.state.hunger > 20 and agent.state.food < 2:
+                food_price = self.world.get_price("food")
+                if agent.state.gold >= food_price:
+                    agent.state.gold -= food_price
+                    agent.state.food += 1
+                    self._daily_gold_sunk += food_price
+                    self._gold_sink_actions.append(f"{agent.identity.name}花费{food_price}金币购买食物")
+            
+            # 装备损耗：有工具的Agent每天有10%概率损耗1金币维护
+            if "tool" in agent.state.inventory and random.random() < 0.1:
+                if agent.state.gold >= 1:
+                    agent.state.gold -= 1
+                    self._daily_gold_sunk += 1
+                    self._gold_sink_actions.append(f"{agent.identity.name}花费1金币维护工具")
+            
+            # 技能学习费：有目标的Agent可能花费金币学习
+            if agent.top_goal() and agent.state.gold > 20 and random.random() < 0.05:
+                fee = random.randint(2, 5)
+                agent.state.gold -= fee
+                self._daily_gold_sunk += fee
+                self._gold_sink_actions.append(f"{agent.identity.name}花费{fee}金币学习技能")
 
 
     def _generate_day_summary(self, day: int) -> Dict[str, Any]:
