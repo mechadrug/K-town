@@ -124,6 +124,8 @@ class TickEngine:
                 "location": event.location, "payload": str(event.payload)[:100],
             })
             await self._process_event(event)
+            # 检查事件链
+            await self._check_event_chains(event)
             # 自动固化高置信度知识
             self.knowledge.auto_solidify()
         self.bus.clear_events()
@@ -382,7 +384,7 @@ class TickEngine:
         """应用金币回收机制，防止通胀"""
         for agent in self.agents:
             # 食物税：每天固定消耗金币买食物
-            if agent.state.hunger > 20 and agent.state.food < 2:
+            if agent.state.hunger > 10 and agent.state.food < 3:
                 food_price = self.world.get_price("food")
                 if agent.state.gold >= food_price:
                     agent.state.gold -= food_price
@@ -403,6 +405,92 @@ class TickEngine:
                 agent.state.gold -= fee
                 self._daily_gold_sunk += fee
                 self._gold_sink_actions.append(f"{agent.identity.name}花费{fee}金币学习技能")
+
+
+
+    async def _check_event_chains(self, event):
+        """检查事件是否触发后续事件链"""
+        chains = {
+            EventType.RUMOR_SPREAD.value: self._chain_rumor_investigation,
+            EventType.RESOURCE_FOUND.value: self._chain_resource_rush,
+            EventType.SOCIAL_RELATION_CHANGE.value: self._chain_relationship_change,
+            EventType.DISASTER.value: self._chain_disaster_aftermath,
+        }
+        
+        chain_func = chains.get(event.type.value)
+        if chain_func:
+            await chain_func(event)
+    
+    async def _chain_rumor_investigation(self, event):
+        """传闻→有人去调查→可能发现真相"""
+        claim = event.payload.get("claim", "")
+        if not claim or random.random() > 0.3:
+            return
+        
+        # 找一个开放性高的Agent去调查
+        investigators = [a for a in self.agents 
+                        if a.identity.personality.get("openness", 0.5) > 0.6 
+                        and a.state.energy > 30]
+        if investigators:
+            investigator = random.choice(investigators)
+            self.daily_agent_logs[investigator.identity.id].append(f"听说'{claim}'，决定去调查真相")
+            # 50%概率发现新知识
+            if random.random() < 0.5:
+                self.knowledge.observe(investigator.identity.id, "investigation", 
+                                      f"调查了'{claim}'，发现了一些线索", 
+                                      investigator.state.location)
+    
+    async def _chain_resource_rush(self, event):
+        """资源发现→更多Agent去采集"""
+        resource = event.payload.get("resource", "")
+        location = event.location
+        if not resource or random.random() > 0.4:
+            return
+        
+        # 找2-3个Agent去采集
+        gatherers = [a for a in self.agents 
+                    if a.identity.role.value in ("forager", "farmer", "scout")
+                    and a.state.energy > 40
+                    and a.state.location != location]
+        if gatherers:
+            for g in random.sample(gatherers, min(2, len(gatherers))):
+                self.daily_agent_logs[g.identity.id].append(f"听说{location}有{resource}，赶过去采集")
+    
+    async def _chain_relationship_change(self, event):
+        """关系变化→可能引发连锁反应"""
+        agent1 = event.payload.get("agent1", "")
+        agent2 = event.payload.get("agent2", "")
+        change = event.payload.get("change", 0)
+        
+        # 关系变好→朋友们也变好
+        if change > 0 and random.random() < 0.3:
+            for a in self.agents:
+                if a.identity.id in (agent1, agent2):
+                    continue
+                tie1 = a.state.social_ties.get(agent1, 0)
+                tie2 = a.state.social_ties.get(agent2, 0)
+                if tie1 > 20 and tie2 > 20:
+                    # 共同朋友也增加好感
+                    a.state.social_ties[agent1] = tie1 + 0.5
+                    a.state.social_ties[agent2] = tie2 + 0.5
+    
+    async def _chain_disaster_aftermath(self, event):
+        """灾害→居民互助→关系提升"""
+        if random.random() > 0.5:
+            return
+        
+        # 找稳定性高的Agent去帮助他人
+        helpers = [a for a in self.agents 
+                  if a.identity.personality.get("stability", 0.5) > 0.6
+                  and a.state.energy > 50]
+        if helpers:
+            helper = random.choice(helpers)
+            self.daily_agent_logs[helper.identity.id].append("灾害发生后，主动帮助受影响的邻居")
+            # 帮助他人→关系提升
+            for a in self.agents:
+                if a.identity.id != helper.identity.id:
+                    tie = a.state.social_ties.get(helper.identity.id, 0)
+                    a.state.social_ties[helper.identity.id] = tie + 1
 
 
     def _generate_day_summary(self, day: int) -> Dict[str, Any]:

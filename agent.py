@@ -46,6 +46,13 @@ class Agent:
         if hour>=21 or hour<6:
             self.state.energy = min(100, self.state.energy+15)
 
+        # 饥饿检查（覆盖体力恢复的好心情）
+        if self.state.hunger > 60:
+            self.state.mood = Mood.SAD
+        elif self.state.hunger > 30:
+            if self.state.mood == Mood.HAPPY:
+                self.state.mood = Mood.NEUTRAL
+
         # 食物消耗（每天1-3单位，晚上结算）
         if hour == 21:
             food_need = random.randint(1, 3)

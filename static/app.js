@@ -73,7 +73,8 @@
   }
 
   // 更新UI
-  function updateUI(data) {
+  
+  showContextTip();
     // 顶部状态栏
     const player = data.player || {};
     setText('stat-day', `第${Math.floor(data.tick / 24) + 1}天`);
