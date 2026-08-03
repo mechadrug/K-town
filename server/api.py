@@ -3,16 +3,15 @@ import json,asyncio,os
 from typing import Set
 from fastapi import FastAPI,WebSocket,WebSocketDisconnect
 from fastapi.responses import JSONResponse,HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from .world import World
 from .events import EventBus
 from .knowledge import KnowledgeEngine
 from .logger import Logger
 from .llm import LLMClient
 
-def create_app(world,agents,bus,logger,knowledge,llm,tick_engine):
+
+def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket]):
     app=FastAPI(title="K-town",version="0.1.0")
-    clients:Set[WebSocket]=set()
     base=os.path.dirname(os.path.abspath(__file__))
 
     @app.get("/")
@@ -80,7 +79,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine):
     @app.websocket("/ws")
     async def ws_endpoint(websocket:WebSocket):
         await websocket.accept()
-        clients.add(websocket)
+        ws_clients.add(websocket)
         try:
             await websocket.send_json({"type":"state","data":{
                 "tick":world.state.tick,"weather":world.state.weather,
@@ -100,6 +99,6 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine):
         except WebSocketDisconnect:
             pass
         finally:
-            clients.discard(websocket)
+            ws_clients.discard(websocket)
 
     return app
