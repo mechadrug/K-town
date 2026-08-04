@@ -46,6 +46,61 @@
   animation: fadeInUp 0.3s ease;
 }
 
+/* === 小镇脉搏（第一屏信息） === */
+.pulse-card {
+  background: var(--bg-card);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.pulse-header {
+  font-weight: 700;
+  font-size: 0.85em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.pulse-section {
+  margin-bottom: 6px;
+}
+.pulse-label {
+  font-size: 0.72em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.pulse-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pulse-loc {
+  font-size: 0.75em;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 2px 8px;
+  color: var(--text-secondary);
+}
+.pulse-loc-icon {
+  margin-right: 3px;
+}
+.mood-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 3px 0 6px;
+}
+.mood-dot.happy { background: #7CB342; }
+.mood-dot.neutral { background: #FFB74D; }
+.mood-dot.low { background: #E57373; }
+.pulse-me {
+  margin-top: 6px;
+  font-size: 0.75em;
+  color: var(--text-secondary);
+  border-top: 1px dashed var(--panel-border);
+  padding-top: 6px;
+}
+
 /* === 任务列表 === */
 .quest-list {
   display: flex;

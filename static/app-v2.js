@@ -136,6 +136,59 @@
     if (data.narrative_summary) {
       renderNarrativeSummary(data.narrative_summary);
     }
+
+    // 小镇脉搏（第一屏信息）
+    updatePulse(data);
+  }
+
+  // ===== 小镇脉搏 =====
+  function updatePulse(data) {
+    var locsEl = document.getElementById('pulse-locations');
+    var moodsEl = document.getElementById('pulse-moods');
+    var knEl = document.getElementById('pulse-knowledge');
+    var meEl = document.getElementById('pulse-me');
+
+    var counts = {};
+    var moods = { happy: 0, neutral: 0, low: 0 };
+    (data.agents || []).forEach(function(a) {
+      counts[a.location] = (counts[a.location] || 0) + 1;
+      if (a.mood === 'happy') moods.happy++;
+      else if (a.mood === 'neutral') moods.neutral++;
+      else moods.low++;
+    });
+
+    if (locsEl) {
+      var locs = ['square', 'workshop', 'wilderness', 'school', 'mine'];
+      var html = '<div class="pulse-row">';
+      locs.forEach(function(l) {
+        html += '<span class="pulse-loc"><span class="pulse-loc-icon">' + getLocationIcon(l) + '</span>' + (counts[l] || 0) + '</span>';
+      });
+      html += '</div>';
+      locsEl.innerHTML = html;
+    }
+
+    if (moodsEl) {
+      moodsEl.innerHTML =
+        '<span class="mood-dot happy"></span> 开心 ' + moods.happy +
+        '<span class="mood-dot neutral"></span> 平静 ' + moods.neutral +
+        '<span class="mood-dot low"></span> 低落 ' + moods.low;
+    }
+
+    if (knEl) {
+      var claims = (data.knowledge_claims || []).slice().sort(function(a, b) {
+        return (b.created_at || 0) - (a.created_at || 0);
+      }).slice(0, 2);
+      if (claims.length > 0) {
+        knEl.innerHTML = claims.map(function(c) { return '💬 “' + c.claim + '”'; }).join('<br>');
+      } else {
+        knEl.innerHTML = '<span style="color:var(--text-muted)">尚无流传</span>';
+      }
+    }
+
+    if (meEl) {
+      var p = data.player || {};
+      meEl.textContent = '🧳 你在 ' + getLocationCn(p.location);
+    }
   }
 
   // ===== 时段主题 =====
@@ -726,6 +779,10 @@
 
   function getLocationCn(loc) {
     return { square: '广场', workshop: '工坊', wilderness: '荒野', school: '学校', mine: '矿洞' }[loc] || loc;
+  }
+
+  function getLocationIcon(loc) {
+    return (ICONS.location || {})[loc] || '📍';
   }
 
   function getAgentColor(id) {

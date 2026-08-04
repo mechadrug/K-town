@@ -53,25 +53,22 @@
 
     <!-- ===== 右侧面板 ===== -->
     <aside class="sidebar">
-      <!-- 玩家卡片 -->
-      <div class="player-card fade-in">
-        <div class="player-avatar">🧳</div>
-        <div class="player-info" style="flex:1">
-          <h3>旅行者</h3>
-          <div class="player-role">小镇新居民 · <span id="player-location">广场</span></div>
+      <!-- 小镇脉搏：第一屏信息（小镇是主角，玩家数值收敛到顶栏） -->
+      <div class="pulse-card fade-in">
+        <div class="pulse-header">🏘 小镇脉搏</div>
+        <div class="pulse-section">
+          <div class="pulse-label">此刻各处</div>
+          <div id="pulse-locations">加载中...</div>
         </div>
-      </div>
-      <div class="stat-bars" style="padding: 0 8px;">
-        <div class="stat-bar-row">
-          <span class="stat-label">⚡ 体力</span>
-          <div class="stat-bar-track"><div class="stat-bar-fill energy" id="energy-bar" style="width:100%"></div></div>
-          <span class="stat-bar-value" id="energy-value">100</span>
+        <div class="pulse-section">
+          <div class="pulse-label">心情</div>
+          <div id="pulse-moods">...</div>
         </div>
-        <div class="stat-bar-row">
-          <span class="stat-label">🎯 行动</span>
-          <div class="stat-bar-track"><div class="stat-bar-fill ap" id="ap-bar" style="width:100%"></div></div>
-          <span class="stat-bar-value" id="ap-value">12/12</span>
+        <div class="pulse-section">
+          <div class="pulse-label">正在流传</div>
+          <div id="pulse-knowledge">...</div>
         </div>
+        <div class="pulse-me" id="pulse-me">🧳 你在 广场</div>
       </div>
 
       <!-- Tab 切换：动态 / 任务 / 知识 -->
