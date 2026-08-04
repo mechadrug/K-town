@@ -4,6 +4,9 @@
 > 制定视角：游戏大师 + 代码大师（三方独立评审合成）
 > 本文件取代并修正 `design-master-review-2026-08-04.md`、`design-review-2026-08-04.md`、`design-architecture-refactor.md`、`design-frontend-redesign.md`、`design-mechanics-depth.md`、`plans/2026-08-04-v0.3-phased-plan.md` 中与当前现实不符的部分。
 > 读者：未来的每个 Claude Code session。先读本文件，再动手。
+> **配套详细设计**：
+> - 玩法逻辑设计 → `docs/product/gameplay-design-v3.md`（游戏大师视角，完整玩法）
+> - v0.4 功能与实现安排 → `docs/plans/2026-08-04-gameplay-plan.md`（P0–P2 功能 + 实现顺序）
 
 ---
 
