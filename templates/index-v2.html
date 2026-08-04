@@ -43,6 +43,7 @@
           <span class="stat-value"><span id="stat-ap">12</span>/<span id="stat-ap-max">12</span></span>
         </div>
         <button class="sound-toggle-btn" onclick="toggleSound()" id="soundBtn" title="音效开关">🔊</button>
+        <button class="sound-toggle-btn" onclick="showGuide()" title="新手引导">❓</button>
       </div>
     </header>
 
@@ -117,36 +118,33 @@
 
     <!-- ===== 底部行动栏 ===== -->
     <nav class="actionbar" id="actionbar">
-      <button class="action-btn" onclick="movePlayer('square')">
+      <button class="action-btn" onclick="movePlayer('square')" title="移动到广场（消耗 1 行动力）">
         <span class="btn-icon">🏛️</span> 广场
       </button>
-      <button class="action-btn" onclick="movePlayer('workshop')">
+      <button class="action-btn" onclick="movePlayer('workshop')" title="移动到工坊（消耗 1 行动力）">
         <span class="btn-icon">🔨</span> 工坊
       </button>
-      <button class="action-btn" onclick="movePlayer('wilderness')">
+      <button class="action-btn" onclick="movePlayer('wilderness')" title="移动到荒野，采集食物（消耗 1 行动力）">
         <span class="btn-icon">🌲</span> 荒野
       </button>
-      <button class="action-btn" onclick="movePlayer('school')">
+      <button class="action-btn" onclick="movePlayer('school')" title="移动到学校（消耗 1 行动力）">
         <span class="btn-icon">🏫</span> 学校
       </button>
-      <button class="action-btn" onclick="movePlayer('mine')">
+      <button class="action-btn" onclick="movePlayer('mine')" title="移动到矿洞（消耗 1 行动力）">
         <span class="btn-icon">⛏️</span> 矿洞
       </button>
       <div class="action-divider"></div>
-      <button class="action-btn primary" onclick="doWork('work')">
+      <button class="action-btn primary" onclick="doWork('work')" title="在当前地点工作，赚取金币（消耗 1 行动力）">
         <span class="btn-icon">🛠️</span> 工作
       </button>
-      <button class="action-btn" onclick="openTalkUI()">
-        <span class="btn-icon">💬</span> 聊天
-      </button>
-      <button class="action-btn" onclick="doRest()">
+      <button class="action-btn" onclick="doRest()" title="休息恢复体力（消耗 1 行动力）">
         <span class="btn-icon">🛏️</span> 休息
       </button>
-      <button class="action-btn" onclick="addKnowledge()">
+      <button class="action-btn" onclick="addKnowledge()" title="向小镇知识库添加一条知识（消耗 1 行动力）">
         <span class="btn-icon">📝</span> 知识
       </button>
       <div class="action-divider"></div>
-      <button class="action-btn" onclick="resetSimulation()" style="color:var(--negative)">
+      <button class="action-btn" onclick="resetSimulation()" style="color:var(--negative)" title="清空并重启小镇模拟">
         <span class="btn-icon">🔄</span> 重置
       </button>
     </nav>
@@ -189,6 +187,21 @@
       <div class="profile-actions">
         <button class="action-btn primary" onclick="startDialogueFromProfile()">💬 对话</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== 新手引导 ===== -->
+  <div class="guide-overlay" id="guide-overlay" style="display:none">
+    <div class="guide-card">
+      <h3>🏘 欢迎来到 K-town 边境小镇</h3>
+      <p>这是一座有自己的生活的小镇。你是一位新来的居民 —— 先观察，再融入。</p>
+      <div class="guide-steps">
+        <div class="guide-step"><span class="step-num">1</span> 看小镇：右侧「小镇脉搏」显示此刻谁在哪、谁不开心</div>
+        <div class="guide-step"><span class="step-num">2</span> 认识居民：点地图上的人，看他的档案（目标/心情/日记）</div>
+        <div class="guide-step"><span class="step-num">3</span> 交个朋友：在档案里点「对话」，和他聊聊（有真后果）</div>
+        <div class="guide-step"><span class="step-num">4</span> 开始生活：底部动作栏移动/工作/休息，每天 12 点行动力</div>
+      </div>
+      <button class="guide-btn" onclick="closeGuide()">开始体验</button>
     </div>
   </div>
 

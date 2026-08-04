@@ -20,6 +20,10 @@
     // 初始即加载任务与知识数据（不依赖切换 Tab）
     loadQuests();
     loadKnowledge();
+    // 首次进入显示新手引导
+    var guided = false;
+    try { guided = localStorage.getItem('ktown_guided') === '1'; } catch (e) {}
+    if (!guided) showGuide();
   });
 
   // ===== WebSocket =====
@@ -83,9 +87,10 @@
         break;
       case 'player_action_result':
         if (msg.data) {
-          showToast(msg.data.result, msg.data.success !== false ? 'success' : 'error');
-          if (msg.data.success !== false) playSound('success');
-          else playSound('error');
+          var isErr = msg.data.status === 'error';
+          showToast(msg.data.result, isErr ? 'error' : 'success');
+          if (isErr) playSound('error');
+          else playSound('success');
         }
         break;
     }
@@ -493,24 +498,19 @@
     currentDialogueAgent = null;
   }
 
-  // ===== 对话系统 =====
-  function openTalkUI() {
-    if (!currentState || !currentState.agents) return;
-    var player = currentState.player;
-    if (!player) return;
-
-    var agentsHere = currentState.agents.filter(function(a) {
-      return a.location === player.location && a.id !== 'agent_player';
-    });
-
-    if (agentsHere.length === 0) {
-      showToast('这个位置没有可以对话的居民', 'info');
-      return;
-    }
-
-    openDialogue(agentsHere[0]);
+  // ===== 新手引导 =====
+  function showGuide() {
+    var overlay = document.getElementById('guide-overlay');
+    if (overlay) overlay.style.display = 'flex';
   }
 
+  function closeGuide() {
+    var overlay = document.getElementById('guide-overlay');
+    if (overlay) overlay.style.display = 'none';
+    try { localStorage.setItem('ktown_guided', '1'); } catch (e) {}
+  }
+
+  // ===== 对话系统 =====
   function startDialogueFromProfile() {
     if (currentDialogueAgent) {
       openDialogue(currentDialogueAgent);
@@ -729,7 +729,6 @@
         case '4': movePlayer('school'); break;
         case '5': movePlayer('mine'); break;
         case 'w': case 'W': doWork('work'); break;
-        case 't': case 'T': openTalkUI(); break;
         case 'r': case 'R': doRest(); break;
         case 'k': case 'K': addKnowledge(); break;
         case 'Escape': closeDialogue(); closeProfile(); hideLocationPanel(); break;
@@ -877,11 +876,12 @@
   // 全局接口
   window.movePlayer = movePlayer;
   window.doWork = doWork;
-  window.openTalkUI = openTalkUI;
   window.doRest = doRest;
   window.addKnowledge = addKnowledge;
   window.resetSimulation = resetSimulation;
   window.toggleSound = toggleSound;
+  window.showGuide = showGuide;
+  window.closeGuide = closeGuide;
   window.openProfile = openProfile;
   window.closeProfile = closeProfile;
   window.closeDialogue = closeDialogue;

@@ -82,7 +82,7 @@
   --panel-border: rgba(139, 110, 99, 0.2);
   --text-primary: #3E2723;
   --text-secondary: #6D4C41;
-  --text-muted: #A1887F;
+  --text-muted: #795548;
   --shadow-color: rgba(62, 39, 35, 0.12);
   --bg-card: var(--panel-bg);
 }
@@ -120,7 +120,7 @@ body.theme-night {
   --panel-border: rgba(255, 249, 196, 0.15);
   --text-primary: #FFF8E1;
   --text-secondary: #FFE0B2;
-  --text-muted: #A1887F;
+  --text-muted: #795548;
   --shadow-color: rgba(0, 0, 0, 0.3);
 }
 

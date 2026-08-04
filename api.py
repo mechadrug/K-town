@@ -505,7 +505,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         player_action = PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result)
         logger.log_player_action(player_action)
 
-        return {"status": "ok", "result": result}
+        return {"status": "error" if "AP不足" in result else "ok", "result": result}
 
 
 

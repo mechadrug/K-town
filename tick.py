@@ -340,6 +340,10 @@ class TickEngine:
 
                         agent.state.mood = Mood.ANXIOUS
 
+            # 玩家由用户操作驱动（经 api 走 _handle_action），不参与 NPC 自主决策
+            if agent.identity.role.value == 'player':
+                continue
+
             # LLM辅助决策检测（仅在关键场景调用）
 
             llm_action = await self._try_llm_decision(agent, hour, here, evt_strs)
@@ -1716,19 +1720,19 @@ class TickEngine:
 
         loc_cn = agent.get_location_cn(agent.state.location)
 
-        # 玩家行动消耗AP
+        # 玩家行动消耗AP（不足则拦截，不执行）
 
         if agent.identity.role.value == 'player' and t in ('move', 'work', 'talk', 'rest', 'investigate'):
 
             ap_cost = 2 if t == 'investigate' else 1
 
-            if agent.state.ap >= ap_cost:
-
-                agent.state.ap -= ap_cost
-
-            else:
+            if agent.state.ap < ap_cost:
 
                 self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
+
+                return
+
+            agent.state.ap -= ap_cost
 
         # 记录动作前金币（用于每日目标"赚取金币"进度）
 
