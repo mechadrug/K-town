@@ -33,7 +33,7 @@ def build_engine():
     for a in agents:
         world.add_agent_to_location(a.identity.id, a.state.location)
     engine = TickEngine(world, bus, agents, knowledge, storage, llm,
-                        rate=1.0, day_length=24, auto_reset=True, db=storage)
+                        rate=1.0, day_length=20, auto_reset=True, db=storage)
     return engine, agents
 
 

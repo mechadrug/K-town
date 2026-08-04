@@ -13,7 +13,9 @@ class ServerConfig:
 @dataclass
 class TickConfig:
     rate: float = 1.0  # seconds per tick
-    day_length: int = 24
+    day_length: int = 20  # 世界观：一天 20 小时
+    waking_hours: int = 12  # 玩家清醒小时数 = 每日 AP 数
+    wake_hour: int = 5  # 清晨醒来时刻（余下 20-12=8 小时为睡眠）
 
 
 @dataclass

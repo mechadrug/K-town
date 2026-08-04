@@ -35,8 +35,8 @@ class World:
 
     def advance(self, tick: int):
         self.state.tick = tick
-        # 每天早上6点更新天气和价格
-        if tick % 24 == 6:
+        # 每天早上6点更新天气和价格（一天 20 小时）
+        if tick % 20 == 6:
             self._change_weather()
             self._update_prices()
 

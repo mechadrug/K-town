@@ -98,8 +98,8 @@
 
   // ===== UI 更新 =====
   function updateUI(data) {
-    var day = Math.floor(data.tick / 24) + 1;
-    var hour = data.tick % 24;
+    var day = Math.floor(data.tick / 20) + 1;
+    var hour = data.tick % 20;
     var player = data.player || {};
 
     setText('time-text', '第' + day + '天 · ' + getTimeOfDay(hour));
@@ -201,8 +201,8 @@
     var body = document.body;
     body.classList.remove('theme-morning', 'theme-dusk', 'theme-night');
     if (hour >= 5 && hour < 9) body.classList.add('theme-morning');
-    else if (hour >= 17 && hour < 21) body.classList.add('theme-dusk');
-    else if (hour >= 21 || hour < 5) body.classList.add('theme-night');
+    else if (hour >= 13 && hour < 17) body.classList.add('theme-dusk');
+    else if (hour >= 17 || hour < 5) body.classList.add('theme-night');
   }
 
   // ===== Tab 切换 =====
@@ -247,7 +247,7 @@
     var item = document.createElement('div');
     item.className = 'event-item ' + (evt.category || 'info');
     
-    var time = currentState ? ('第' + (Math.floor(currentState.tick / 24) + 1) + '天 ' + getTimeOfDay(currentState.tick % 24)) : '';
+    var time = currentState ? ('第' + (Math.floor(currentState.tick / 20) + 1) + '天 ' + getTimeOfDay(currentState.tick % 20)) : '';
     
     item.innerHTML = 
       '<span class="event-icon">' + (evt.icon || '📋') + '</span>' +
@@ -776,16 +776,16 @@
   }
 
   function getTimeOfDay(hour) {
-    if (hour >= 6 && hour < 9) return '早晨';
+    if (hour >= 5 && hour < 9) return '早晨';
     if (hour >= 9 && hour < 14) return '白天';
-    if (hour >= 14 && hour < 18) return '傍晚';
+    if (hour >= 14 && hour < 17) return '傍晚';
     return '夜晚';
   }
 
   function getTimeIcon(hour) {
-    if (hour >= 6 && hour < 9) return ICONS.time.morning;
+    if (hour >= 5 && hour < 9) return ICONS.time.morning;
     if (hour >= 9 && hour < 14) return ICONS.time.day;
-    if (hour >= 14 && hour < 18) return ICONS.time.dusk;
+    if (hour >= 14 && hour < 17) return ICONS.time.dusk;
     return ICONS.time.night;
   }
 

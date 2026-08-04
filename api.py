@@ -254,9 +254,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         if day>0:
 
-            base=(day-1)*24
+            base=(day-1)*20
 
-            events=[e for e in events if base<=e["tick"]<base+24]
+            events=[e for e in events if base<=e["tick"]<base+20]
 
         return events
 
@@ -446,6 +446,29 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         if actor is None:
             return {"status": "error", "result": "找不到执行者"}
 
+        # === 回合制：1 AP = 1 小时。非休息动作须在清醒时段，且推进世界时钟 ===
+        hour = tick_engine.world.state.tick % tick_engine.day_length
+        ws, wl = tick_engine.wake_hour, tick_engine.waking_hours
+        is_night = not (ws <= hour < ws + wl)
+        ap_cost = {"move": 1, "work": 1, "talk": 1, "investigate": 2, "trade": 1,
+                   "observe": 0, "sleep": 0, "trade_offer": 1, "accept_trade": 0,
+                   "add_claim": 1, "trigger_event": 1}.get(t, 1)
+
+        if t == "rest":
+            # 休息 = 结束今天：推进到次日清晨，跨过午夜日结（AP 自动重置）
+            to_next_wake = (ws - hour) % tick_engine.day_length or tick_engine.day_length
+            tick_engine.advance(to_next_wake)
+            await tick_engine.wait_caught_up()
+            result = "你睡了一觉，迎来了新的一天"
+            logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
+            return {"status": "ok", "result": result}
+        if is_night:
+            return {"status": "error", "result": "现在是夜晚，大家都休息了。点「休息」结束今天。"}
+        if actor.identity.role.value == 'player' and t in ("move", "work", "talk", "investigate") and actor.state.ap < ap_cost:
+            return {"status": "error", "result": f"行动力不足（剩余{actor.state.ap}点，需要{ap_cost}点）"}
+        if ap_cost > 0:
+            tick_engine.advance(ap_cost)
+
         result = ""
 
         if t == "add_claim":
@@ -504,6 +527,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         # 记录玩家操作
         player_action = PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result)
         logger.log_player_action(player_action)
+
+        # 等待回合制推进落地（1 AP = 1 小时），让前端看到时间流逝与结果
+        await tick_engine.wait_caught_up()
 
         return {"status": "error" if "AP不足" in result else "ok", "result": result}
 
@@ -685,6 +711,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
             return {"success": False, "message": "无效的对话选项"}
 
+        # 回合制：夜晚不对话；对话消耗 1 小时
+        dl_hour = tick_engine.world.state.tick % tick_engine.day_length
+        if not (tick_engine.wake_hour <= dl_hour < tick_engine.wake_hour + tick_engine.waking_hours):
+            return {"success": False, "message": "现在是夜晚，大家都休息了。"}
+
         # 检查AP
 
         ap_cost = 2 if option.get("energy_cost") else 1
@@ -695,9 +726,13 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         player.state.ap -= ap_cost
 
+        tick_engine.advance(ap_cost)
+
         # 执行对话
 
         result = dialogue_sys.execute_dialogue(player, target, option, ctx)
+
+        # 回合制推进落地（对话 = 1 小时）
 
         # 应用关系变化（双向）
 

@@ -47,7 +47,8 @@ def init_system():
         storage.log_world_event(0, "agent_spawned", a.state.location, [a.identity.id], None)
     print(f"Spawned {len(agents)} agents")
 
-    engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.rate, cfg.tick.day_length, db=storage)
+    engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.rate, cfg.tick.day_length,
+                        db=storage, wake_hour=cfg.tick.wake_hour, waking_hours=cfg.tick.waking_hours)
 
     # 知识持久化：新知识写穿到 knowledge_pool；并尝试断点恢复（关闭自动重置时生效）
     knowledge.persistence = storage
@@ -75,6 +76,8 @@ def init_system():
 
     agent_ids = [a.identity.id for a in agents]
     engine.scheduler.generate_daily_schedule(1, agent_ids, world)
+    # 世界观：从清晨醒来开始（清醒时段 5–17），玩家登录即可行动
+    world.state.tick = cfg.tick.wake_hour
     print("Day 1 events scheduled")
 
     app = create_app(world, agents, bus, storage, knowledge, llm, engine, ws_clients, dialogue_sys)

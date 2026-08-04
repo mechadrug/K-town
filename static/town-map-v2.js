@@ -530,27 +530,27 @@ window.TownMapV2 = (function() {
     if (stops.length < 2) return;
     
     var colors;
-    if (hour >= 21 || hour < 5) {
+    if (hour >= 17 || hour < 5) {
       colors = ["#1A237E", "#283593"];
     } else if (hour >= 5 && hour < 8) {
       colors = ["#F4A460", "#FFE4B5"];
-    } else if (hour >= 8 && hour < 17) {
+    } else if (hour >= 8 && hour < 14) {
       colors = ["#87CEEB", "#E0F7FA"];
     } else {
       colors = ["#FF8A65", "#FFB74D"];
     }
-    
+
     stops[0].setAttribute("stop-color", colors[0]);
     stops[1].setAttribute("stop-color", colors[1]);
 
     // 夜晚时添加月亮
     var celestial = document.getElementById("celestial-body");
-    if (hour >= 19 || hour < 6) {
+    if (hour >= 15 || hour < 6) {
       if (!celestial) {
         celestial = el("circle", {id: "celestial-body", r: 18, fill: "#E8EAF6", opacity: 0.9});
         svg.insertBefore(celestial, svg.firstChild);
       }
-      celestial.setAttribute("cx", 700 - ((hour >= 19 ? hour - 19 : hour + 5) / 12) * 500);
+      celestial.setAttribute("cx", 700 - ((hour >= 15 ? hour - 15 : hour + 5) / 12) * 500);
       celestial.setAttribute("cy", 50);
       celestial.style.display = "block";
     } else {
@@ -562,15 +562,15 @@ window.TownMapV2 = (function() {
     if (tint) {
       var tintColor = "transparent";
       var tintOpacity = 0;
-      if (hour >= 21 || hour < 5) {
+      if (hour >= 17 || hour < 5) {
         tintColor = "#1A237E";
-        tintOpacity = hour >= 21 ? Math.min(0.25, (hour - 21) * 0.06) : Math.min(0.25, (6 - hour) * 0.05);
+        tintOpacity = hour >= 17 ? Math.min(0.25, (hour - 17) * 0.06) : Math.min(0.25, (6 - hour) * 0.05);
       } else if (hour >= 5 && hour < 8) {
         tintColor = "#FF8A65";
         tintOpacity = 0.06;
-      } else if (hour >= 17 && hour < 21) {
+      } else if (hour >= 13 && hour < 17) {
         tintColor = "#FF6B35";
-        tintOpacity = ((hour - 17) / 4) * 0.1;
+        tintOpacity = ((hour - 13) / 4) * 0.1;
       }
       tint.setAttribute("fill", tintColor);
       tint.setAttribute("opacity", tintOpacity);

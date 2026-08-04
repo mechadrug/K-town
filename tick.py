@@ -4,6 +4,8 @@ import asyncio
 
 import random
 
+import time
+
 from typing import List, Dict, Any, Callable, Optional, Tuple
 
 from world import World
@@ -32,9 +34,9 @@ class TickEngine:
 
                  knowledge: KnowledgeEngine, logger, llm: LLMClient,
 
-                 rate: float = 1.0, day_length: int = 24, auto_reset: bool = True,
+                 rate: float = 1.0, day_length: int = 20, auto_reset: bool = True,
 
-                 db: Storage = None):
+                 db: Storage = None, wake_hour: int = 5, waking_hours: int = 12):
 
         self.world = world
 
@@ -52,7 +54,14 @@ class TickEngine:
 
         self.day_length = day_length
 
+        # 世界观：玩家清醒时段 = [wake_hour, wake_hour + waking_hours)，其余为夜晚
+        self.wake_hour = wake_hour
+        self.waking_hours = waking_hours
+
         self._running = False
+
+        # 回合制：玩家行动累积的待推进小时数（1 AP = 1 小时）
+        self._pending_advance = 0
 
         self.scheduler = EventScheduler(bus)
 
@@ -147,25 +156,53 @@ class TickEngine:
 
     async def run(self):
 
-        # 初始化前一天状态
+        """主循环（回合制）：由玩家行动驱动（1 AP = 1 小时）；玩家闲时小镇缓慢自走（观察模式）。"""
 
         self._save_current_state()
 
         self._running = True
 
+        last_activity = time.time()
+
         try:
 
             while self._running:
 
-                await self.step()
+                if self._pending_advance > 0:
 
-                await asyncio.sleep(self.rate)
+                    while self._pending_advance > 0:
+
+                        self._pending_advance -= 1
+
+                        await self.step()
+
+                    last_activity = time.time()
+
+                elif time.time() - last_activity >= self.rate * 2:
+
+                    # 玩家闲时：小镇按自己的节奏生活（观察水族箱）
+                    last_activity = time.time()
+
+                    await self.step()
+
+                await asyncio.sleep(0.05)
 
         finally:
 
             # 确保退出时刷新所有缓冲数据到数据库
 
             self._flush_db_writes()
+
+    def advance(self, hours: int = 1) -> None:
+        """玩家行动驱动世界推进：消耗 1 AP 度过 1 小时（回合制）"""
+        self._pending_advance += max(1, hours)
+
+    async def wait_caught_up(self, timeout: float = 5.0) -> None:
+        """等待回合制推进全部落地（run 循环处理完待推进小时），避免竞态"""
+        waited = 0.0
+        while self._pending_advance > 0 and waited < timeout:
+            await asyncio.sleep(0.02)
+            waited += 0.02
 
 
 
@@ -205,7 +242,7 @@ class TickEngine:
 
         tick = self.world.state.tick + 1
 
-        hour = tick % 24
+        hour = tick % self.day_length
 
 
 
@@ -385,7 +422,7 @@ class TickEngine:
 
 
         # 正午更新派系结构（低代价，让"小镇社会结构"可读）
-        if hour == 12:
+        if hour == 10:
             self.faction_system.update_faction_membership(self.agents)
 
         if hour == 0 and tick > 1:

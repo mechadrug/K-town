@@ -44,7 +44,7 @@ class Agent:
                 self.state.mood = Mood.ANGRY if random.random() < 0.5 else Mood.SAD
         
         self.state.energy = max(0, self.state.energy-1)
-        if hour>=21 or hour<6:
+        if hour>=17 or hour<5:
             self.state.energy = min(100, self.state.energy+15)
 
         # 饥饿检查
@@ -54,8 +54,8 @@ class Agent:
             if self.state.mood == Mood.HAPPY:
                 self.state.mood = Mood.NEUTRAL
 
-        # 食物消耗（每天晚上结算）
-        if hour == 21:
+        # 食物消耗（晚上结算）
+        if hour == 19:
             food_need = random.randint(1, 3)
             if self.state.food >= food_need:
                 self.state.food -= food_need
@@ -68,7 +68,7 @@ class Agent:
                     self.state.mood = Mood.SAD
 
         # 食物购买（金币回收机制）
-        if hour == 22 and self.state.hunger > 30 and self.state.food < 3 and self.state.gold > 10:
+        if hour == 0 and self.state.hunger > 30 and self.state.food < 3 and self.state.gold > 10:
             # 价格响应：食物越贵买越少
             base_cost = 5
             max_buy = min(3, self.state.gold // base_cost)
@@ -100,13 +100,13 @@ class Agent:
         
         # 夜晚睡觉
         openness = p.get("openness", 0.5)
-        if hour>=21 or hour<6:
-            if openness > 0.7 and hour < 23 and self.state.energy > 40:
+        if hour>=17 or hour<5:
+            if openness > 0.7 and hour < 19 and self.state.energy > 40:
                 return {"type":"investigate","desc": f"{n}趁着夜色外出探索","target":""}
             return {"type":"sleep","desc": f"{n}正在睡觉","target":""}
 
         # === Layer 1.5: 生活节奏（傍晚广场聚集/社交，让小镇有每日空间节律）===
-        if 18 <= hour < 21:
+        if 14 <= hour < 17:
             if self.state.location != "square":
                 if random.random() < 0.4 + p.get("extraversion", 0.5) * 0.3:
                     return {"type":"move","desc": f"{n}收工了，去广场转转","target":"square"}
@@ -263,22 +263,22 @@ class Agent:
         role = self.identity.role
         
         if role in [Role.ELDER, Role.MERCHANT, Role.TEACHER, Role.STORYTELLER, Role.PLAYER]:
-            if 6 <= hour < 21:
+            if 6 <= hour < 14:
                 return {"loc": "square", "name": "广场", "role": role.value}
         elif role in [Role.BLACKSMITH, Role.CARPENTER]:
-            if 6 <= hour < 21:
+            if 6 <= hour < 14:
                 return {"loc": "workshop", "name": "工坊", "role": role.value}
         elif role in [Role.FORAGER, Role.FARMER]:
-            if 6 <= hour < 21:
+            if 6 <= hour < 14:
                 return {"loc": "wilderness", "name": "荒野", "role": role.value}
         elif role == Role.SCOUT:
-            if 6 <= hour < 21:
+            if 6 <= hour < 14:
                 return {"loc": "wilderness", "name": "荒野", "role": role.value}
         elif role == Role.HEALER:
-            if 6 <= hour < 21:
+            if 6 <= hour < 14:
                 return {"loc": "school", "name": "学校", "role": role.value}
         elif role == Role.MINER:
-            if 6 <= hour < 21:
+            if 6 <= hour < 14:
                 return {"loc": "mine", "name": "矿洞", "role": role.value}
         return None
 

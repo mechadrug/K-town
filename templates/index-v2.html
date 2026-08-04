@@ -38,7 +38,7 @@
           <span class="stat-icon">⚡</span>
           <span class="stat-value" id="stat-energy">100</span>
         </div>
-        <div class="topbar-stat ap" title="行动力（AP）：每天 12 点。移动/工作/交谈各耗 1 点，调查耗 2 点，休息不耗。用完等次日重置。">
+        <div class="topbar-stat ap" title="行动力（AP）：每天 12 点，1 点 = 度过 1 小时。移动/工作/交谈各耗 1 点，调查耗 2 点。点「休息」睡觉结束今天，次日重置。">
           <span class="stat-icon">🎯</span>
           <span class="stat-value"><span id="stat-ap">12</span>/<span id="stat-ap-max">12</span></span>
         </div>
@@ -137,7 +137,7 @@
       <button class="action-btn primary" onclick="doWork('work')" title="在当前地点工作，赚取金币（消耗 1 行动力）">
         <span class="btn-icon">🛠️</span> 工作
       </button>
-      <button class="action-btn" onclick="doRest()" title="休息恢复体力（消耗 1 行动力）">
+      <button class="action-btn" onclick="doRest()" title="睡觉，结束今天（进入新的一天，行动力重置）">
         <span class="btn-icon">🛏️</span> 休息
       </button>
       <button class="action-btn" onclick="addKnowledge()" title="向小镇知识库添加一条知识（消耗 1 行动力）">
