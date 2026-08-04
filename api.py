@@ -446,6 +446,24 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         if actor is None:
             return {"status": "error", "result": "找不到执行者"}
 
+        # 每日领悟：把思考写进小镇的记忆（0 AP，每日一次，随时可提交）。
+        # 若触及隐藏剧情的关键词，封印松动——领悟技能、想起记忆碎片。
+        if t == "add_claim":
+            claim_text = action.get("claim", "")
+            if not claim_text:
+                result = "思考内容为空"
+            elif tick_engine._insight_day == tick_engine.current_day:
+                return {"status": "error", "result": "今日的思考已经交出去了。明日再悟吧。"}
+            else:
+                tick_engine._insight_day = tick_engine.current_day
+                knowledge.observe(aid, "思考", claim_text, actor.state.location)
+                result = f"你把一段想法写进了小镇的记忆：{claim_text}"
+                insight = tick_engine._check_insight(actor, claim_text)
+                if insight:
+                    result = insight
+            logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
+            return {"status": "ok", "result": result}
+
         # === 回合制：1 AP = 1 小时。非休息动作须在清醒时段，且推进世界时钟 ===
         hour = tick_engine.world.state.tick % tick_engine.day_length
         ws, wl = tick_engine.wake_hour, tick_engine.waking_hours
@@ -473,15 +491,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         result = ""
 
-        if t == "add_claim":
-            subj = action.get("subject", "observation")
-            claim_text = action.get("claim", "")
-            if claim_text:
-                knowledge.observe(aid, subj, claim_text, actor.state.location)
-                result = f"{actor.identity.name}添加了知识：{claim_text}"
-            else:
-                result = "知识内容为空"
-        elif t == "trigger_event":
+        if t == "trigger_event":
             event_type = action.get("event_type", "weather_change")
             location = action.get("location", "square")
             payload = action.get("payload", {})

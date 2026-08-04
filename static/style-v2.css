@@ -507,6 +507,13 @@ body {
   box-shadow: 0 4px 16px rgba(255, 152, 0, 0.35);
 }
 
+/* 每日领悟：今日已提交后禁用 */
+.action-btn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
 .action-btn .btn-icon {
   font-size: 1.15em;
 }

@@ -124,6 +124,8 @@ class TickEngine:
 
         self._upgrades_done = 0  # 小镇修缮次数（世界观：末世重建）
 
+        self._insight_day = 0  # 每日领悟：记录最近一次提交思考的天数（每日限一次）
+
         # 自动重置
 
         if auto_reset:
@@ -944,6 +946,40 @@ class TickEngine:
         if unlocked:
             msg += f" 你感到古玉佩微微发烫，掌握了技能「{unlocked}」！"
         return msg
+
+    # 每日领悟：触及隐藏剧情的知识关键词 → 松一丝封印，领悟技能/记忆碎片
+    INSIGHT_TOPICS = [
+        ("遗迹", "溯源", "你仿佛看见了整座城市沉入大地——那是很久以前的事了。"),
+        ("废墟", "溯源", "你仿佛看见了整座城市沉入大地——那是很久以前的事了。"),
+        ("石碑", "铭文识读", "石碑上的纹路，你竟然认得几个字。"),
+        ("纹路", "铭文识读", "石碑上的纹路，你竟然认得几个字。"),
+        ("十三", "十三时", "你梦见自己数过十二个时辰，又数到了第十三。"),
+        ("玉佩", "溯源", "这块玉佩……你好像知道它原本属于谁。"),
+        ("黑夜", "夜行者", "你忽然记起，很久以前，黑夜没有这么长。"),
+        ("地球", "溯源", "你脱口而出「地球」二字，却不知这词从何而来。"),
+        ("时间", "观星", "你意识到：时间本身，在很久以前出了一点差错。"),
+        ("转速", "观星", "你意识到：时间本身，在很久以前出了一点差错。"),
+        ("文明", "溯源", "你仿佛听见了整座城市的低语——那是很久以前的事了。"),
+        ("秘密", "记忆", "这玉佩……你好像知道它属于谁。"),
+    ]
+
+    def _check_insight(self, agent, claim_text):
+        """每日领悟：若提交的思考触及遗迹真相，封印松动，领悟技能 + 想起记忆碎片。"""
+        if not claim_text:
+            return None
+        for kw, skill, fragment in self.INSIGHT_TOPICS:
+            if kw in claim_text:
+                unlocked = skill not in agent.identity.skills
+                agent.identity.skills[skill] = agent.identity.skills.get(skill, 0) + 1
+                agent.diary.append(f"第{self.current_day}天·记忆碎片：{fragment}")
+                self.daily_agent_logs[agent.identity.id].append(f"✨ 你忽然想起了什么：{fragment}")
+                self.current_day_events.append(
+                    {"type": "insight", "action": f"✨ 领悟「{skill}」", "tick": self.world.state.tick})
+                msg = f"✨ {fragment}"
+                if unlocked:
+                    msg += f" 封印松动了一丝——你领悟了「{skill}」！"
+                return msg
+        return None
 
 
 

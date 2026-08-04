@@ -12,6 +12,8 @@
   var activeTab = 'events';
   var ICONS = window.KTownIcons || {};
   var lastMapLoc = null;
+  var knowledgeSubmittedToday = false;
+  var lastDay = null;
 
   // 防抖：防止连点导致 AP 误扣 / 动作堆积（每次动作间隔 ≥300ms）
   var lastActionAt = 0;
@@ -119,6 +121,13 @@
     var day = Math.floor(data.tick / 20) + 1;
     var hour = data.tick % 20;
     var player = data.player || {};
+
+    // 新的一天：重置每日领悟（知识按钮恢复）
+    if (lastDay !== null && day !== lastDay) {
+      knowledgeSubmittedToday = false;
+      updateKnowledgeBtn();
+    }
+    lastDay = day;
 
     setText('time-text', '第' + day + '天 · ' + getTimeOfDay(hour));
     setText('time-icon', getTimeIcon(hour));
@@ -747,19 +756,33 @@
   }
 
   function addKnowledge() {
+    if (knowledgeSubmittedToday) {
+      showToast('今日的思考已经交出去了，明日再悟吧', 'info');
+      return;
+    }
     if (!canSendAction()) return;
-    var claim = prompt('输入你想添加到小镇知识库的内容：');
+    var claim = prompt('写下你此刻的想法（每日一次，可能触及遗迹的真相）：');
     if (!claim || !claim.trim()) return;
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       showToast('连接已断开', 'error');
       return;
     }
+    knowledgeSubmittedToday = true;
+    updateKnowledgeBtn();
     ws.send(JSON.stringify({
       type: 'player_action',
       action: { type: 'add_claim', claim: claim.trim() }
     }));
     playSound('addKnowledge');
+  }
+
+  function updateKnowledgeBtn() {
+    var btn = document.getElementById('addKnowledgeBtn');
+    if (!btn) return;
+    btn.disabled = knowledgeSubmittedToday;
+    btn.classList.toggle('disabled', knowledgeSubmittedToday);
+    btn.title = knowledgeSubmittedToday ? '今日已提交，明日再悟' : '每日一次：写下你的想法。若触及遗迹真相，会有领悟';
   }
 
   function resetSimulation() {

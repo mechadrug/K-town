@@ -149,7 +149,7 @@
       <button class="action-btn" onclick="doRest()" title="睡觉，结束今天（进入新的一天，行动力重置）">
         <span class="btn-icon">🛏️</span> 休息
       </button>
-      <button class="action-btn" onclick="addKnowledge()" title="向小镇知识库添加一条知识（消耗 1 行动力）">
+      <button class="action-btn" onclick="addKnowledge()" id="addKnowledgeBtn" title="每日一次：写下你的想法。若触及遗迹真相，会有领悟（不耗行动力）">
         <span class="btn-icon">📝</span> 知识
       </button>
       <div class="action-divider"></div>
@@ -203,7 +203,7 @@
   <div class="guide-overlay" id="guide-overlay" style="display:none">
     <div class="guide-card">
       <h3>🏘 欢迎来到 K-town 边境小镇</h3>
-      <p>这是一座有自己的生活的小镇。你是一位新来的居民 —— 先观察，再融入。</p>
+      <p>这是一座有自己的生活的小镇。你是一位新来的居民 —— 先观察，再融入。你丢失了一段记忆，只记得自己是「旅行者」，随身只有一块古玉佩。每天用「知识」写下一段思考：若触及真相，封印会松动，你会想起些什么。</p>
       <div class="guide-steps">
         <div class="guide-step"><span class="step-num">1</span> 看小镇：右侧「小镇脉搏」显示此刻谁在哪、谁不开心</div>
         <div class="guide-step"><span class="step-num">2</span> 认识居民：点地图上的人，看他的档案（目标/心情/日记）</div>
