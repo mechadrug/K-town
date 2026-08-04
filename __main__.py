@@ -1,4 +1,4 @@
-"""K-town server - run with: python -m server"""
+"""K-town server 入口。运行方式：python main.py（或 python .）"""
 from main import main
 import asyncio
 

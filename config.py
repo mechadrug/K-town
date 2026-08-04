@@ -7,8 +7,7 @@ from typing import Optional
 
 @dataclass
 class ServerConfig:
-    ws_port: int = 8080
-    http_port: int = 8080
+    http_port: int = 8090
 
 
 @dataclass
