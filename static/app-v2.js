@@ -1,4 +1,4 @@
-﻿// K-town v2.0 — 主应用逻辑 v2.2 (Phase 3 + Phase 4)
+// K-town v2.0 — 主应用逻辑 v2.2 (Phase 3 + Phase 4)
 (function() {
   'use strict';
 
@@ -10,12 +10,16 @@
   var currentDialogueAgent = null;
   var soundEnabled = true;
   var activeTab = 'events';
+  var ICONS = window.KTownIcons || {};
 
   // ===== 初始化 =====
   document.addEventListener('DOMContentLoaded', function() {
     TownMapV2.init(document.getElementById('map-canvas'));
     connectWebSocket();
     setupEventListeners();
+    // 初始即加载任务与知识数据（不依赖切换 Tab）
+    loadQuests();
+    loadKnowledge();
   });
 
   // ===== WebSocket =====
@@ -154,11 +158,17 @@
       else btn.classList.remove('active');
     });
 
-    // 更新面板显示
+    // 更新面板显示：显式驱动 style.display（内联 display:none 会覆盖 .active class）
     var panels = document.querySelectorAll('.tab-panel');
     panels.forEach(function(panel) {
-      if (panel.id === 'tab-' + tabName) panel.classList.add('active');
-      else panel.classList.remove('active');
+      var isActive = panel.id === 'tab-' + tabName;
+      if (isActive) {
+        panel.classList.add('active');
+        panel.style.display = 'block';
+      } else {
+        panel.classList.remove('active');
+        panel.style.display = 'none';
+      }
     });
 
     // 加载对应数据
@@ -691,10 +701,10 @@
   }
 
   function getTimeIcon(hour) {
-    if (hour >= 6 && hour < 9) return '🌅';
-    if (hour >= 9 && hour < 14) return '☀';
-    if (hour >= 14 && hour < 18) return '🌇';
-    return '🌙';
+    if (hour >= 6 && hour < 9) return ICONS.time.morning;
+    if (hour >= 9 && hour < 14) return ICONS.time.day;
+    if (hour >= 14 && hour < 18) return ICONS.time.dusk;
+    return ICONS.time.night;
   }
 
   function getWeatherName(w) {
@@ -702,7 +712,7 @@
   }
 
   function getWeatherIcon(w) {
-    return { clear: '☀️', cloudy: '⛅', rainy: '🌧', snowy: '❄️', windy: '🌪' }[w] || '☀️';
+    return ICONS.weather[w] || ICONS.weather.clear;
   }
 
   function getLocationCn(loc) {
@@ -719,12 +729,7 @@
   }
 
   function getAgentEmoji(id) {
-    return {
-      agent_elder: '👴', agent_blacksmith: '🔨', agent_carpenter: '🪵',
-      agent_forager: '🌿', agent_scout: '🦅', agent_merchant: '💰',
-      agent_teacher: '📖', agent_farmer: '🌾', agent_storyteller: '📜',
-      agent_healer: '💊', agent_miner: '⛏', agent_player: '👤'
-    }[id] || '👤';
+    return ICONS.agent[id] || ICONS.ui.resident;
   }
 
   function getAgentName(id) {
@@ -746,12 +751,7 @@
   }
 
   function getEventIcon(type) {
-    return {
-      weather_change: '🌤', resource_found: '💎', social_encounter: '🤝',
-      item_crafted: '🔨', rumor_spread: '🗣', trade: '💰', festival: '🎉',
-      disaster: '⚠️', player_action: '🎮', price_change: '📊',
-      knowledge_conflict: '⚡', agent_goal_complete: '🏆', day_summary: '📰'
-    }[type] || '📋';
+    return ICONS.event[type] || '📋';
   }
 
   function getEventCategory(type) {

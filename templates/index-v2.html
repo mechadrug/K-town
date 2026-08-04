@@ -1,206 +1,207 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>K-town 边境小镇</title>
-  <link rel="stylesheet" href="/static/style-v2.css">
-  <link rel="stylesheet" href="/static/animations-v2.css">
-  <link rel="stylesheet" href="/static/panels-v2.css">
-  <link rel="stylesheet" href="/static/widgets-v2.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/polish-v2.css">
-</head>
-<body class="theme-day">
-
-  <!-- ========== 主布局 ========== -->
-  <div class="app-layout">
-
-    <!-- ===== 顶栏 ===== -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <div class="time-badge" id="time-badge">
-          <span class="icon" id="time-icon">?</span>
-          <span id="time-text">第1天 · 早晨</span>
-        </div>
-        <div class="time-badge" id="weather-badge">
-          <span class="icon" id="weather-icon">??</span>
-          <span id="weather-text">晴朗</span>
-        </div>
-      </div>
-      <div class="topbar-right">
-        <div class="topbar-stat gold">
-          <span class="stat-icon">??</span>
-          <span class="stat-value" id="stat-gold">10</span>
-        </div>
-        <div class="topbar-stat energy">
-          <span class="stat-icon">?</span>
-          <span class="stat-value" id="stat-energy">100</span>
-        </div>
-        <div class="topbar-stat ap">
-          <span class="stat-icon">??</span>
-          <span class="stat-value"><span id="stat-ap">12</span>/<span id="stat-ap-max">12</span></span>
-        </div>
-        <button class="sound-toggle-btn" onclick="toggleSound()" id="soundBtn" title="音效开关">??</button>
-      </div>
-    </header>
-
-    <!-- ===== 主地图区 ===== -->
-    <main class="map-container">
-      <svg class="map-svg" id="map-canvas" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
-    </main>
-
-    <!-- ===== 右侧面板 ===== -->
-    <aside class="sidebar">
-      <!-- 玩家卡片 -->
-      <div class="player-card fade-in">
-        <div class="player-avatar">??</div>
-        <div class="player-info" style="flex:1">
-          <h3>旅行者</h3>
-          <div class="player-role">小镇新居民 · <span id="player-location">广场</span></div>
-        </div>
-      </div>
-      <div class="stat-bars" style="padding: 0 8px;">
-        <div class="stat-bar-row">
-          <span class="stat-label">? 体力</span>
-          <div class="stat-bar-track"><div class="stat-bar-fill energy" id="energy-bar" style="width:100%"></div></div>
-          <span class="stat-bar-value" id="energy-value">100</span>
-        </div>
-        <div class="stat-bar-row">
-          <span class="stat-label">?? 行动</span>
-          <div class="stat-bar-track"><div class="stat-bar-fill ap" id="ap-bar" style="width:100%"></div></div>
-          <span class="stat-bar-value" id="ap-value">12/12</span>
-        </div>
-      </div>
-
-      <!-- Tab 切换：动态 / 任务 / 知识 -->
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="events" onclick="switchTab('events')">?? 动态</button>
-        <button class="tab-btn" data-tab="quests" onclick="switchTab('quests')">?? 任务</button>
-        <button class="tab-btn" data-tab="knowledge" onclick="switchTab('knowledge')">?? 知识</button>
-      </div>
-
-      <!-- 今日动态 Tab -->
-      <div class="panel fade-in tab-panel active" id="tab-events">
-        <div class="panel-body">
-          <div class="event-list" id="event-list">
-            <div class="placeholder-text">欢迎来到K-town边境小镇！</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 任务 Tab -->
-      <div class="panel fade-in tab-panel" id="tab-quests" style="display:none">
-        <div class="panel-body">
-          <div class="quest-list" id="quest-list">
-            <div class="placeholder-text">加载中...</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 知识 Tab -->
-      <div class="panel fade-in tab-panel" id="tab-knowledge" style="display:none">
-        <div class="panel-body">
-          <div class="knowledge-list" id="knowledge-list">
-            <div class="placeholder-text">暂无知识记录</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 地点信息面板 -->
-      <div class="panel fade-in" id="location-panel" style="display:none">
-        <div class="panel-header">
-          <span id="loc-panel-title">?? 地点</span>
-          <span style="cursor:pointer" onclick="hideLocationPanel()">?</span>
-        </div>
-        <div class="panel-body" id="loc-panel-body"></div>
-      </div>
-    </aside>
-
-    <!-- ===== 底部行动栏 ===== -->
-    <nav class="actionbar" id="actionbar">
-      <button class="action-btn" onclick="movePlayer('square')">
-        <span class="btn-icon">??</span> 广场
-      </button>
-      <button class="action-btn" onclick="movePlayer('workshop')">
-        <span class="btn-icon">??</span> 工坊
-      </button>
-      <button class="action-btn" onclick="movePlayer('wilderness')">
-        <span class="btn-icon">??</span> 荒野
-      </button>
-      <button class="action-btn" onclick="movePlayer('school')">
-        <span class="btn-icon">??</span> 学校
-      </button>
-      <button class="action-btn" onclick="movePlayer('mine')">
-        <span class="btn-icon">?</span> 矿洞
-      </button>
-      <div class="action-divider"></div>
-      <button class="action-btn primary" onclick="doWork('work')">
-        <span class="btn-icon">?</span> 工作
-      </button>
-      <button class="action-btn" onclick="openTalkUI()">
-        <span class="btn-icon">??</span> 聊天
-      </button>
-      <button class="action-btn" onclick="doRest()">
-        <span class="btn-icon">??</span> 休息
-      </button>
-      <button class="action-btn" onclick="addKnowledge()">
-        <span class="btn-icon">??</span> 知识
-      </button>
-      <div class="action-divider"></div>
-      <button class="action-btn" onclick="resetSimulation()" style="color:var(--negative)">
-        <span class="btn-icon">??</span> 重置
-      </button>
-    </nav>
-  </div>
-
-  <!-- ===== 对话面板 ===== -->
-  <div class="dialogue-overlay" id="dialogue-overlay" style="display:none">
-    <div class="dialogue-panel" id="dialogue-panel">
-      <div class="dialogue-header">
-        <div class="dialogue-agent-info">
-          <span class="dialogue-avatar" id="dlg-avatar">??</span>
-          <div>
-            <div class="dialogue-name" id="dlg-name">居民</div>
-            <div class="dialogue-relation" id="dlg-relation">陌生人</div>
-          </div>
-        </div>
-        <button class="dialogue-close" onclick="closeDialogue()">?</button>
-      </div>
-      <div class="dialogue-messages" id="dlg-messages"></div>
-      <div class="dialogue-options" id="dlg-options"></div>
-    </div>
-  </div>
-
-  <!-- ===== Agent 档案面板 ===== -->
-  <div class="profile-overlay" id="profile-overlay" style="display:none">
-    <div class="profile-panel" id="profile-panel">
-      <div class="profile-header">
-        <div class="profile-avatar" id="prof-avatar">??</div>
-        <div class="profile-info">
-          <div class="profile-name" id="prof-name">居民</div>
-          <div class="profile-role" id="prof-role">职业</div>
-          <div class="profile-mood" id="prof-mood">心情：平静</div>
-        </div>
-        <button class="profile-close" onclick="closeProfile()">?</button>
-      </div>
-      <div class="profile-stats" id="prof-stats"></div>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-town 边境小镇</title>
+  <link rel="stylesheet" href="/static/style-v2.css">
+  <link rel="stylesheet" href="/static/animations-v2.css">
+  <link rel="stylesheet" href="/static/panels-v2.css">
+  <link rel="stylesheet" href="/static/widgets-v2.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/polish-v2.css">
+</head>
+<body class="theme-day">
+
+  <!-- ========== 主布局 ========== -->
+  <div class="app-layout">
+
+    <!-- ===== 顶栏 ===== -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="time-badge" id="time-badge">
+          <span class="icon" id="time-icon">🌅</span>
+          <span id="time-text">第1天 · 早晨</span>
+        </div>
+        <div class="time-badge" id="weather-badge">
+          <span class="icon" id="weather-icon">☀️</span>
+          <span id="weather-text">晴朗</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-stat gold">
+          <span class="stat-icon">🪙</span>
+          <span class="stat-value" id="stat-gold">10</span>
+        </div>
+        <div class="topbar-stat energy">
+          <span class="stat-icon">⚡</span>
+          <span class="stat-value" id="stat-energy">100</span>
+        </div>
+        <div class="topbar-stat ap">
+          <span class="stat-icon">🎯</span>
+          <span class="stat-value"><span id="stat-ap">12</span>/<span id="stat-ap-max">12</span></span>
+        </div>
+        <button class="sound-toggle-btn" onclick="toggleSound()" id="soundBtn" title="音效开关">🔊</button>
+      </div>
+    </header>
+
+    <!-- ===== 主地图区 ===== -->
+    <main class="map-container">
+      <svg class="map-svg" id="map-canvas" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    </main>
+
+    <!-- ===== 右侧面板 ===== -->
+    <aside class="sidebar">
+      <!-- 玩家卡片 -->
+      <div class="player-card fade-in">
+        <div class="player-avatar">🧳</div>
+        <div class="player-info" style="flex:1">
+          <h3>旅行者</h3>
+          <div class="player-role">小镇新居民 · <span id="player-location">广场</span></div>
+        </div>
+      </div>
+      <div class="stat-bars" style="padding: 0 8px;">
+        <div class="stat-bar-row">
+          <span class="stat-label">⚡ 体力</span>
+          <div class="stat-bar-track"><div class="stat-bar-fill energy" id="energy-bar" style="width:100%"></div></div>
+          <span class="stat-bar-value" id="energy-value">100</span>
+        </div>
+        <div class="stat-bar-row">
+          <span class="stat-label">🎯 行动</span>
+          <div class="stat-bar-track"><div class="stat-bar-fill ap" id="ap-bar" style="width:100%"></div></div>
+          <span class="stat-bar-value" id="ap-value">12/12</span>
+        </div>
+      </div>
+
+      <!-- Tab 切换：动态 / 任务 / 知识 -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="events" onclick="switchTab('events')">📰 动态</button>
+        <button class="tab-btn" data-tab="quests" onclick="switchTab('quests')">🎯 任务</button>
+        <button class="tab-btn" data-tab="knowledge" onclick="switchTab('knowledge')">📚 知识</button>
+      </div>
+
+      <!-- 今日动态 Tab -->
+      <div class="panel fade-in tab-panel active" id="tab-events">
+        <div class="panel-body">
+          <div class="event-list" id="event-list">
+            <div class="placeholder-text">欢迎来到K-town边境小镇！</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 任务 Tab -->
+      <div class="panel fade-in tab-panel" id="tab-quests">
+        <div class="panel-body">
+          <div class="quest-list" id="quest-list">
+            <div class="placeholder-text">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 知识 Tab -->
+      <div class="panel fade-in tab-panel" id="tab-knowledge">
+        <div class="panel-body">
+          <div class="knowledge-list" id="knowledge-list">
+            <div class="placeholder-text">暂无知识记录</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 地点信息面板 -->
+      <div class="panel fade-in" id="location-panel" style="display:none">
+        <div class="panel-header">
+          <span id="loc-panel-title">📍 地点</span>
+          <span style="cursor:pointer" onclick="hideLocationPanel()">✕</span>
+        </div>
+        <div class="panel-body" id="loc-panel-body"></div>
+      </div>
+    </aside>
+
+    <!-- ===== 底部行动栏 ===== -->
+    <nav class="actionbar" id="actionbar">
+      <button class="action-btn" onclick="movePlayer('square')">
+        <span class="btn-icon">🏛️</span> 广场
+      </button>
+      <button class="action-btn" onclick="movePlayer('workshop')">
+        <span class="btn-icon">🔨</span> 工坊
+      </button>
+      <button class="action-btn" onclick="movePlayer('wilderness')">
+        <span class="btn-icon">🌲</span> 荒野
+      </button>
+      <button class="action-btn" onclick="movePlayer('school')">
+        <span class="btn-icon">🏫</span> 学校
+      </button>
+      <button class="action-btn" onclick="movePlayer('mine')">
+        <span class="btn-icon">⛏️</span> 矿洞
+      </button>
+      <div class="action-divider"></div>
+      <button class="action-btn primary" onclick="doWork('work')">
+        <span class="btn-icon">🛠️</span> 工作
+      </button>
+      <button class="action-btn" onclick="openTalkUI()">
+        <span class="btn-icon">💬</span> 聊天
+      </button>
+      <button class="action-btn" onclick="doRest()">
+        <span class="btn-icon">🛏️</span> 休息
+      </button>
+      <button class="action-btn" onclick="addKnowledge()">
+        <span class="btn-icon">📝</span> 知识
+      </button>
+      <div class="action-divider"></div>
+      <button class="action-btn" onclick="resetSimulation()" style="color:var(--negative)">
+        <span class="btn-icon">🔄</span> 重置
+      </button>
+    </nav>
+  </div>
+
+  <!-- ===== 对话面板 ===== -->
+  <div class="dialogue-overlay" id="dialogue-overlay" style="display:none">
+    <div class="dialogue-panel" id="dialogue-panel">
+      <div class="dialogue-header">
+        <div class="dialogue-agent-info">
+          <span class="dialogue-avatar" id="dlg-avatar">👤</span>
+          <div>
+            <div class="dialogue-name" id="dlg-name">居民</div>
+            <div class="dialogue-relation" id="dlg-relation">陌生人</div>
+          </div>
+        </div>
+        <button class="dialogue-close" onclick="closeDialogue()">✕</button>
+      </div>
+      <div class="dialogue-messages" id="dlg-messages"></div>
+      <div class="dialogue-options" id="dlg-options"></div>
+    </div>
+  </div>
+
+  <!-- ===== Agent 档案面板 ===== -->
+  <div class="profile-overlay" id="profile-overlay" style="display:none">
+    <div class="profile-panel" id="profile-panel">
+      <div class="profile-header">
+        <div class="profile-avatar" id="prof-avatar">👤</div>
+        <div class="profile-info">
+          <div class="profile-name" id="prof-name">居民</div>
+          <div class="profile-role" id="prof-role">职业</div>
+          <div class="profile-mood" id="prof-mood">心情：平静</div>
+        </div>
+        <button class="profile-close" onclick="closeProfile()">✕</button>
+      </div>
+      <div class="profile-stats" id="prof-stats"></div>
       <div class="profile-relations" id="prof-relations"></div>
       <div class="profile-goals" id="prof-goals" style="display:none"></div>
-      <div class="profile-diary" id="prof-diary" style="display:none"></div>
-      <div class="profile-actions">
-        <button class="action-btn primary" onclick="startDialogueFromProfile()">?? 对话</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== Toast 容器 ===== -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <!-- ===== 脚本引用 ===== -->
-  <script src="/static/town-map-v2.js"></script>
-  <script src="/static/sound-v2.js"></script>
-  <script src="/static/app-v2.js"></script>
-</body>
-</html>
+      <div class="profile-diary" id="prof-diary" style="display:none"></div>
+      <div class="profile-actions">
+        <button class="action-btn primary" onclick="startDialogueFromProfile()">💬 对话</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toast 容器 ===== -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ===== 脚本引用 ===== -->
+  <script src="/static/icons.js"></script>
+  <script src="/static/town-map-v2.js"></script>
+  <script src="/static/sound-v2.js"></script>
+  <script src="/static/app-v2.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-﻿// K-town v2.0 — SVG 地图渲染器 v2.1
+// K-town v2.0 — SVG 地图渲染器 v2.1
 // 手绘水彩风格小镇地图 + 动画系统
 window.TownMapV2 = (function() {
   "use strict";
@@ -113,7 +113,7 @@ window.TownMapV2 = (function() {
     // 天空背景
     svg.appendChild(el("rect", {x: 0, y: 0, width: 1000, height: 600, fill: "url(#skyGradient)", id: "sky"}));
 
-    // ???????
+    // 昼夜色调遮罩层
     var tint = el("rect", {x: 0, y: 0, width: 1000, height: 600, fill: "transparent", id: "daynight-tint", pointerEvents: "none"});
     svg.appendChild(tint);
     sceneElements.daynightTint = tint;
@@ -444,14 +444,14 @@ window.TownMapV2 = (function() {
   function updateAgentPositions(agents) {
     var newIds = {};
     agents.forEach(function(a) { newIds[a.id] = true; });
-    // ??????? agent token
+    // 清理已离场的 agent token
     for (var id in agentTokens) {
       if (!newIds[id] && agentTokens[id] && agentTokens[id].element && agentTokens[id].element.parentNode) {
         agentTokens[id].element.parentNode.removeChild(agentTokens[id].element);
         delete agentTokens[id];
       }
     }
-    // ???? agent????????
+    // 更新仍在场的 agent token
     for (var id in agentTokens) {
       if (agentTokens[id] && agentTokens[id].element && agentTokens[id].element.parentNode) {
         agentTokens[id].element.parentNode.removeChild(agentTokens[id].element);
@@ -557,7 +557,7 @@ window.TownMapV2 = (function() {
       if (celestial) celestial.style.display = "none";
     }
 
-    // ?????????
+    // 更新昼夜色调
     var tint = document.getElementById("daynight-tint");
     if (tint) {
       var tintColor = "transparent";
