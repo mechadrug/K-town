@@ -67,9 +67,9 @@
 | 情绪传染 + 人格五维 | 保留 | 已在 agent.py 内跑通，是"活人感"种子 |
 | 食物消耗 / 金币回收 / 关系衰减 | 保留 | 压力骨架已进 think()，只差接上动作层 |
 | 派系（factions.py） | 保留（轻接线） | 按好感聚簇，低价换来"小镇社会结构"可读性 |
-| 叙事（narrative.py StoryArc） | **冻结** | 与 _generate_day_summary 重复，等核心闭环活后再决定 |
-| 小镇进化 / 玩家影响力（town_evolution.py） | **冻结** | 依赖动作闭环，且含 NameError bug，先不驱动 |
-| 成就（achievements.py） | **冻结** | 装饰系统，等闭环呼吸后再启用 |
+| 叙事（narrative.py StoryArc） | **已删除**（2026-08-04） | 与 _generate_day_summary 重复，纯死重 |
+| 小镇进化 / 玩家影响力（town_evolution.py） | **已删除**（2026-08-04） | 含 NameError bug，从未驱动 |
+| 成就（achievements.py） | **已删除**（2026-08-04） | 纯装饰死重，从未被检查 |
 | 交易市场（trade.py TradeMarket） | **冻结**（其定价引擎作为路线图积木） | 真实交易走 world.state.trade_offers + 动作层 |
 | 命令模式（commands.py） | **删除** | 被 api.py 手写分支架空，MoveCommand 还调 world 不存在的方法 |
 
