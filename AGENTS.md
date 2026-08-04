@@ -45,7 +45,7 @@ K-town/
 1. **PRD first** — define goals, non-goals, core experience, risks, acceptance criteria before coding
 2. **Implementation Plan** — architecture, file structure, task breakdown, data models, API, test approach, commit messages
 3. **Atomic commits** — one task per commit (e.g., "add Agent schema"), not "implement entire system"
-4. **Parallel sub-agents** — split by boundary (Go server, Godot client, schema, docs) and work concurrently
+4. **Parallel sub-agents** — split by boundary (backend systems, frontend, schema, docs) and work concurrently
 5. **Handoff state** — after every session, update `docs/handoff.md` with completed work, test results, risks, next step
 
 ## Documentation Structure

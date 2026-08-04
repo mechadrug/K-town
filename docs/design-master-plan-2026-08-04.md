@@ -70,7 +70,7 @@
 | 叙事（narrative.py StoryArc） | **已删除**（2026-08-04） | 与 _generate_day_summary 重复，纯死重 |
 | 小镇进化 / 玩家影响力（town_evolution.py） | **已删除**（2026-08-04） | 含 NameError bug，从未驱动 |
 | 成就（achievements.py） | **已删除**（2026-08-04） | 纯装饰死重，从未被检查 |
-| 交易市场（trade.py TradeMarket） | **冻结**（其定价引擎作为路线图积木） | 真实交易走 world.state.trade_offers + 动作层 |
+| 交易市场（trade.py TradeMarket） | **已删除**（2026-08-04） | 未接线的整套子系统，真实交易走 world.state.trade_offers + 动作层 |
 | 命令模式（commands.py） | **删除** | 被 api.py 手写分支架空，MoveCommand 还调 world 不存在的方法 |
 
 ### 1.5 世界观（沿用 v2，收敛口径）

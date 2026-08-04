@@ -1,69 +1,80 @@
 # K-town 开发交接记录
 
-## 当前状态（2026-08-04）
-- 版本：v0.4（可玩的观察型小镇 + 回合制 + 二十时世界观）
-- 分支：feature/v0.2-game-ui
-- **路线图**：`docs/design-master-plan-2026-08-04.md`（修正版主计划，Phase 0–4）—— 新 session 先读它
+> 交接给下一位开发者。先读本文件，再读 `docs/design-master-plan-2026-08-04.md`（路线图）与 `docs/product/gameplay-design-v3.md`（玩法设计）。
+
+## 当前状态（2026-08-04，v0.4）
+- **版本**：v0.4 —— 可玩的观察型小镇 + 回合制 + 二十时世界观
+- **分支**：feature/v0.2-game-ui；工作树干净，全部已提交
+- **技术栈**：Python 3.11 + FastAPI + SQLite + HTML/JS(WebSocket)。**无** Go/Godot/PostgreSQL（已废弃并删除）
 
 ## 运行方式
 ```powershell
 cd C:\Users\azi\Desktop\K-town-demo-v0.1.0
-python main.py          # 或 run_server.ps1
+python main.py          # 端口 8090
+python test_smoke.py    # 冒烟测试（直驱 tick，验证跨天/落库/知识/无异常）
 ```
-访问 http://localhost:8090 ；冒烟测试：`python test_smoke.py`
 
-## 本次会话完成（Phase 0 落地）
+## 玩法一句话
+几十万年后的世界，地球转速变慢，**一天 20 小时**（清醒 12h + 睡眠 8h）。小镇破破烂烂，居民各自生活、合力重建。
+你是**失忆的旅行者**（古玉佩 = 封印钥匙）：每天 12 点行动力（1 AP = 过 1 小时），"休息"结束今天；每 13 天多 1 点**十三时**夜间行动力，可深夜出门见别人看不见的东西；每天一次"知识"思考，触及遗迹真相会领悟技能、想起记忆碎片。
 
-### 审计结论（三方大师评审：游戏/代码/客户端）
-原 v0.2.1 不可运行：① `step()` 从不执行 `decide()` 的动作（`_handle_action` 死代码）→ 世界静止；
-② 数据层 4 套并存（db.py/database.py/logger.py/static_db.py）互相冲突 → tick 10 写库崩、tick 24 日报崩，
-模拟从未跨天（DB 实测 day_summaries=0）；③ index-v2.html 是 GBK 编码 → GET / 直接 500；
-④ 前端-后端协议失配（move 发 destination 后端读 target、work/rest/add_claim/reset 无分支）；
-⑤ 6 个玩法系统（派系/叙事/时代/成就/交易/任务）"只挂不跑"。
+## 核心机制（回合制）
+- **时间只随玩家 AP 前进**（无闲时自动推进）：1 AP = 1 小时，`tick.advance(hours)` + `run()` 消费 `_pending_advance`
+- **AP**：每日 12（`ap_max`），十三时 = 独立的 `night_ap`（每 13 天 +1，仅夜晚可用，不混入日常 AP）
+- **休息** = 结束今天 → 推进到次日清晨，AP 重置为 12
+- **分层地图**：5 个地点 = 5 个独立界面，当前地点像素建筑 1.7 倍放大居中，地点栏显示名称/修缮等级/在场人数
 
-### 修复（全部验证通过）
-- ✅ **storage.py**：唯一数据访问层（单一连接、权威 DDL、schema_version 自动重建损坏表）。
-      取代 4 套旧层；main/tick/api 共享同一实例。
-- ✅ **决策→执行链**：step() 调用 `_handle_action(agent, action, tick)`；玩家动作同管线。
-- ✅ **Agent 生活节奏**：傍晚广场聚集/社交决策层 → 小镇有每日空间节律。
-- ✅ **Agent 接口**：to_dict() 含 goals/diary/personality/location_cn/role_cn；新增 get_location_cn。
-- ✅ **api.py**：状态载荷收敛 `_build_state_payload()`；/api/history、/api/logs/agents 不再 500；
-      玩家动作支持 work/rest/add_claim/reset/talk。
-- ✅ **前端**：index-v2.html 转 UTF-8；app-v2.js 协议对齐 + 真实对话接线 + 档案目标/日记渲染；
-      animations-v2.css 注释修复、style-v2.css 补 --bg-card。
-- ✅ **清理**：删 client/（Godot）、server/（Go）、v1 前端六件套、9 个孤儿/一次性模块、
-      一次性文档脚本、过期评审文档、重写损坏的 .gitignore、k_town.db 移出 git 跟踪、
-      修 run_server.ps1（python main.py）。
+## 模块地图（每个都有实际用途）
+```
+main.py       入口：组装依赖、创建 Storage/TickEngine/FastAPI app、启动 tick 任务与 uvicorn
+config.py     配置 dataclass（server/tick/llm），config.yaml 含 LLM key（已 gitignore）
+models.py     数据模型（Role/Mood/ClaimSource/ClaimScope/EventType 枚举 + dataclass）——已精简到全部被用
+world.py      World：5 地点/资源/价格/天气/供需（天气唯一来源，tick%20==6 更新）
+events.py     EventBus + EventScheduler（每日事件日程，仅调度被处理的类型）
+agent.py      Agent：perceive/think/decide（5 层决策 + 生活节奏）+ populate_agents()
+knowledge.py  知识引擎（KnowledgeClaim 观察/去重/传播/质疑/固化 + 写穿持久化 + load_from_db）
+storage.py   ★唯一数据访问层（SQLite 单一连接、权威 DDL、schema 版本自动重建）
+tick.py       TickEngine：回合制主循环、step（advance→事件→决策→执行→结算→日报）、
+              _handle_action（玩家与 NPC 共用动作管线，含十三时/领悟/调查/修缮）、
+              _night_mystery / _check_insight / _town_upgrade_check
+quests.py     每日目标薄层（3 个/天，真实动作池，完成发金币）
+dialogue.py   语境化对话系统（话题由性格×心情×正在做的事×关系生成）
+factions.py   派系聚类（正午更新）
+api.py        REST + WebSocket；_build_state_payload 统一状态；玩家动作走 _handle_action
+llm.py        LLM 客户端（Anthropic 兼容，mock 兜底，每日限次+缓存）
+test_smoke.py 冒烟测试
+static/ + templates/index-v2.html  唯一前端（图标系统 icons.js、分层地图 town-map-v2、主逻辑 app-v2）
+```
 
-### 验证结果
-- ✅ `python test_smoke.py` → **ALL PASS OK**：60 tick，Agent 移动、体力消耗、跨 2 天、日报内存+落库、知识产生、无异常
-- ✅ `python main.py` 实测：GET / 200；/api/state、/api/history/1、/api/logs/agents/1 全 200；
-      存活到 tick 48（第 3 天），day_summaries=2、agent_decisions=576、world_snapshots=40、agent_logs=24 全部落库
+## 关键设计决策（改代码前务必理解）
+1. **二十时世界观**：`day_length=20`, `wake_hour=5`, `waking_hours=12`；全链（agent 作息/events 日程/前端时段/地图昼夜）按 20h 对齐
+2. **纯回合制**：时间只随 AP 前进；`advance()` 排队、`wait_caught_up()` 等落地；休息结束一天
+3. **玩家与 NPC 共用动作管线**：`tick._handle_action(agent, action, tick)`；craft/gather 归一化为 work；玩家 AP 在 api 检查
+4. **知识是主线**：每日一次"思考"（0 AP）→ `_check_insight` 触及隐藏关键词（遗迹/石碑/十三/玉佩/地球/时间…）→ 领悟技能 + 记忆碎片
+5. **十三时**：`night_ap` 独立池，仅夜晚可用，夜晚行动触发 `_night_mystery`（遗迹残响 + 夜间技能）
+6. **小镇重建**：居民攒钱逐级修缮建筑（Lv1→5，阈值平方增长），修缮后资源更丰
+7. **数据层单一**：所有持久化走 storage.py；schema 版本不符自动重建
 
-## 技术债 / 已知问题
-- tick.py 仍为单体（约 1950 行）——拆分排在 P2 后置，勿在闭环稳定前动
-- 断点恢复需 Agent 状态持久化（当前仅知识/日报/快照落库；关掉 `auto_reset` 可保留知识）
-- 前端仍残留未使用的 CSS 块（trade/achievement/settings/tutorial 等样式，低优先可后续清理）
-- config.yaml 的 LLM key 是真 key（已 gitignore）；无 key 时 llm.py 自动走 mock
+## 已完成（v0.4 全板块 + 两轮审计清理）
+- P0 前端四问题修复、对话重设计、小镇脉搏、每日目标、知识流动视图
+- P1 日记/关系后果/食物经济/事件链
+- 世界观 20h + 回合制 + 十三时 + 每日领悟 + 小镇重建
+- 两轮穷尽式审计清理：删死代码/死符号/防御性代码（见 commit 6b4060e / cc0875b）
 
-## 执行进度（2026-08-04，v0.4 已基本落地）
-- ✅ P0（板块1-4，提交 74bc46c/d7bc8aa/1564f8d/624d3bc）：图标系统/Tab显示/对话重设计/交互模型/小镇脉搏首屏/每日目标/知识流动视图 —— 四类前端问题全部修复
-- ✅ P1（提交 6368806）：Agent日记 / 关系后果化 / 食物经济闭环 / 事件链补充
-- ✅ P2（提交 68f8364）：删除 narrative/town_evolution/achievements 死系统；知识写穿持久化+断点恢复
-- 详见 `docs/development-progress.md`（v0.4 节）
+## 已知问题 / 剩余工作
+- **tick.py 仍是单体（约 1900 行）**：拆分属 P2 后置，等稳定后按职责拆（勿在闭环稳定前大动）
+- **断点恢复补全**：Agent 状态不落库（关掉 `auto_reset` 可保留知识/日报/快照）；要做完整存档需 Agent 实例序列化
+- **平衡调优**：技能成长、修缮阈值、食物经济、对话门控、每日目标池（现场看效果再调）
+- **世界观伏笔深化**：20 小时之谜、遗迹发现链、古玉佩来历、观星/溯源等技能深度效果
+- **前端遗留**：CSS 里 trade/achievement/settings/tutorial 套件与 icons 未用分类为"未来功能"占位，低优先可清理
+- `api.py` 的 `logger` 参数名实际是 Storage 实例（历史命名，注意别混淆）
 
-## 世界观与回合制（板块 6-7，提交 feb1cc4/c196f2e）
-- **20 小时世界观**：几十万年后地球转速变慢 → 一天 20 小时（清醒 12h + 睡眠 8h），清晨 5 点醒来
-- **回合制**：1 AP = 1 小时，行动驱动世界推进；「休息」结束今天→次日清晨、AP 重置；夜晚拦截行动/对话
-- **知识驱动发展**：劳作精进技能；小镇重建（居民攒钱逐级修缮建筑 Lv1→5）
-- 玩家登录即从清晨开始（world.state.tick = wake_hour）
+## 路线图（读这些文档）
+- `docs/design-master-plan-2026-08-04.md` — 主计划（Phase 0-4 + 系统取舍）
+- `docs/product/gameplay-design-v3.md` — 权威玩法设计
+- `docs/plans/2026-08-04-gameplay-plan.md` — v0.4 功能/实现安排
+- `docs/product/world-view-v2.md` — 世界观（含"为什么失忆"伏笔）
+- `docs/development-progress.md` — 进度记录
 
-## 下一步（剩余）
-- **F2.3 tick.py 拆分**（后置，等稳定后按职责拆）
-- **断点恢复补全**：Agent 状态持久化（当前仅知识/日报/快照落库；关掉 `auto_reset` 可保留知识）
-- **平衡调优**：技能成长、修缮阈值、食物经济参数（可现场看效果再调）
-- **世界观伏笔深化**：20 小时谜团、失落文明遗迹的发现链（对应侦察兵罗文的目标）
-
-## 提交状态
-- 当前工作树已全部提交（最近提交含 AP 显示修复 5e136b2 与审计清理批次）。
-- 后续提交按 CLAUDE.md 规范分批：chore/refactor → feat/fix → docs。勿 `git add -A`。
+## 提交规范
+按 CLAUDE.md：`<type>(<scope>): <English>` + 中文描述；分批 chore/refactor → feat/fix → docs；禁 `git add -A`。

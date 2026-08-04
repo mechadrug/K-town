@@ -65,7 +65,7 @@ This project is designed for AI-assisted development. The workflow is:
 1. **Write a PRD** for each major system before coding (see `docs/report_260528_001.md` §5 for template).
 2. **Write an Implementation Plan** from the PRD — include goal, architecture, file structure, task breakdown, data models, test approach, acceptance criteria, and suggested commit messages.
 3. **Each task = one commit.** Split features into granular, independently committable units (e.g., "add Agent schema", not "implement entire agent system").
-4. **Use sub-agents** for parallelizable work (e.g., one agent on Go server, one on Godot client, one on schema/migrations).
+4. **Use sub-agents** for parallelizable work (e.g., one agent on backend systems, one on frontend, one on docs/schema).
 5. **Leave handoff state** after every session in `docs/handoff.md` — what was completed, tests passing, remaining risks, next step.
 
 ### Documentation as context cache
