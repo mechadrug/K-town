@@ -1432,11 +1432,13 @@ class TickEngine:
 
             w = event.payload.get("weather", "unknown")
 
+            w_cn = self.world.get_weather_name(w) if w != "unknown" else "未知"
+
             for a in self.agents:
 
                 if a.state.location == event.location:
 
-                    c = self.knowledge.observe(a.identity.id, "weather", f"今天天气是{w}", a.state.location)
+                    c = self.knowledge.observe(a.identity.id, "weather", f"今天天气是{w_cn}", a.state.location)
 
                     self.logger.log_knowledge(0, c.id, a.identity.id, "create", "", c.claim)
 

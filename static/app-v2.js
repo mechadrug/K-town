@@ -352,7 +352,7 @@
       html += '<div class="knowledge-flow-badges">' +
         (isSolidified ? '<span class="kf-badge solid">✓ 已固化</span>' : '') +
         (hasConflict ? '<span class="kf-badge conflict">⚡ 有冲突</span>' : '') +
-        (list.length > 1 ? '<span class="kf-badge spread">↗ 已传播</span>' : '') +
+        (holderCount > 1 ? '<span class="kf-badge spread">↗ 已传播</span>' : '') +
         '</div>';
       item.innerHTML = html;
       container.appendChild(item);

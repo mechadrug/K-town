@@ -57,8 +57,22 @@ class KnowledgeEngine:
                 continue
         return count
 
+    def _find_identical(self, subject, claim_text):
+        """查找同主题下文本相同的既有知识（用于去重，避免天气等高频观察刷屏）"""
+        for cid in self.subject_index.get(subject, []):
+            c = self.claims.get(cid)
+            if c and c.claim == claim_text:
+                return c
+        return None
+
     def observe(self, agent_id, subject, claim_text, location, confidence=0.6):
-        """观察创建新知识，自动检测冲突"""
+        """观察创建新知识，自动检测冲突。同主题+同文本去重：共享给新观察者，多人证实置信度微升。"""
+        existing = self._find_identical(subject, claim_text)
+        if existing is not None:
+            if agent_id not in self.agent_claims.get(existing.id, []):
+                self.agent_claims.setdefault(agent_id, []).append(existing.id)
+                existing.confidence = min(0.95, existing.confidence + 0.03)
+            return existing
         conflicting = self._find_conflicting_claims(subject, claim_text)
         c = KnowledgeClaim(
             id=f"claim_{uuid.uuid4().hex[:8]}",
@@ -161,10 +175,15 @@ class KnowledgeEngine:
         return sorted(actions, key=lambda a: a.get("priority", 0), reverse=True)
 
     def propagate(self, claim_id, from_agent, to_agent, tie_strength=0.8):
-        """传播知识，置信度会衰减"""
+        """传播知识，置信度会衰减。同主题+同文本去重：共享给接收者而非再造一条。"""
         orig = self.claims.get(claim_id)
         if not orig:
             return None
+        existing = self._find_identical(orig.subject, orig.claim)
+        if existing is not None:
+            if to_agent not in self.agent_claims.get(existing.id, []):
+                self.agent_claims.setdefault(to_agent, []).append(existing.id)
+            return existing
         p = KnowledgeClaim(
             id=f"claim_{uuid.uuid4().hex[:8]}",
             subject=orig.subject,
