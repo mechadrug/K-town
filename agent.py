@@ -164,33 +164,43 @@ class Agent:
                 goal_action["desc"] = f"{n}为了「{top_goal.description}」{goal_action['desc']}"
                 return goal_action
         
-        # === Layer 4: 社交驱动 ===
+        # === Layer 4: 社交驱动（关系后果化：好友聚集、宿敌回避）===
         extraversion = p.get("extraversion", 0.5)
         agreeableness = p.get("agreeableness", 0.5)
-        
+        stability = p.get("stability", 0.5)
+
         # 外向性高 + 宜人性高 -> 更可能社交
         social_prob = 0.3 + extraversion * 0.3 + agreeableness * 0.2
-        
+
         if agents_here and len(agents_here) > 1:
-            # 有好感的人在 -> 优先社交
-            for other in agents_here:
-                if other.identity.id == self.identity.id:
-                    continue
-                tie = self.state.social_ties.get(other.identity.id, 0)
-                if tie > 10:
-                    if random.random() < social_prob:
-                        return {"type":"talk","desc": f"{n}主动去找{other.identity.name}聊天","target":other.identity.id}
-            
+            others = [o for o in agents_here if o.identity.id != self.identity.id]
+            # 宿敌在场：情绪不稳定者倾向离开回避
+            rivals = [o for o in others if self.state.social_ties.get(o.identity.id, 0) < -15]
+            if rivals and stability < 0.5 and random.random() < 0.4:
+                safe = [l for l in ("square", "workshop", "wilderness", "school", "mine") if l != self.state.location]
+                return {"type": "move", "desc": f"{n}看到讨厌的人在场，转身离开了", "target": random.choice(safe)}
+            # 好友在场：优先与关系最好的人交谈
+            friends = [o for o in others if self.state.social_ties.get(o.identity.id, 0) > 10]
+            if friends and random.random() < 0.6:
+                target = max(friends, key=lambda o: self.state.social_ties.get(o.identity.id, 0))
+                return {"type": "talk", "desc": f"{n}主动去找{target.identity.name}聊天", "target": target.identity.id}
             # 随机社交
             if random.random() < social_prob * 0.5:
-                other = random.choice([a for a in agents_here if a.identity.id != self.identity.id])
-                if other:
-                    return {"type":"talk","desc": f"{n}和{other.identity.name}闲聊几句","target":other.identity.id}
+                other = random.choice(others)
+                return {"type": "talk", "desc": f"{n}和{other.identity.name}闲聊几句", "target": other.identity.id}
         
         # === Layer 5: 默认行为（工作地点）===
         work_slot = self._get_work_slot(hour)
         if work_slot and self.state.location == work_slot['loc']:
-            if random.random() < (0.6 + conscientiousness * 0.3):
+            work_prob = 0.6 + conscientiousness * 0.3
+            # 食物经济闭环：食物贵 → 采集/农耕更卖力（供给回升 → 价格回落）
+            if work_slot['role'] in ('forager', 'farmer') and world:
+                food_price = world.get_price('food')
+                if food_price >= 7:
+                    work_prob += 0.2
+                elif food_price <= 4:
+                    work_prob -= 0.1
+            if random.random() < work_prob:
                 return self._role(work_slot)
         
         # 去工作地点
@@ -323,6 +333,24 @@ class Agent:
             "school": "学校", "mine": "矿洞",
         }
         return loc_map.get(location, location)
+
+    def write_diary(self, day: int, behaviors: list, gold_before: int = 0):
+        """由 tick 在日结时调用：根据当天行为日志写一条日记（档案"最近日记"可见）"""
+        if not behaviors:
+            self.diary.append(f"第{day}天：在小镇里平静地度过了一天。")
+            return
+        if len(behaviors) <= 2:
+            summary = "；".join(behaviors)
+        else:
+            summary = f"{behaviors[0]}；……；{behaviors[-1]}"
+        gold_delta = self.state.gold - gold_before
+        if gold_delta > 0:
+            summary += f"（赚了{gold_delta}金币）"
+        elif gold_delta < 0:
+            summary += f"（花了{abs(gold_delta)}金币）"
+        self.diary.append(f"第{day}天：{summary}")
+        if len(self.diary) > 20:
+            self.diary = self.diary[-20:]
 
 def populate_agents():
     agents = []

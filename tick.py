@@ -14,7 +14,7 @@ from knowledge import KnowledgeEngine
 
 from llm import LLMClient
 
-from models import EventType, Mood
+from models import Event, EventType, Mood
 
 from storage import Storage
 
@@ -400,6 +400,10 @@ class TickEngine:
             # 每日金币回收（防通胀）
             self._apply_gold_sinks()
 
+            # 食物经济闭环：按当天饥饿程度记录需求（供>需价跌、需>供价涨）
+            hungry = sum(1 for a in self.agents if a.state.hunger > 20)
+            self.world.record_demand('food', max(1, hungry))
+
             # 新的一天：生成玩家每日目标
             if hasattr(self, 'quest_engine') and self.quest_engine:
                 self.quest_engine.generate_daily_goals(self.current_day)
@@ -427,6 +431,13 @@ class TickEngine:
                     behaviors=self.daily_agent_logs.get(agent.identity.id, [])
 
                 )
+
+            # 写日记（档案"最近日记"可见）：概括一天的所见所为
+            prev_map = {a["id"]: a for a in self.prev_agent_states}
+            for agent in self.agents:
+                agent.write_diary(self.current_day,
+                                  self.daily_agent_logs.get(agent.identity.id, []),
+                                  prev_map.get(agent.identity.id, {}).get("gold", agent.state.gold))
 
             self.current_day_events = []
 
@@ -1795,6 +1806,9 @@ class TickEngine:
                 agent.state.gold += 3
 
                 agent.state.inventory.append("food")
+
+                # 食物经济闭环：采集行为计入供给
+                self.world.record_supply('food', 3)
 
             elif role == "scout":
 

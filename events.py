@@ -100,6 +100,23 @@ class EventScheduler:
         if random.random() < 0.05:
             disaster = random.choice(["storm", "flood", "drought"])
             self.bus.schedule(Event(tick=base+20, type=EventType.DISASTER, location="wilderness", payload={"type": disaster, "impact": "资源减少，Agent体力下降"}), base+20)
+
+        # === 补充事件（此前定义了处理但从未调度，让小镇更"活"）===
+        # 商人来访（8%）：广场居民心情变好、获得金币
+        if random.random() < 0.08:
+            self.bus.schedule(Event(tick=base+16, type=EventType.MERCHANT_ARRIVAL, location="square", payload={"name": "路过的行商"}), base+16)
+        # 动物袭击（5%）：荒野居民受惊
+        if random.random() < 0.05:
+            self.bus.schedule(Event(tick=base+13, type=EventType.ANIMAL_ATTACK, location="wilderness", payload={"type": "野狼"}), base+13)
+        # 神秘陌生人（5%）：带来传闻，可能引发后续谣言链
+        if random.random() < 0.05:
+            self.bus.schedule(Event(tick=base+15, type=EventType.MYSTERIOUS_STRANGER, location="square", payload={}), base+15)
+        # 小镇集会（4%）：广场居民互相好感上升
+        if random.random() < 0.04:
+            self.bus.schedule(Event(tick=base+17, type=EventType.TOWN_MEETING, location="square", payload={"topic": "商讨镇务"}), base+17)
+        # 金色发现（3%）：某位居民发现稀有矿石
+        if random.random() < 0.03:
+            self.bus.schedule(Event(tick=base+18, type=EventType.GOLDEN_DISCOVERY, location="mine", payload={"agent_id": random.choice(agent_ids)}), base+18)
     
     def _get_weather_impact(self, weather):
         """获取天气对工作的影响"""
