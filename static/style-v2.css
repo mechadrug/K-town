@@ -434,17 +434,18 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: 7px;
+  padding: 12px 18px;
   background: var(--panel-bg);
   border: 1.5px solid var(--panel-border);
   border-radius: 12px;
   color: var(--text-primary);
-  font-size: 0.85em;
+  font-size: 0.9em;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  box-shadow: 0 1px 3px var(--shadow-color);
 }
 
 .action-btn:hover {
@@ -457,14 +458,23 @@ body {
   transform: translateY(0) scale(0.97);
 }
 
+.action-btn:focus-visible {
+  outline: 2px solid var(--player);
+  outline-offset: 2px;
+}
+
 .action-btn.primary {
   background: linear-gradient(135deg, var(--player), #FF8A65);
   color: white;
   border-color: transparent;
 }
 
+.action-btn.primary:hover {
+  box-shadow: 0 4px 16px rgba(255, 152, 0, 0.35);
+}
+
 .action-btn .btn-icon {
-  font-size: 1.1em;
+  font-size: 1.15em;
 }
 
 /* === 9. 组件：Agent 标记 (地图上) === */

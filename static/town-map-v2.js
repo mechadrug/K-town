@@ -11,31 +11,31 @@ window.TownMapV2 = (function() {
   var currentHour = 12;
   var sceneElements = {};
 
-  // 地点配置
+  // 地点配置（像素画风，更大画布 1200x720）
   var LOCATIONS = {
     square: {
-      x: 500, y: 200, name: "广场", icon: "🏛",
-      width: 160, height: 120, color: "#D7CCC8", roofColor: "#8D6E63",
+      x: 600, y: 280, name: "广场", icon: "🏛", variant: "tower",
+      width: 180, height: 140, color: "#D7CCC8", roofColor: "#8D6E63",
       desc: "小镇中心的公共集会场所，每天早上有集市"
     },
     workshop: {
-      x: 180, y: 160, name: "工坊", icon: "🔨",
-      width: 130, height: 100, color: "#FFCCBC", roofColor: "#BF360C",
+      x: 220, y: 210, name: "工坊", icon: "🔨", variant: "workshop",
+      width: 150, height: 120, color: "#FFCCBC", roofColor: "#BF360C",
       desc: "制作工具和加工材料的场所，炉火日夜不熄"
     },
     wilderness: {
-      x: 800, y: 420, name: "荒野", icon: "🌲",
-      width: 180, height: 140, color: "#A5D6A7", roofColor: "#2E7D32",
+      x: 970, y: 500, name: "荒野", icon: "🌲", variant: "wilderness",
+      width: 210, height: 160, color: "#A5D6A7", roofColor: "#2E7D32",
       desc: "采集资源和探索未知的区域，蕴藏着秘密"
     },
     school: {
-      x: 200, y: 440, name: "学校", icon: "📚",
-      width: 120, height: 100, color: "#C5CAE9", roofColor: "#283593",
+      x: 250, y: 540, name: "学校", icon: "📚", variant: "school",
+      width: 140, height: 110, color: "#C5CAE9", roofColor: "#283593",
       desc: "教学育人和治病救人的场所，知识的灯塔"
     },
     mine: {
-      x: 800, y: 150, name: "矿洞", icon: "⛏",
-      width: 130, height: 110, color: "#B0BEC5", roofColor: "#37474F",
+      x: 970, y: 190, name: "矿洞", icon: "⛏", variant: "mine",
+      width: 150, height: 120, color: "#B0BEC5", roofColor: "#37474F",
       desc: "采集矿石的地下洞穴，深处据说有稀有矿物"
     }
   };
@@ -202,35 +202,7 @@ window.TownMapV2 = (function() {
     sceneG.appendChild(smokeG);
     sceneElements.smoke = smokeG;
 
-    // 荒野的树
-    var treesG = el("g", {id: "wilderness-trees"});
-    var wilderness = LOCATIONS.wilderness;
-    var treePositions = [
-      {x: wilderness.x - 50, y: wilderness.y + 20},
-      {x: wilderness.x + 40, y: wilderness.y - 10},
-      {x: wilderness.x - 20, y: wilderness.y + 40},
-      {x: wilderness.x + 60, y: wilderness.y + 30}
-    ];
-    treePositions.forEach(function(tp, i) {
-      var tree = el("g", {className: "tree-sway", style: "animation-delay:" + (i * 0.5) + "s"});
-      // 树干
-      tree.appendChild(el("rect", {
-        x: tp.x - 3, y: tp.y - 15, width: 6, height: 20, fill: "#5D4037"
-      }));
-      // 树冠
-      tree.appendChild(el("circle", {
-        cx: tp.x, cy: tp.y - 25, r: 15, fill: "#388E3C", opacity: 0.8
-      }));
-      tree.appendChild(el("circle", {
-        cx: tp.x - 8, cy: tp.y - 18, r: 10, fill: "#4CAF50", opacity: 0.7
-      }));
-      tree.appendChild(el("circle", {
-        cx: tp.x + 8, cy: tp.y - 20, r: 11, fill: "#2E7D32", opacity: 0.75
-      }));
-      treesG.appendChild(tree);
-    });
-    sceneG.appendChild(treesG);
-    sceneElements.trees = treesG;
+    // 荒野像素树已内置于像素建筑（drawPixelBuilding 的 wilderness 变体）
 
     // 矿洞的矿石闪光
     var mineG = el("g", {id: "mine-sparkle"});
@@ -249,6 +221,108 @@ window.TownMapV2 = (function() {
     sceneElements.sparkles = mineG;
 
     svg.appendChild(sceneG);
+  }
+
+  // ===== 像素点缀（岩石/草丛/花）=====
+  function drawScenery() {
+    var g = el("g", {id: "scenery"});
+    var S = 10;
+    var deco = [
+      {x: 430, y: 200, w: 3, c: "#9E9E9E"}, {x: 780, y: 580, w: 4, c: "#BDBDBD"},
+      {x: 640, y: 540, w: 3, c: "#A1887F"}, {x: 350, y: 440, w: 3, c: "#9E9E9E"},
+      {x: 520, y: 440, w: 2, c: "#81C784"}, {x: 700, y: 390, w: 2, c: "#66BB6A"},
+      {x: 300, y: 360, w: 2, c: "#A5D6A7"}, {x: 560, y: 170, w: 2, c: "#81C784"},
+      {x: 470, y: 520, w: 1, c: "#F48FB1"}, {x: 730, y: 470, w: 1, c: "#FFD54F"},
+      {x: 620, y: 630, w: 1, c: "#CE93D8"}, {x: 380, y: 280, w: 1, c: "#FFD54F"}
+    ];
+    deco.forEach(function(d) { pxRect(g, d.x, d.y, d.w * S, d.w * S, d.c); });
+    svg.appendChild(g);
+  }
+
+  // ===== 像素画建筑（crisp 方块像素风）=====
+  function pxRect(g, x, y, w, h, fill, stroke) {
+    g.appendChild(el("rect", {
+      x: Math.round(x), y: Math.round(y),
+      width: Math.round(w), height: Math.round(h),
+      fill: fill, stroke: stroke || "none", "stroke-width": 1,
+      "shape-rendering": "crispEdges"
+    }));
+  }
+
+  function drawPixelBuilding(g, loc) {
+    var S = 10; // 像素格
+    var w = loc.width, h = loc.height;
+    var cx = loc.x, bx = cx - w / 2, by = loc.y - h / 2;
+    var wallC = loc.color, roofC = loc.roofColor, trim = "rgba(0,0,0,0.2)";
+    var variant = loc.variant || "house";
+
+    if (variant === "mine") {
+      // 矿洞：岩壁 + 拱形洞口 + 木支撑
+      pxRect(g, bx, by + S * 2, w, h - S * 2, "#546E7A", trim);
+      var aw = S * 4, ah = S * 6;
+      pxRect(g, cx - aw / 2, by + S * 4, aw, ah, "#263238");
+      pxRect(g, cx - aw / 2 + S, by + S * 3, aw - S * 2, S * 2, "#263238");
+      pxRect(g, cx - aw / 2 + S * 1.5, by + S * 2, aw - S * 3, S, "#263238");
+      pxRect(g, cx - aw / 2 - S / 2, by + S * 3, S, ah - S, "#5D4037");
+      pxRect(g, cx + aw / 2 - S / 2, by + S * 3, S, ah - S, "#5D4037");
+      pxRect(g, bx + S, by + S * 3, S, S, "#B0BEC5");
+      pxRect(g, bx + w - S * 2, by + S * 4, S, S, "#FFD54F");
+      pxRect(g, bx + S * 2, by + h - S * 3, S, S, "#90A4AE");
+      return;
+    }
+
+    if (variant === "wilderness") {
+      // 荒野：像素树 + 灌木
+      var spots = [{x: cx - w / 4, y: by + h / 2}, {x: cx + w / 5, y: by + h / 3}];
+      spots.forEach(function(tp) {
+        pxRect(g, tp.x - S / 2, tp.y - S * 2, S, S * 2, "#5D4037");
+        pxRect(g, tp.x - S * 1.5, tp.y - S * 4, S * 3, S * 2, "#2E7D32");
+        pxRect(g, tp.x - S, tp.y - S * 5, S * 2, S * 2, "#388E3C");
+        pxRect(g, tp.x - S * 0.5, tp.y - S * 6, S, S * 2, "#4CAF50");
+      });
+      pxRect(g, bx + S, by + h - S * 2, S * 2, S, "#66BB6A");
+      pxRect(g, bx + w - S * 3, by + h - S * 3, S * 2, S * 2, "#81C784");
+      return;
+    }
+
+    // 通用像素建筑（墙 + 金字塔屋顶 + 像素窗 + 门）
+    pxRect(g, bx, by, w, h, wallC, trim);
+    var roofRows = Math.max(2, Math.floor(w / (S * 2)));
+    for (var i = 0; i < roofRows; i++) {
+      var rowW = S * 2 * (i + 1);
+      pxRect(g, cx - rowW / 2, by - (roofRows - i) * S, rowW, S, roofC, trim);
+    }
+    pxRect(g, bx, by - S, w, S, "rgba(255,255,255,0.12)");
+
+    var winCols = Math.max(1, Math.floor(w / (S * 4)));
+    for (var c = 0; c < winCols; c++) {
+      for (var rr = 0; rr < 2; rr++) {
+        var wx = bx + S * 2 + c * ((w - S * 4) / Math.max(1, winCols - 1));
+        var wy = by + S * 2 + rr * S * 3;
+        if (wy + S > by + h - S * 2) continue;
+        pxRect(g, wx, wy, S, S, "rgba(255,255,255,0.35)", trim);
+        pxRect(g, wx + S, wy, S, S, "rgba(255,255,255,0.25)", trim);
+        pxRect(g, wx, wy + S, S, S, "rgba(255,255,255,0.25)", trim);
+        pxRect(g, wx + S, wy + S, S, S, "rgba(255,255,255,0.2)", trim);
+      }
+    }
+    pxRect(g, cx - S, by + h - S * 2, S * 2, S * 2, trim);
+
+    if (variant === "tower") {
+      // 广场钟楼
+      var tw = S * 2;
+      pxRect(g, cx - tw / 2, by - roofRows * S - S * 3, tw, S * 3, wallC, trim);
+      pxRect(g, cx - tw, by - roofRows * S - S * 4, tw * 2, S, roofC, trim);
+      pxRect(g, cx - S, by - roofRows * S - S * 5, tw, S, roofC, trim);
+    } else if (variant === "workshop") {
+      // 工坊烟囱
+      pxRect(g, bx + w - S * 2, by - S * 5, S, S * 4, "#6D4C41", trim);
+      pxRect(g, bx + w - S * 2.5, by - S * 5, S * 2, S, "#4E342E");
+    } else if (variant === "school") {
+      // 学校小钟
+      pxRect(g, cx - S / 2, by - roofRows * S - S * 2, S, S * 2, wallC, trim);
+      pxRect(g, cx - S, by - roofRows * S - S * 3, S * 2, S, "#FFD54F");
+    }
   }
 
   // ===== 地点绘制 =====
@@ -272,64 +346,8 @@ window.TownMapV2 = (function() {
       rx: loc.width / 2, ry: 6, fill: "rgba(0,0,0,0.08)"
     }));
 
-    // 建筑主体
-    var building = el("rect", {
-      x: loc.x - loc.width / 2, y: loc.y - loc.height / 2,
-      width: loc.width, height: loc.height, rx: 10, ry: 10,
-      fill: loc.color, stroke: "rgba(0,0,0,0.12)", "stroke-width": 1.5,
-      className: "loc-building", filter: "url(#softShadow)"
-    });
-    g.appendChild(building);
-
-    // 屋顶
-    var roofH = loc.height * 0.45;
-    var roof = el("polygon", {
-      points: (loc.x - loc.width / 2 - 12) + "," + (loc.y - loc.height / 2) + " " +
-              loc.x + "," + (loc.y - loc.height / 2 - roofH) + " " +
-              (loc.x + loc.width / 2 + 12) + "," + (loc.y - loc.height / 2),
-      fill: loc.roofColor, opacity: 0.85,
-      stroke: "rgba(0,0,0,0.1)", "stroke-width": 1
-    });
-    g.appendChild(roof);
-
-    // 屋顶边缘高光
-    g.appendChild(el("line", {
-      x1: loc.x - loc.width / 2 - 10, y1: loc.y - loc.height / 2,
-      x2: loc.x, y2: loc.y - loc.height / 2 - roofH,
-      stroke: "rgba(255,255,255,0.2)", "stroke-width": 2
-    }));
-
-    // 建筑内部装饰（小窗户）
-    var windowRows = Math.floor(loc.height / 30);
-    var windowCols = Math.floor(loc.width / 35);
-    for (var r = 0; r < windowRows; r++) {
-      for (var c = 0; c < windowCols; c++) {
-        var wx = loc.x - loc.width / 2 + 15 + c * 32;
-        var wy = loc.y - loc.height / 2 + 12 + r * 28;
-        if (wx < loc.x + loc.width / 2 - 10 && wy < loc.y + loc.height / 2 - 10) {
-          g.appendChild(el("rect", {
-            x: wx, y: wy, width: 12, height: 10, rx: 2,
-            fill: "rgba(255,255,255,0.25)", stroke: "rgba(0,0,0,0.08)", "stroke-width": 0.5
-          }));
-          // 窗户十字
-          g.appendChild(el("line", {
-            x1: wx + 6, y1: wy, x2: wx + 6, y2: wy + 10,
-            stroke: "rgba(0,0,0,0.06)", "stroke-width": 0.5
-          }));
-          g.appendChild(el("line", {
-            x1: wx, y1: wy + 5, x2: wx + 12, y2: wy + 5,
-            stroke: "rgba(0,0,0,0.06)", "stroke-width": 0.5
-          }));
-        }
-      }
-    }
-
-    // 地点图标
-    var iconText = el("text", {
-      x: loc.x, y: loc.y + 8, "text-anchor": "middle", "font-size": "30"
-    });
-    iconText.textContent = loc.icon;
-    g.appendChild(iconText);
+    // 像素画建筑主体（含钟楼/烟囱/矿洞/树等地点专属形态）
+    drawPixelBuilding(g, loc);
 
     // 名称标签背景
     var nameBg = el("rect", {
@@ -597,6 +615,7 @@ window.TownMapV2 = (function() {
       drawBackground();
       drawPaths();
       drawSceneAnimations();
+      drawScenery();
       Object.keys(LOCATIONS).forEach(function(id) { drawLocation(id); });
       agentTokens = {};
     },

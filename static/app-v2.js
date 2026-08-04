@@ -12,6 +12,16 @@
   var activeTab = 'events';
   var ICONS = window.KTownIcons || {};
 
+  // 防抖：防止连点导致 AP 误扣 / 动作堆积（每次动作间隔 ≥300ms）
+  var lastActionAt = 0;
+  var ACTION_COOLDOWN = 300;
+  function canSendAction() {
+    var now = Date.now();
+    if (now - lastActionAt < ACTION_COOLDOWN) return false;
+    lastActionAt = now;
+    return true;
+  }
+
   // 知识主题 → 中文（知识视图不再显示英文键）
   var SUBJECT_CN = {
     weather: '天气', resource: '资源', social: '社交', craft: '手艺',
@@ -664,6 +674,7 @@
 
   // ===== 玩家操作 =====
   function movePlayer(dest) {
+    if (!canSendAction()) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       showToast('连接已断开，请刷新页面', 'error');
       return;
@@ -677,6 +688,7 @@
   }
 
   function doWork(type) {
+    if (!canSendAction()) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       showToast('连接已断开', 'error');
       return;
@@ -689,6 +701,7 @@
   }
 
   function doRest() {
+    if (!canSendAction()) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       showToast('连接已断开', 'error');
       return;
@@ -701,6 +714,7 @@
   }
 
   function doInvestigate() {
+    if (!canSendAction()) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       showToast('连接已断开', 'error');
       return;
@@ -713,9 +727,10 @@
   }
 
   function addKnowledge() {
+    if (!canSendAction()) return;
     var claim = prompt('输入你想添加到小镇知识库的内容：');
     if (!claim || !claim.trim()) return;
-    
+
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       showToast('连接已断开', 'error');
       return;

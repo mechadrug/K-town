@@ -15,12 +15,12 @@
 
 .tab-btn {
   flex: 1;
-  padding: 8px 4px;
+  padding: 10px 4px;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   color: var(--text-muted);
-  font-size: 0.78em;
+  font-size: 0.82em;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -32,9 +32,10 @@
 }
 
 .tab-btn.active {
-  color: var(--player);
+  color: var(--warm-600);
   border-bottom-color: var(--player);
-  font-weight: 600;
+  font-weight: 700;
+  background: rgba(255, 152, 0, 0.06);
 }
 
 .tab-panel {
