@@ -146,6 +146,13 @@
     setText('energy-value', Math.round(energyPct));
     setText('ap-value', (player.action_points || 12) + '/' + (player.max_ap || 12));
 
+    // 十三时：行动力 > 12 时高亮提示（可夜行探索）
+    var apStatEl = document.querySelector('.topbar-stat.ap');
+    if (apStatEl) {
+      if ((player.action_points || 12) > 12) apStatEl.classList.add('night-ap');
+      else apStatEl.classList.remove('night-ap');
+    }
+
     TownMapV2.update(data.agents || [], data.weather, hour);
     setTimeTheme(hour);
 

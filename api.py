@@ -463,7 +463,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
             return {"status": "ok", "result": result}
         if is_night:
-            return {"status": "error", "result": "现在是夜晚，大家都休息了。点「休息」结束今天。"}
+            # 镇上铁律"天黑别出门"——但主角的古玉佩让人能多撑一会儿（十三时：用 12 点之外的额外行动力）
+            if actor.state.ap <= 12:
+                return {"status": "error", "result": "夜深了，镇上的人都睡了。你虽有古玉佩护佑，却也困倦难当——点「休息」吧。"}
         if actor.identity.role.value == 'player' and t in ("move", "work", "talk", "investigate") and actor.state.ap < ap_cost:
             return {"status": "error", "result": f"行动力不足（剩余{actor.state.ap}点，需要{ap_cost}点）"}
         if ap_cost > 0:
@@ -523,6 +525,12 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 result = "交易不存在"
         else:
             result = f"未知操作：{t}"
+
+        # 十三时：夜晚行动可能撞见遗迹残响（末世伏笔）
+        if is_night and t in ("move", "work", "investigate", "talk", "observe"):
+            mystery = tick_engine._night_mystery(actor)
+            if mystery:
+                result = mystery + "\n" + result
 
         # 记录玩家操作
         player_action = PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result)
@@ -711,10 +719,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
             return {"success": False, "message": "无效的对话选项"}
 
-        # 回合制：夜晚不对话；对话消耗 1 小时
+        # 回合制：夜晚需额外行动力才能对话（十三时）；对话消耗 1 小时
         dl_hour = tick_engine.world.state.tick % tick_engine.day_length
         if not (tick_engine.wake_hour <= dl_hour < tick_engine.wake_hour + tick_engine.waking_hours):
-            return {"success": False, "message": "现在是夜晚，大家都休息了。"}
+            if player.state.ap <= 12:
+                return {"success": False, "message": "夜深了，大家都睡了。只有额外行动力才能让你撑着聊下去。"}
 
         # 检查AP
 

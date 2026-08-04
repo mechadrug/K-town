@@ -227,6 +227,12 @@ body {
 .topbar-stat.energy .stat-value { color: var(--green-500); }
 .topbar-stat.ap .stat-value { color: var(--player); }
 
+/* 十三时：行动力 > 12 时可夜行，高亮提示 */
+.topbar-stat.ap.night-ap {
+  box-shadow: 0 0 10px rgba(100, 181, 246, 0.55);
+  border-color: rgba(100, 181, 246, 0.5);
+}
+
 /* --- 主地图区 --- */
 .map-container {
   grid-area: map;

@@ -478,12 +478,10 @@ class TickEngine:
 
             self._llm_calls_today = 0
 
-            # 重置玩家AP
-
+            # 重置玩家AP（主角的"十三时"：每过 13 天，行动力 +1，可用于夜晚行动）
             for a in self.agents:
-
                 if a.identity.role.value == 'player':
-
+                    a.state.ap_max = 12 + (self.current_day + 1) // 13
                     a.state.ap = a.state.ap_max
 
             self.current_day += 1
@@ -923,6 +921,40 @@ class TickEngine:
         self.db.log_world_event(self.world.state.tick, self.current_day,
                                 "building_upgrade", loc, {"level": self.world.state.location_levels[loc]})
         print(f"[town] {loc_cn} 修缮至 Lv{self.world.state.location_levels[loc]}")
+
+    def _night_mystery(self, agent):
+        """主角的"十三时"：夜深人静时出门，能看到镇民看不到的东西（末世伏笔）。
+
+        镇上铁律是"天黑别出门"——但主角那块古玉佩在逢 13 之数时会发烫，
+        让人能在夜里行走。每次夜晚行动都有机会撞见遗迹的残响。
+        """
+        if random.random() < 0.2 and not agent.identity.skills.get("守夜人"):
+            return None
+        mysteries = [
+            ("广场的石碑在月光下泛着微光，古老的纹路仿佛活了过来。", "square"),
+            ("矿洞深处传来规律的敲击声，像有人在开采——可镇上的人都在睡觉。", "mine"),
+            ("学校的老钟在午夜无人自鸣，不多不少，正好十三下。", "school"),
+            ("荒野尽头亮起一片不属于这个时代的灯火，转瞬即逝。", "wilderness"),
+            ("你看见一个模糊的人影在废墟间走动，随即消失不见。", "square"),
+            ("工坊的火炉明明熄灭了，却在夜色里发出温暖的光。", "workshop"),
+        ]
+        if agent.identity.skills.get("遗迹共鸣"):
+            mysteries.append(("你闭上眼，听见了整座小镇在很久以前的声音——那是另一个时代的回响。", "square"))
+        text, loc = random.choice(mysteries)
+        self.knowledge.observe(agent.identity.id, "夜之秘", text, loc, confidence=0.8)
+        unlocked = None
+        if random.random() < 0.4:
+            for sk in ("夜视", "遗迹共鸣", "守夜人"):
+                if sk not in agent.identity.skills:
+                    agent.identity.skills[sk] = 1
+                    unlocked = sk
+                    break
+        self.daily_agent_logs[agent.identity.id].append(f"🌙 夜深人静，{text}")
+        self.current_day_events.append({"type": "night_mystery", "action": text, "tick": self.world.state.tick})
+        msg = f"🌙 {text}"
+        if unlocked:
+            msg += f" 你感到古玉佩微微发烫，掌握了技能「{unlocked}」！"
+        return msg
 
 
 
@@ -1977,7 +2009,8 @@ class TickEngine:
             agent.state.energy -= 3
 
             # 调查：可能发现当前地点的线索/知识（末世遗迹伏笔的入口）
-            if random.random() < 0.4:
+            # 拥有"夜视"技能则必定发现（十三时夜晚探索的回报）
+            if random.random() < 0.4 or agent.identity.skills.get("夜视"):
                 discoveries = {
                     "wilderness": "荒野的草丛里似乎有被踩踏的痕迹",
                     "mine": "矿洞深处的岩壁上刻着古老的符号",
