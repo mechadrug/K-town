@@ -1,0 +1,814 @@
+﻿// K-town v2.0 — 主应用逻辑 v2.2 (Phase 3 + Phase 4)
+(function() {
+  'use strict';
+
+  // ===== 状态 =====
+  var currentState = null;
+  var ws = null;
+  var visitedLocations = new Set();
+  var talkedAgents = new Set();
+  var currentDialogueAgent = null;
+  var soundEnabled = true;
+  var activeTab = 'events';
+
+  // ===== 初始化 =====
+  document.addEventListener('DOMContentLoaded', function() {
+    TownMapV2.init(document.getElementById('map-canvas'));
+    connectWebSocket();
+    setupEventListeners();
+  });
+
+  // ===== WebSocket =====
+  function connectWebSocket() {
+    var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(protocol + '//' + location.host + '/ws');
+
+    ws.onopen = function() {
+      console.log('WebSocket connected');
+      showToast('🏘 已连接到K-town边境小镇', 'info');
+      playSound('connect');
+    };
+
+    ws.onmessage = function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        handleMessage(msg);
+      } catch (err) {
+        console.error('WS message error:', err);
+      }
+    };
+
+    ws.onclose = function() {
+      console.log('WebSocket disconnected, retrying...');
+      setTimeout(connectWebSocket, 3000);
+    };
+
+    ws.onerror = function(err) {
+      console.error('WS error:', err);
+    };
+  }
+
+  function handleMessage(msg) {
+    switch (msg.type) {
+      case 'state':
+        currentState = msg.data;
+        updateUI(msg.data);
+        break;
+      case 'day_summary':
+        addEvent({
+          type: 'day_summary',
+          icon: '📰',
+          text: '新的一天开始了！',
+          category: 'info'
+        });
+        showToast('📰 新的一天开始了！', 'info');
+        playSound('dayStart');
+        break;
+      case 'event':
+        var evt = msg.data;
+        var category = getEventCategory(evt.type);
+        addEvent({
+          type: evt.type || 'info',
+          icon: getEventIcon(evt.type),
+          text: evt.action || evt.type || '有事情发生了',
+          category: category
+        });
+        if (category === 'positive') playSound('eventGood');
+        else if (category === 'negative') playSound('eventBad');
+        else playSound('event');
+        break;
+      case 'player_action_result':
+        if (msg.data) {
+          showToast(msg.data.result, msg.data.success !== false ? 'success' : 'error');
+          if (msg.data.success !== false) playSound('success');
+          else playSound('error');
+        }
+        break;
+    }
+  }
+
+  // ===== UI 更新 =====
+  function updateUI(data) {
+    var day = Math.floor(data.tick / 24) + 1;
+    var hour = data.tick % 24;
+    var player = data.player || {};
+
+    setText('time-text', '第' + day + '天 · ' + getTimeOfDay(hour));
+    setText('time-icon', getTimeIcon(hour));
+    setText('weather-text', getWeatherName(data.weather));
+    setText('weather-icon', getWeatherIcon(data.weather));
+
+    setText('stat-gold', player.gold || 0);
+    setText('stat-energy', Math.round(player.energy || 100));
+    setText('stat-ap', player.action_points || 12);
+    setText('stat-ap-max', player.max_ap || 12);
+    setText('player-location', getLocationCn(player.location));
+
+    var energyPct = Math.min(100, Math.max(0, player.energy || 100));
+    var apPct = Math.min(100, Math.max(0, ((player.action_points || 12) / (player.max_ap || 12)) * 100));
+    
+    var energyBar = document.getElementById('energy-bar');
+    var apBar = document.getElementById('ap-bar');
+    if (energyBar) energyBar.style.width = energyPct + '%';
+    if (apBar) apBar.style.width = apPct + '%';
+    
+    if (energyBar) {
+      if (energyPct < 30) energyBar.classList.add('low');
+      else energyBar.classList.remove('low');
+    }
+    
+    setText('energy-value', Math.round(energyPct));
+    setText('ap-value', (player.action_points || 12) + '/' + (player.max_ap || 12));
+
+    TownMapV2.update(data.agents || [], data.weather, hour);
+    setTimeTheme(hour);
+
+    // 更新知识列表
+    if (data.knowledge && data.knowledge.claims) {
+      updateKnowledgeList(data.knowledge.claims);
+    }
+
+    // 渲染每日摘要
+    if (data.narrative_summary) {
+      renderNarrativeSummary(data.narrative_summary);
+    }
+  }
+
+  // ===== 时段主题 =====
+  function setTimeTheme(hour) {
+    var body = document.body;
+    body.classList.remove('theme-morning', 'theme-dusk', 'theme-night');
+    if (hour >= 5 && hour < 9) body.classList.add('theme-morning');
+    else if (hour >= 17 && hour < 21) body.classList.add('theme-dusk');
+    else if (hour >= 21 || hour < 5) body.classList.add('theme-night');
+  }
+
+  // ===== Tab 切换 =====
+  function switchTab(tabName) {
+    activeTab = tabName;
+    
+    // 更新按钮状态
+    var btns = document.querySelectorAll('.tab-btn');
+    btns.forEach(function(btn) {
+      if (btn.dataset.tab === tabName) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+
+    // 更新面板显示
+    var panels = document.querySelectorAll('.tab-panel');
+    panels.forEach(function(panel) {
+      if (panel.id === 'tab-' + tabName) panel.classList.add('active');
+      else panel.classList.remove('active');
+    });
+
+    // 加载对应数据
+    if (tabName === 'quests') loadQuests();
+    if (tabName === 'knowledge') loadKnowledge();
+
+    playSound('click');
+  }
+
+  // ===== 事件系统 =====
+  function addEvent(evt) {
+    var list = document.getElementById('event-list');
+    if (!list) return;
+    
+    var placeholder = list.querySelector('.placeholder-text');
+    if (placeholder) placeholder.remove();
+
+    var item = document.createElement('div');
+    item.className = 'event-item ' + (evt.category || 'info');
+    
+    var time = currentState ? ('第' + (Math.floor(currentState.tick / 24) + 1) + '天 ' + getTimeOfDay(currentState.tick % 24)) : '';
+    
+    item.innerHTML = 
+      '<span class="event-icon">' + (evt.icon || '📋') + '</span>' +
+      '<div class="event-content">' +
+        '<div class="event-text">' + (evt.text || '') + '</div>' +
+        (time ? '<div class="event-time">' + time + '</div>' : '') +
+      '</div>';
+
+    list.insertBefore(item, list.firstChild);
+
+    while (list.children.length > 8) {
+      list.removeChild(list.lastChild);
+    }
+  }
+
+  function clearEvents() {
+    var list = document.getElementById('event-list');
+    if (list) list.innerHTML = '<div class="placeholder-text">暂无动态</div>';
+  }
+
+  // ===== 任务系统 =====
+  function loadQuests() {
+    fetch('/api/quests').then(function(r) { return r.json(); }).then(function(data) {
+      var container = document.getElementById('quest-list');
+      if (!container) return;
+      container.innerHTML = '';
+
+      var allQuests = [].concat(data.active_quests || [], data.completed_quests || []);
+      if (allQuests.length === 0) {
+        container.innerHTML = '<div class="placeholder-text">暂无任务</div>';
+        return;
+      }
+
+      allQuests.forEach(function(q) {
+        var item = document.createElement('div');
+        item.className = 'quest-item ' + (q.status === 'completed' ? 'completed' : '');
+        var pct = Math.min(100, Math.round((q.progress / Math.max(1, q.target)) * 100));
+        item.innerHTML = 
+          '<div class="quest-title">' + (q.status === 'completed' ? '✅ ' : '🎯 ') + (q.title || '') + '</div>' +
+          '<div class="quest-desc">' + (q.description || '') + '</div>' +
+          '<div class="quest-progress-bar"><div class="quest-progress-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="quest-meta">' +
+            '<span>' + (q.progress || 0) + '/' + (q.target || 1) + '</span>' +
+            '<span class="quest-reward">🏆 ' + (q.reward_text || (q.reward_gold ? q.reward_gold + '金币' : '')) + '</span>' +
+          '</div>';
+        container.appendChild(item);
+      });
+    }).catch(function() {
+      var container = document.getElementById('quest-list');
+      if (container) container.innerHTML = '<div class="placeholder-text">加载失败</div>';
+    });
+  }
+
+  // ===== 知识系统 =====
+  function loadKnowledge() {
+    fetch('/api/knowledge').then(function(r) { return r.json(); }).then(function(data) {
+      updateKnowledgeList(data.claims || []);
+    }).catch(function() {});
+  }
+
+  function updateKnowledgeList(claims) {
+    var container = document.getElementById('knowledge-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (claims.length === 0) {
+      container.innerHTML = '<div class="placeholder-text">暂无知识记录</div>';
+      return;
+    }
+
+    // 按置信度排序
+    claims.sort(function(a, b) { return (b.confidence || 0) - (a.confidence || 0); });
+    claims.slice(0, 15).forEach(function(c) {
+      var conf = Math.round((c.confidence || 0) * 100);
+      var item = document.createElement('div');
+      item.className = 'knowledge-item ' + (c.solidified ? 'solidified' : '');
+      item.innerHTML = 
+        '<div class="knowledge-claim">🔖 ' + (c.claim || '') + '</div>' +
+        '<div class="knowledge-meta">' +
+          '<span>👤 ' + getAgentName(c.created_by || '') + '</span>' +
+          '<span>📍 ' + getLocationCn(c.location || '') + '</span>' +
+          '<span>置信 ' + conf + '%' +
+            '<span class="confidence-bar"><span class="confidence-fill" style="width:' + conf + '%"></span></span>' +
+          '</span>' +
+          (c.solidified ? '<span style="color:var(--warm-500)">✓ 已固化</span>' : '') +
+        '</div>';
+      container.appendChild(item);
+    });
+  }
+
+  // ===== 地点点击 =====
+  function onLocationClick(id, loc) {
+    var panel = document.getElementById('location-panel');
+    var title = document.getElementById('loc-panel-title');
+    var body = document.getElementById('loc-panel-body');
+    
+    if (!panel || !body) return;
+    
+    title.textContent = '📍 ' + loc.name;
+    
+    var agentsHere = (currentState.agents || []).filter(function(a) {
+      return a.location === id;
+    });
+    
+    var html = '<p style="font-size:0.8em;color:var(--text-muted);margin-bottom:10px">' + loc.desc + '</p>';
+    html += '<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:6px;font-weight:600">在场居民：</div>';
+    
+    if (agentsHere.length > 0) {
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+      agentsHere.forEach(function(a) {
+        var color = getAgentColor(a.id);
+        html += '<span style="background:' + color + '15;border:1px solid ' + color + '40;color:' + color + ';padding:3px 10px;border-radius:12px;font-size:0.75em;font-weight:500;cursor:pointer" onclick="openProfile(\'' + a.id + '\')">' + (a.name || a.id) + '</span>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="font-size:0.8em;color:var(--text-muted)">暂时无人</div>';
+    }
+    
+    body.innerHTML = html;
+    panel.style.display = 'block';
+    playSound('click');
+  }
+
+  function hideLocationPanel() {
+    var panel = document.getElementById('location-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  // ===== Agent 档案 =====
+  function onAgentClick(agent) {
+    openProfile(agent.id);
+  }
+
+  function openProfile(agentId) {
+    var agent = null;
+    (currentState.agents || []).forEach(function(a) {
+      if (a.id === agentId) agent = a;
+    });
+    if (!agent) return;
+
+    currentDialogueAgent = agent;
+
+    var avatar = document.getElementById('prof-avatar');
+    var name = document.getElementById('prof-name');
+    var role = document.getElementById('prof-role');
+    var mood = document.getElementById('prof-mood');
+    var stats = document.getElementById('prof-stats');
+    var relations = document.getElementById('prof-relations');
+
+    if (avatar) avatar.textContent = getAgentEmoji(agent.id);
+    if (name) name.textContent = agent.name || agent.id;
+    if (role) role.textContent = getRoleCn(agent.role) || '居民';
+    if (mood) mood.textContent = '心情：' + getMoodText(agent.mood);
+
+    if (stats) {
+      stats.innerHTML = 
+        '<div class="profile-stat-row"><span>⚡ 体力</span><div class="mini-bar"><div class="mini-bar-fill energy" style="width:' + (agent.energy || 0) + '%"></div></div><span>' + Math.round(agent.energy || 0) + '</span></div>' +
+        '<div class="profile-stat-row"><span>💰 金币</span><span style="color:var(--warm-500);font-weight:600">' + (agent.gold || 0) + '</span></div>' +
+        '<div class="profile-stat-row"><span>📍 位置</span><span>' + getLocationCn(agent.location) + '</span></div>';
+    }
+
+    if (relations) {
+      var ties = agent.social_ties || {};
+      var sorted = Object.entries(ties).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
+      var relHtml = '<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:6px;font-weight:600">关系最好的居民：</div>';
+      if (sorted.length > 0) {
+        relHtml += '<div style="display:flex;flex-direction:column;gap:4px">';
+        sorted.forEach(function(t) {
+          var otherName = getAgentName(t[0]);
+          var val = Math.round(t[1]);
+          var color = val > 0 ? 'var(--positive)' : 'var(--negative)';
+          relHtml += '<div style="display:flex;justify-content:space-between;font-size:0.78em"><span>' + otherName + '</span><span style="color:' + color + '">' + (val > 0 ? '+' : '') + val + '</span></div>';
+        });
+        relHtml += '</div>';
+      } else {
+        relHtml += '<div style="font-size:0.78em;color:var(--text-muted)">暂无关系记录</div>';
+      }
+      relations.innerHTML = relHtml;
+    }
+
+    // 当前目标
+    var goalsEl = document.getElementById('prof-goals');
+    if (goalsEl) {
+      var goals = agent.goals || [];
+      goalsEl.style.display = 'block';
+      if (goals.length > 0) {
+        var goalsHtml = '<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:6px;font-weight:600">🎯 当前目标</div>';
+        goalsHtml += '<div style="display:flex;flex-direction:column;gap:3px">';
+        goals.forEach(function(g) {
+          var done = g.completed ? '✅' : '○';
+          goalsHtml += '<div style="font-size:0.78em;display:flex;align-items:center;gap:4px"><span style="color:var(--warm-500)">' + done + '</span><span>' + (g.description || g) + '</span></div>';
+        });
+        goalsHtml += '</div>';
+        goalsEl.innerHTML = goalsHtml;
+      } else {
+        goalsEl.innerHTML = '<div style="font-size:0.78em;color:var(--text-muted)">暂无明确目标</div>';
+      }
+    }
+
+    // 最近日记
+    var diaryEl = document.getElementById('prof-diary');
+    if (diaryEl) {
+      var diary = agent.diary || [];
+      diaryEl.style.display = 'block';
+      if (diary.length > 0) {
+        var diaryHtml = '<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:6px;font-weight:600">📖 最近日记</div>';
+        diaryHtml += '<div style="display:flex;flex-direction:column;gap:4px">';
+        diary.slice(-5).forEach(function(entry) {
+          diaryHtml += '<div style="font-size:0.78em;padding:4px 6px;background:rgba(0,0,0,0.04);border-radius:4px"><span>' + entry + '</span></div>';
+        });
+        diaryHtml += '</div>';
+        diaryEl.innerHTML = diaryHtml;
+      } else {
+        diaryEl.innerHTML = '<div style="font-size:0.78em;color:var(--text-muted)">暂无日记记录</div>';
+      }
+    }
+
+    var overlay = document.getElementById('profile-overlay');
+    if (overlay) overlay.style.display = 'flex';
+    playSound('click');
+  }
+
+  function closeProfile() {
+    var overlay = document.getElementById('profile-overlay');
+    if (overlay) overlay.style.display = 'none';
+    currentDialogueAgent = null;
+  }
+
+  // ===== 对话系统 =====
+  function openTalkUI() {
+    if (!currentState || !currentState.agents) return;
+    var player = currentState.player;
+    if (!player) return;
+
+    var agentsHere = currentState.agents.filter(function(a) {
+      return a.location === player.location && a.id !== 'agent_player';
+    });
+
+    if (agentsHere.length === 0) {
+      showToast('这个位置没有可以对话的居民', 'info');
+      return;
+    }
+
+    openDialogue(agentsHere[0]);
+  }
+
+  function startDialogueFromProfile() {
+    if (currentDialogueAgent) {
+      openDialogue(currentDialogueAgent);
+      closeProfile();
+    }
+  }
+
+  function openDialogue(agent) {
+    currentDialogueAgent = agent;
+    var overlay = document.getElementById('dialogue-overlay');
+    var avatar = document.getElementById('dlg-avatar');
+    var name = document.getElementById('dlg-name');
+    var relation = document.getElementById('dlg-relation');
+    var messages = document.getElementById('dlg-messages');
+    var options = document.getElementById('dlg-options');
+
+    if (!overlay) return;
+
+    if (avatar) avatar.textContent = getAgentEmoji(agent.id);
+    if (name) name.textContent = agent.name || agent.id;
+    if (relation) relation.textContent = getRelationText(agent);
+
+    if (messages) {
+      messages.innerHTML = '<div class="dlg-message dlg-message-agent"><span>你好，旅行者。我是' + (agent.name || '居民') + '。</span></div>';
+    }
+
+    if (options) options.innerHTML = '<div class="placeholder-text">加载对话选项...</div>';
+    overlay.style.display = 'flex';
+    playSound('talk');
+
+    // 从后端获取真实对话选项（按好感度解锁）
+    fetch('/api/dialogue/options/' + encodeURIComponent(agent.id))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var optsEl = document.getElementById('dlg-options');
+        if (!optsEl) return;
+        var list = data.options || [];
+        optsEl.innerHTML = '';
+        if (list.length === 0) {
+          optsEl.innerHTML = '<div class="placeholder-text">对方似乎不想说话...</div>';
+          return;
+        }
+        list.forEach(function(opt) {
+          var btn = document.createElement('button');
+          btn.className = 'dialogue-option';
+          btn.innerHTML = '<span class="opt-icon">💬</span><span>' + (opt.text || opt.id || '对话') + '</span>';
+          btn.onclick = function() { executeDialogue(agent, opt.id, opt.text); };
+          optsEl.appendChild(btn);
+        });
+      })
+      .catch(function() {
+        var optsEl = document.getElementById('dlg-options');
+        if (optsEl) optsEl.innerHTML = '<div class="placeholder-text">对话选项加载失败</div>';
+      });
+  }
+
+  function executeDialogue(agent, optionId, optionText) {
+    var messages = document.getElementById('dlg-messages');
+    if (!messages) return;
+
+    var playerMsg = document.createElement('div');
+    playerMsg.className = 'dlg-message dlg-message-player';
+    playerMsg.innerHTML = '<span>' + (optionText || '你好') + '</span>';
+    messages.appendChild(playerMsg);
+    messages.scrollTop = messages.scrollHeight;
+
+    // 调用后端真实对话执行接口（消耗AP、真实改变好感度与知识）
+    fetch('/api/dialogue/execute/' + encodeURIComponent(agent.id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ option_id: optionId })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var respEl = document.createElement('div');
+        respEl.className = 'dlg-message dlg-message-agent';
+        var text = data.message || '……';
+        if (data.success === false) showToast(text, 'error');
+        respEl.innerHTML = '<span>' + (agent.name || '居民') + '：' + text + '</span>';
+        messages.appendChild(respEl);
+        messages.scrollTop = messages.scrollHeight;
+        if (data.knowledge_gained) showToast('📚 ' + data.knowledge_gained, 'info');
+      })
+      .catch(function() {
+        var respEl = document.createElement('div');
+        respEl.className = 'dlg-message dlg-message-agent';
+        respEl.innerHTML = '<span>' + (agent.name || '居民') + '：……</span>';
+        messages.appendChild(respEl);
+        messages.scrollTop = messages.scrollHeight;
+      });
+  }
+
+  function closeDialogue() {
+    var overlay = document.getElementById('dialogue-overlay');
+    if (overlay) overlay.style.display = 'none';
+    currentDialogueAgent = null;
+  }
+
+  // ===== Toast 通知 =====
+  function showToast(message, type) {
+    var container = document.getElementById('toast-container');
+    if (!container) return;
+
+    var toast = document.createElement('div');
+    toast.className = 'toast ' + (type || 'info');
+    
+    var iconMap = { success: '✅', error: '❌', info: 'ℹ️' };
+    toast.innerHTML = '<span class="toast-icon">' + (iconMap[type] || 'ℹ️') + '</span><span>' + message + '</span>';
+
+    container.appendChild(toast);
+
+    setTimeout(function() {
+      toast.classList.add('toast-out');
+      setTimeout(function() {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 300);
+    }, 3000);
+  }
+
+  // ===== 音效系统 =====
+  function playSound(type) {
+    if (!soundEnabled || !window.KTownSound) return;
+    var soundFn = window.KTownSound[type];
+    if (typeof soundFn === 'function') soundFn();
+  }
+
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    var btn = document.getElementById('soundBtn');
+    if (btn) btn.textContent = soundEnabled ? '🔊' : '🔇';
+    if (soundEnabled) playSound('click');
+    showToast(soundEnabled ? '音效已开启' : '音效已关闭', 'info');
+  }
+
+  // ===== 玩家操作 =====
+  function movePlayer(dest) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开，请刷新页面', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'move', target: dest }
+    }));
+    visitedLocations.add(dest);
+    playSound('move');
+  }
+
+  function doWork(type) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'work', work_type: type }
+    }));
+    playSound('work');
+  }
+
+  function doRest() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'rest' }
+    }));
+    playSound('rest');
+  }
+
+  function addKnowledge() {
+    var claim = prompt('输入你想添加到小镇知识库的内容：');
+    if (!claim || !claim.trim()) return;
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'add_claim', claim: claim.trim() }
+    }));
+    playSound('addKnowledge');
+  }
+
+  function resetSimulation() {
+    if (!confirm('确定要重置小镇模拟吗？所有进度将丢失。')) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'reset' }
+    }));
+  }
+
+  // ===== 键盘快捷键 =====
+  function setupEventListeners() {
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      switch(e.key) {
+        case '1': movePlayer('square'); break;
+        case '2': movePlayer('workshop'); break;
+        case '3': movePlayer('wilderness'); break;
+        case '4': movePlayer('school'); break;
+        case '5': movePlayer('mine'); break;
+        case 'w': case 'W': doWork('work'); break;
+        case 't': case 'T': openTalkUI(); break;
+        case 'r': case 'R': doRest(); break;
+        case 'k': case 'K': addKnowledge(); break;
+        case 'Escape': closeDialogue(); closeProfile(); hideLocationPanel(); break;
+      }
+    });
+
+    var dlgOverlay = document.getElementById('dialogue-overlay');
+    if (dlgOverlay) {
+      dlgOverlay.addEventListener('click', function(e) {
+        if (e.target === dlgOverlay) closeDialogue();
+      });
+    }
+    var profOverlay = document.getElementById('profile-overlay');
+    if (profOverlay) {
+      profOverlay.addEventListener('click', function(e) {
+        if (e.target === profOverlay) closeProfile();
+      });
+    }
+  }
+
+
+  // ===== 每日摘要渲染 =====
+  function renderNarrativeSummary(summary) {
+    var list = document.getElementById('event-list');
+    if (!list) return;
+
+    var item = document.createElement('div');
+    item.className = 'event-item info narrative-summary';
+    item.style.borderLeftColor = 'var(--warm-500)';
+    item.style.background = 'linear-gradient(90deg, rgba(255,167,38,0.06), transparent)';
+    item.innerHTML =
+      '<span class="event-icon">📰</span>' +
+      '<div class="event-content">' +
+        '<div class="event-text" style="font-weight:600;color:var(--warm-500)">每日摘要</div>' +
+        '<div class="event-text" style="margin-top:4px">' + (summary.title || '') + '</div>' +
+        (summary.body ? '<div class="event-text" style="font-size:0.85em;color:var(--text-muted);margin-top:2px">' + summary.body + '</div>' : '') +
+      '</div>';
+    list.insertBefore(item, list.firstChild);
+  }
+
+  // ===== 工具函数 =====
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function getTimeOfDay(hour) {
+    if (hour >= 6 && hour < 9) return '早晨';
+    if (hour >= 9 && hour < 14) return '白天';
+    if (hour >= 14 && hour < 18) return '傍晚';
+    return '夜晚';
+  }
+
+  function getTimeIcon(hour) {
+    if (hour >= 6 && hour < 9) return '🌅';
+    if (hour >= 9 && hour < 14) return '☀';
+    if (hour >= 14 && hour < 18) return '🌇';
+    return '🌙';
+  }
+
+  function getWeatherName(w) {
+    return { clear: '晴朗', cloudy: '多云', rainy: '下雨', snowy: '下雪', windy: '大风' }[w] || '晴朗';
+  }
+
+  function getWeatherIcon(w) {
+    return { clear: '☀️', cloudy: '⛅', rainy: '🌧', snowy: '❄️', windy: '🌪' }[w] || '☀️';
+  }
+
+  function getLocationCn(loc) {
+    return { square: '广场', workshop: '工坊', wilderness: '荒野', school: '学校', mine: '矿洞' }[loc] || loc;
+  }
+
+  function getAgentColor(id) {
+    return {
+      agent_elder: '#8D6E63', agent_blacksmith: '#FF7043', agent_carpenter: '#7E57C2',
+      agent_forager: '#66BB6A', agent_scout: '#42A5F5', agent_merchant: '#FFA726',
+      agent_teacher: '#5C6BC0', agent_farmer: '#9CCC65', agent_storyteller: '#EC407A',
+      agent_healer: '#26C6DA', agent_miner: '#78909C', agent_player: '#FF6B35'
+    }[id] || '#888';
+  }
+
+  function getAgentEmoji(id) {
+    return {
+      agent_elder: '👴', agent_blacksmith: '🔨', agent_carpenter: '🪵',
+      agent_forager: '🌿', agent_scout: '🦅', agent_merchant: '💰',
+      agent_teacher: '📖', agent_farmer: '🌾', agent_storyteller: '📜',
+      agent_healer: '💊', agent_miner: '⛏', agent_player: '👤'
+    }[id] || '👤';
+  }
+
+  function getAgentName(id) {
+    return {
+      agent_elder: '梅奶奶', agent_blacksmith: '铁匠托林', agent_carpenter: '木匠莉娜',
+      agent_forager: '采集者费尔南', agent_scout: '侦察兵罗文', agent_merchant: '商人维斯珀',
+      agent_teacher: '教师奥尔登', agent_farmer: '农民克莱', agent_storyteller: '讲故事的人艾莉丝',
+      agent_healer: '医生希尔达', agent_miner: '矿工戈尔', agent_player: '旅行者'
+    }[id] || id;
+  }
+
+  function getRoleCn(role) {
+    return {
+      elder: '长者', blacksmith: '铁匠', carpenter: '木匠',
+      forager: '采集者', scout: '侦察兵', merchant: '商人',
+      teacher: '教师', farmer: '农民', storyteller: '讲故事的人',
+      healer: '医生', miner: '矿工', player: '旅行者'
+    }[role] || role;
+  }
+
+  function getEventIcon(type) {
+    return {
+      weather_change: '🌤', resource_found: '💎', social_encounter: '🤝',
+      item_crafted: '🔨', rumor_spread: '🗣', trade: '💰', festival: '🎉',
+      disaster: '⚠️', player_action: '🎮', price_change: '📊',
+      knowledge_conflict: '⚡', agent_goal_complete: '🏆', day_summary: '📰'
+    }[type] || '📋';
+  }
+
+  function getEventCategory(type) {
+    var positive = ['resource_found', 'item_crafted', 'festival', 'agent_goal_complete'];
+    var negative = ['disaster', 'knowledge_conflict'];
+    var social = ['social_encounter', 'rumor_spread'];
+    var player = ['player_action'];
+    if (positive.indexOf(type) >= 0) return 'positive';
+    if (negative.indexOf(type) >= 0) return 'negative';
+    if (social.indexOf(type) >= 0) return 'social';
+    if (player.indexOf(type) >= 0) return 'info';
+    return 'info';
+  }
+
+  function getMoodText(mood) {
+    return { happy: '开心', neutral: '平静', sad: '难过', angry: '生气', anxious: '焦虑' }[mood] || '平静';
+  }
+
+  function getRelationText(agent) {
+    var ties = agent.social_ties || {};
+    var val = ties['agent_player'] || 0;
+    if (val > 50) return '挚友 · ' + Math.round(val);
+    if (val > 30) return '朋友 · ' + Math.round(val);
+    if (val > 15) return '熟悉 · ' + Math.round(val);
+    if (val > 5) return '认识 · ' + Math.round(val);
+    if (val < -10) return '敌对 · ' + Math.round(val);
+    return '陌生人';
+  }
+
+  // ===== 公开 API =====
+  window.AppV2 = {
+    onLocationClick: onLocationClick,
+    onAgentClick: onAgentClick
+  };
+  
+  // 全局接口
+  window.movePlayer = movePlayer;
+  window.doWork = doWork;
+  window.openTalkUI = openTalkUI;
+  window.doRest = doRest;
+  window.addKnowledge = addKnowledge;
+  window.resetSimulation = resetSimulation;
+  window.toggleSound = toggleSound;
+  window.openProfile = openProfile;
+  window.closeProfile = closeProfile;
+  window.closeDialogue = closeDialogue;
+  window.startDialogueFromProfile = startDialogueFromProfile;
+  window.switchTab = switchTab;
+
+  // 5秒轮询（WebSocket 备用）
+  setInterval(function() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      fetch('/api/state').then(function(r) { return r.json(); }).then(function(data) {
+        currentState = data;
+        updateUI(data);
+      }).catch(function() {});
+    }
+  }, 5000);
+
+})();

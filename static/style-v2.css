@@ -1,0 +1,646 @@
+﻿/* ========================================
+   K-town v2.0 — 前端样式系统
+   手绘水彩 · 温暖小镇
+   ======================================== */
+
+/* === 1. 设计令牌 (Design Tokens) === */
+:root {
+  /* --- 暖色基础 palette --- */
+  --warm-50: #FFFDF7;
+  --warm-100: #FFF8E1;
+  --warm-200: #FFE0B2;
+  --warm-300: #FFCC80;
+  --warm-400: #FFA726;
+  --warm-500: #FF9800;
+  --warm-600: #F57C00;
+  --warm-700: #E65100;
+
+  /* --- 自然绿 --- */
+  --green-50: #E8F5E9;
+  --green-100: #C8E6C9;
+  --green-200: #A5D6A7;
+  --green-300: #81C784;
+  --green-400: #66BB6A;
+  --green-500: #4CAF50;
+  --green-600: #388E3C;
+  --green-700: #2E7D32;
+  --green-800: #1B5E20;
+
+  /* --- 天空蓝 --- */
+  --sky-50: #E3F2FD;
+  --sky-100: #BBDEFB;
+  --sky-200: #90CAF9;
+  --sky-300: #64B5F6;
+  --sky-400: #42A5F5;
+  --sky-500: #2196F3;
+
+  /* --- 大地棕 --- */
+  --earth-50: #EFEBE9;
+  --earth-100: #D7CCC8;
+  --earth-200: #BCAAA4;
+  --earth-300: #A1887F;
+  --earth-400: #8D6E63;
+  --earth-500: #795548;
+  --earth-600: #5D4037;
+  --earth-700: #3E2723;
+
+  /* --- 情感色 --- */
+  --mood-happy: #7CB342;
+  --mood-neutral: #FFB74D;
+  --mood-anxious: #FF8A65;
+  --mood-angry: #E57373;
+  --mood-sad: #64B5F6;
+
+  /* --- 语义色 -- */
+  --positive: #7CB342;
+  --negative: #E57373;
+  --info: #64B5F6;
+  --player: #FFB74D;
+  --social: #BA68C8;
+
+  /* --- Agent 个人色 -- */
+  --color-elder: #8D6E63;
+  --color-blacksmith: #FF7043;
+  --color-carpenter: #7E57C2;
+  --color-forager: #66BB6A;
+  --color-scout: #42A5F5;
+  --color-merchant: #FFA726;
+  --color-teacher: #5C6BC0;
+  --color-farmer: #9CCC65;
+  --color-storyteller: #EC407A;
+  --color-healer: #26C6DA;
+  --color-miner: #78909C;
+  --color-player: #FF6B35;
+
+  /* --- 时段主题 (默认: 白天) -- */
+  --sky-top: #87CEEB;
+  --sky-bottom: #E0F7FA;
+  --ground: #5B9A6F;
+  --ground-light: #81C784;
+  --ambient: #FFFDE7;
+  --panel-bg: rgba(255, 253, 247, 0.92);
+  --panel-border: rgba(139, 110, 99, 0.2);
+  --text-primary: #3E2723;
+  --text-secondary: #6D4C41;
+  --text-muted: #A1887F;
+  --shadow-color: rgba(62, 39, 35, 0.12);
+  --bg-card: var(--panel-bg);
+}
+
+/* --- 早晨主题 --- */
+body.theme-morning {
+  --sky-top: #F4A460;
+  --sky-bottom: #FFE4B5;
+  --ground: #7CB342;
+  --ground-light: #AED581;
+  --ambient: #FFF8E1;
+  --panel-bg: rgba(255, 248, 225, 0.92);
+  --shadow-color: rgba(139, 90, 43, 0.15);
+}
+
+/* --- 傍晚主题 --- */
+body.theme-dusk {
+  --sky-top: #FF8A65;
+  --sky-bottom: #FFB74D;
+  --ground: #6D8B5C;
+  --ground-light: #A8B573;
+  --ambient: #FFE0B2;
+  --panel-bg: rgba(255, 224, 178, 0.92);
+  --shadow-color: rgba(139, 69, 19, 0.18);
+}
+
+/* --- 夜晚主题 --- */
+body.theme-night {
+  --sky-top: #1A237E;
+  --sky-bottom: #283593;
+  --ground: #2E4A2E;
+  --ground-light: #3D5A3D;
+  --ambient: #FFF9C4;
+  --panel-bg: rgba(33, 33, 33, 0.92);
+  --panel-border: rgba(255, 249, 196, 0.15);
+  --text-primary: #FFF8E1;
+  --text-secondary: #FFE0B2;
+  --text-muted: #A1887F;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* === 2. 基础重置 === */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+  color: var(--text-primary);
+  transition: background 1.5s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* === 3. 布局框架 === */
+.app-layout {
+  display: grid;
+  grid-template-rows: 48px 1fr auto;
+  grid-template-columns: 1fr 360px;
+  grid-template-areas:
+    "topbar topbar"
+    "map sidebar"
+    "actionbar actionbar";
+  height: 100vh;
+  gap: 0;
+}
+
+/* --- 顶栏 --- */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.time-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.time-badge .icon {
+  font-size: 1.3em;
+}
+
+.topbar-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.topbar-stat:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+.topbar-stat .stat-icon {
+  font-size: 1.1em;
+}
+
+.topbar-stat .stat-value {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.topbar-stat.gold .stat-value { color: var(--warm-500); }
+.topbar-stat.energy .stat-value { color: var(--green-500); }
+.topbar-stat.ap .stat-value { color: var(--player); }
+
+/* --- 主地图区 --- */
+.map-container {
+  grid-area: map;
+  position: relative;
+  overflow: hidden;
+}
+
+.map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* --- 右侧面板 --- */
+.sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+  z-index: 40;
+}
+
+/* --- 底部行动栏 --- */
+.actionbar {
+  grid-area: actionbar;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--panel-bg);
+  border-top: 1px solid var(--panel-border);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+}
+
+/* === 4. 组件：玩家卡片 === */
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255, 183, 77, 0.12), rgba(255, 152, 0, 0.06));
+  border: 1px solid rgba(255, 183, 77, 0.25);
+  border-radius: 12px;
+}
+
+.player-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--player), #FF8A65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5em;
+  box-shadow: 0 2px 12px rgba(255, 107, 53, 0.3);
+  flex-shrink: 0;
+}
+
+.player-info h3 {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.player-info .player-role {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* === 5. 组件：统计条 === */
+.stat-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8em;
+}
+
+.stat-bar-row .stat-label {
+  width: 48px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stat-bar-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(0,0,0,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-bar-fill.energy { background: linear-gradient(90deg, var(--green-400), var(--green-500)); }
+.stat-bar-fill.gold { background: linear-gradient(90deg, var(--warm-400), var(--warm-500)); }
+.stat-bar-fill.ap { background: linear-gradient(90deg, #FF8A65, var(--player)); }
+
+.stat-bar-value {
+  width: 52px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === 6. 组件：面板 === */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(0,0,0,0.02);
+}
+
+.panel-body {
+  padding: 12px 14px;
+}
+
+/* === 7. 组件：事件列表 === */
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.02);
+  border-left: 3px solid var(--info);
+  transition: transform 0.2s, background 0.2s;
+  cursor: pointer;
+}
+
+.event-item:hover {
+  transform: translateX(3px);
+  background: rgba(0,0,0,0.04);
+}
+
+.event-item.positive { border-left-color: var(--positive); }
+.event-item.negative { border-left-color: var(--negative); }
+.event-item.social { border-left-color: var(--social); }
+.event-item.player-related { border-left-color: var(--player); }
+
+.event-icon {
+  font-size: 1.2em;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.event-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-text {
+  font-size: 0.82em;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.event-time {
+  font-size: 0.7em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* === 8. 组件：行动按钮 === */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--panel-bg);
+  border: 1.5px solid var(--panel-border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-size: 0.85em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px var(--shadow-color);
+  border-color: var(--player);
+}
+
+.action-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, var(--player), #FF8A65);
+  color: white;
+  border-color: transparent;
+}
+
+.action-btn .btn-icon {
+  font-size: 1.1em;
+}
+
+/* === 9. 组件：Agent 标记 (地图上) === */
+.agent-token {
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.agent-token:hover {
+  transform: scale(1.4);
+  filter: brightness(1.15);
+}
+
+.agent-token .agent-body {
+  transition: fill 0.3s ease;
+}
+
+.agent-token:hover .agent-label-bg {
+  opacity: 1;
+}
+
+.agent-label-bg {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* === 10. 通知/Toast 系统 === */
+.toast-container {
+  position: fixed;
+  top: 60px;
+  right: 380px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px var(--shadow-color);
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text-primary);
+  animation: toastIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+.toast.success { border-left: 3px solid var(--positive); }
+.toast.error { border-left: 3px solid var(--negative); }
+.toast.info { border-left: 3px solid var(--info); }
+
+.toast.toast-out {
+  animation: toastOut 0.3s ease forwards;
+}
+
+@keyframes toastIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toastOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+/* === 11. 地图地点标记 === */
+.location-marker {
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.location-marker:hover {
+  transform: scale(1.08) translateY(-4px);
+}
+
+.location-marker .loc-glow {
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+.location-marker:hover .loc-glow {
+  opacity: 1;
+}
+
+.location-marker .loc-building {
+  transition: transform 0.3s ease;
+  transform-origin: center bottom;
+}
+
+.location-marker:hover .loc-building {
+  transform: scale(1.05);
+}
+
+/* === 12. 响应式 === */
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 1fr 300px;
+  }
+  .toast-container {
+    right: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "topbar"
+      "map"
+      "actionbar";
+  }
+  .sidebar {
+    display: none;
+  }
+  .toast-container {
+    right: 16px;
+    left: 16px;
+  }
+  .actionbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .action-btn {
+    padding: 8px 12px;
+    font-size: 0.8em;
+  }
+}
+
+/* === 13. 动画 === */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.fade-in {
+  animation: fadeInUp 0.4s ease;
+}
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* === 14. 滚动条 === */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--earth-200); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--earth-300); }
+
+/* === 15. 辅助 === */
+.placeholder-text {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  text-align: center;
+  padding: 16px;
+}
+
+.hidden { display: none !important; }

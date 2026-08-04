@@ -7,7 +7,7 @@ from world import World
 from events import EventBus
 from agent import populate_agents
 from knowledge import KnowledgeEngine
-from logger import Logger
+from storage import Storage
 from llm import LLMClient
 from tick import TickEngine
 from api import create_app
@@ -36,17 +36,18 @@ def init_system():
 
     world = World()
     bus = EventBus()
-    logger = Logger()
+    # 唯一数据访问层：main/tick/api 共享同一实例
+    storage = Storage()
     knowledge = KnowledgeEngine()
     llm = LLMClient(cfg.llm.base_url, cfg.llm.api_key, cfg.llm.model, cfg.llm.provider)
 
     agents = populate_agents()
     for a in agents:
         world.add_agent_to_location(a.identity.id, a.state.location)
-        logger.log_world_event(0, "agent_spawned", a.state.location, [a.identity.id], None)
+        storage.log_world_event(0, "agent_spawned", a.state.location, [a.identity.id], None)
     print(f"Spawned {len(agents)} agents")
 
-    engine = TickEngine(world, bus, agents, knowledge, logger, llm, cfg.tick.rate, cfg.tick.day_length)
+    engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.rate, cfg.tick.day_length, db=storage)
 
     # 初始化任务系统
     quest_engine = QuestEngine()
@@ -70,7 +71,7 @@ def init_system():
     engine.scheduler.generate_daily_schedule(1, agent_ids, world)
     print("Day 1 events scheduled")
 
-    app = create_app(world, agents, bus, logger, knowledge, llm, engine, ws_clients, dialogue_sys)
+    app = create_app(world, agents, bus, storage, knowledge, llm, engine, ws_clients, dialogue_sys)
     return app, engine, llm, cfg
 
 
@@ -89,11 +90,15 @@ async def main():
         await server.serve()
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        print(f"Server error: {e}")
     finally:
         engine.stop()
         await llm.close()
+        # Close database safely
+        if hasattr(engine, "db") and hasattr(engine.db, "close"):
+            engine.db.close()
         print("=== Stopped ===")
-
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,3 +1,4 @@
+"""Agent 模块 v2.0 — 知识驱动决策 + 经济闭环"""
 import random,time,uuid
 from typing import List,Optional,Dict,Any
 from models import AgentIdentity,AgentState,Goal,MemoryEntry,Mood,Role,KnowledgeClaim,ClaimSource
@@ -18,18 +19,18 @@ class Agent:
             self.memory_short = self.memory_short[-20:]
 
     def think(self, hour):
+        # 压缩短期记忆
         if len(self.memory_short)>10:
             for m in self.memory_short[-5:]:
                 self.memory_long.append(MemoryEntry(summary=m,importance=7.0,location=self.state.location))
             self.memory_short = self.memory_short[:-5]
         
-        # 人格影响情绪稳定性
+        # 人格影响心情稳定性
         stability = self.identity.personality.get("stability", 0.5)
         
         if self.state.energy<20: 
             self.state.mood=Mood.SAD
         elif self.state.energy<50:
-            # 情绪稳定性高的Agent不容易焦虑
             if stability > 0.7:
                 self.state.mood=Mood.NEUTRAL
             else:
@@ -37,7 +38,7 @@ class Agent:
         elif self.state.energy>80:
             self.state.mood=Mood.HAPPY
         
-        # 情绪稳定性低→体力下降时更容易心情差
+        # 情绪稳定性低 -> 体力下降时更容易心情差
         if stability < 0.3 and self.state.energy < 40:
             if random.random() < 0.3:
                 self.state.mood = Mood.ANGRY if random.random() < 0.5 else Mood.SAD
@@ -46,290 +47,267 @@ class Agent:
         if hour>=21 or hour<6:
             self.state.energy = min(100, self.state.energy+15)
 
-        # 饥饿检查（覆盖体力恢复的好心情）
+        # 饥饿检查
         if self.state.hunger > 60:
             self.state.mood = Mood.SAD
         elif self.state.hunger > 30:
             if self.state.mood == Mood.HAPPY:
                 self.state.mood = Mood.NEUTRAL
 
-        # 食物消耗（每天1-3单位，晚上结算）
+        # 食物消耗（每天晚上结算）
         if hour == 21:
             food_need = random.randint(1, 3)
             if self.state.food >= food_need:
                 self.state.food -= food_need
                 self.state.hunger = max(0, self.state.hunger - 30)
             else:
-                # 食物不足→饥饿度上升，体力和心情下降
+                # 食物不足 -> 饥饿度上升，体力和心情下降
                 self.state.hunger = min(100, self.state.hunger + 40)
                 self.state.energy = max(0, self.state.energy - 10)
                 if self.state.hunger > 60:
                     self.state.mood = Mood.SAD
 
-        # 食物购买（饥饿度高+食物少+有金币→购买食物）
+        # 食物购买（金币回收机制）
         if hour == 22 and self.state.hunger > 30 and self.state.food < 3 and self.state.gold > 10:
-            cost = 5  # 基础食物价格
-            max_buy = min(3, self.state.gold // cost)
+            # 价格响应：食物越贵买越少
+            base_cost = 5
+            max_buy = min(3, self.state.gold // base_cost)
             if max_buy > 0:
-                self.state.gold -= max_buy * cost
+                # 高价格时减少购买
+                if base_cost > 8 and max_buy > 1:
+                    max_buy = max(1, max_buy - 1)
+                self.state.gold -= max_buy * base_cost
                 self.state.food += max_buy
 
-    def decide(self, hour, agents_here, events):
+    def decide(self, hour, agents_here, events, knowledge_engine=None, world=None):
+        """
+        5层优先级决策系统：
+        1. 生理需求（体力/饥饿）
+        2. 知识驱动（危险/机会）
+        3. 目标驱动
+        4. 社交驱动
+        5. 默认行为
+        """
         n = self.identity.name
         p = self.identity.personality
         
-        # 低体力优先休息（但尽责性高的人会坚持工作）
+        # === Layer 1: 生理需求（最高优先级）===
         conscientiousness = p.get("conscientiousness", 0.5)
-        rest_threshold = 20 - int(conscientiousness * 10)  # 尽责性高→阈值更低（更晚休息）
+        rest_threshold = 20 - int(conscientiousness * 10)
         
         if self.state.energy < rest_threshold:
             return {"type":"rest","desc": f"{n}体力不支，正在休息","target":""}
         
-        # 晚上睡觉（但开放性高的人可能熬夜探索）
+        # 夜晚睡觉
         openness = p.get("openness", 0.5)
         if hour>=21 or hour<6:
             if openness > 0.7 and hour < 23 and self.state.energy > 40:
                 return {"type":"investigate","desc": f"{n}趁着夜色外出探索","target":""}
             return {"type":"sleep","desc": f"{n}正在睡觉","target":""}
+
+        # === Layer 1.5: 生活节奏（傍晚广场聚集/社交，让小镇有每日空间节律）===
+        if 18 <= hour < 21:
+            if self.state.location != "square":
+                if random.random() < 0.4 + p.get("extraversion", 0.5) * 0.3:
+                    return {"type":"move","desc": f"{n}收工了，去广场转转","target":"square"}
+            else:
+                if random.random() < 0.6:
+                    others = [o for o in agents_here if o.identity.id != self.identity.id]
+                    if others:
+                        return {"type":"talk","desc": f"{n}在广场和邻居们聊起一天的见闻","target":random.choice(others).identity.id}
+                    return {"type":"observe","desc": f"{n}在广场悠闲地散步","target":""}
+
+        # === Layer 2: 知识驱动决策 ===
+        if knowledge_engine:
+            knowledge_actions = knowledge_engine.derive_actions_for_agent(self.identity.id)
+            if knowledge_actions:
+                top_action = knowledge_actions[0]
+                action_type = top_action.get("type", "")
+                
+                if action_type == "avoid":
+                    # 避免某个地点 -> 选择其他地点
+                    avoid_target = top_action.get("target", "")
+                    if self.state.location == avoid_target:
+                        # 需要离开
+                        other_locs = ["square", "workshop", "wilderness", "school", "mine"]
+                        safe_locs = [l for l in other_locs if l != avoid_target]
+                        if safe_locs:
+                            new_loc = random.choice(safe_locs)
+                            return {"type":"move","desc": f"{n}因为'{top_action.get('reason', '')}'离开当前位置","target":new_loc}
+                
+                elif action_type == "seek":
+                    # 寻找资源 -> 前往资源所在地点
+                    target = top_action.get("target", "")
+                    if target in ["square", "workshop", "wilderness", "school", "mine"]:
+                        return {"type":"move","desc": f"{n}去寻找{target}的资源","target":target}
+                
+                elif action_type == "befriend":
+                    # 信任某人 -> 如果此人在场则社交
+                    target_agent = top_action.get("target", "")
+                    for a in agents_here:
+                        if a.identity.id == target_agent:
+                            return {"type":"talk","desc": f"{n}主动与{a.identity.name}交谈","target":target_agent}
+                
+                elif action_type == "investigate":
+                    # 探索 -> 移动到新地点
+                    target = top_action.get("target", "")
+                    if target in ["square", "workshop", "wilderness", "school", "mine"]:
+                        return {"type":"move","desc": f"{n}决定去探索{target}","target":target}
+
+        # === Layer 3: 目标驱动 ===
+        active_goals = [g for g in self.goals if not g.completed]
+        if active_goals:
+            top_goal = max(active_goals, key=lambda g: g.base_priority * g.urgency)
+            # 根据目标类型决定行为
+            goal_action = self._goal_to_action(top_goal, hour)
+            if goal_action:
+                goal_action["desc"] = f"{n}为了「{top_goal.description}」{goal_action['desc']}"
+                return goal_action
         
-        # 获取该角色的工作时间和地点
+        # === Layer 4: 社交驱动 ===
+        extraversion = p.get("extraversion", 0.5)
+        agreeableness = p.get("agreeableness", 0.5)
+        
+        # 外向性高 + 宜人性高 -> 更可能社交
+        social_prob = 0.3 + extraversion * 0.3 + agreeableness * 0.2
+        
+        if agents_here and len(agents_here) > 1:
+            # 有好感的人在 -> 优先社交
+            for other in agents_here:
+                if other.identity.id == self.identity.id:
+                    continue
+                tie = self.state.social_ties.get(other.identity.id, 0)
+                if tie > 10:
+                    if random.random() < social_prob:
+                        return {"type":"talk","desc": f"{n}主动去找{other.identity.name}聊天","target":other.identity.id}
+            
+            # 随机社交
+            if random.random() < social_prob * 0.5:
+                other = random.choice([a for a in agents_here if a.identity.id != self.identity.id])
+                if other:
+                    return {"type":"talk","desc": f"{n}和{other.identity.name}闲聊几句","target":other.identity.id}
+        
+        # === Layer 5: 默认行为（工作地点）===
         work_slot = self._get_work_slot(hour)
-        
-        # 如果在工作地点，执行工作
-        # 尽责性高→更可能在工作时间工作
         if work_slot and self.state.location == work_slot['loc']:
             if random.random() < (0.6 + conscientiousness * 0.3):
                 return self._role(work_slot)
         
-        # 社交决策：外向性高+宜人性高→更可能社交
-        extraversion = p.get("extraversion", 0.5)
-        agreeableness = p.get("agreeableness", 0.5)
+        # 去工作地点
+        if work_slot:
+            return {"type":"move","desc": f"{n}前往{work_slot['name']}","target":work_slot['loc']}
         
-        if self.state.location == "square" and len(agents_here) > 1:
-            social_chance = 0.3 + extraversion * 0.4 + agreeableness * 0.2
-            if "social" in self.identity.traits:
-                social_chance += 0.15
-            if self.state.mood == Mood.HAPPY:
-                social_chance += 0.1
-            if random.random() < social_chance:
-                return {"type":"talk","desc": f"{n}和周围的人聊天","target":""}
-
-        # 关系驱动：有好朋友在→主动寻找互动
-        best_friend = None
-        best_tie = -999
-        worst_enemy = None
-        worst_tie = 999
-        for other_id in agents_here:
-            if other_id == self.identity.id:
-                continue
-            tie = self.state.social_ties.get(other_id, 0)
-            if tie > best_tie:
-                best_tie = tie
-                best_friend = other_id
-            if tie < worst_tie:
-                worst_tie = tie
-                worst_enemy = other_id
-
-        # 好朋友在→优先互动（好感>30）
-        if best_friend and best_tie > 30 and random.random() < 0.4:
-            return {'type': 'talk', 'desc': f'{n}看到好朋友，开心地走过去打招呼', 'target': best_friend}
-
-        # 讨厌的人在→可能回避（好感<-10）
-        if worst_enemy and worst_tie < -10 and random.random() < 0.3:
-            locations = ['square', 'workshop', 'wilderness', 'school', 'mine']
-            if self.state.location in locations:
-                locations.remove(self.state.location)
-            target = random.choice(locations)
-            return {'type': 'move', 'desc': f'{n}不想看到不喜欢的人，转身去了{self._get_location_cn(target)}', 'target': target}
-
-        # 挚友在→分享知识（好感>50）
-        if best_friend and best_tie > 50 and random.random() < 0.25:
-            if self.knowledge:
-                return {'type': 'talk', 'desc': f'{n}和挚友分享自己的知识', 'target': best_friend}
-
-        # 知识驱动：评估持有知识对决策的影响
-        knowledge_modifier = self._evaluate_knowledge_impact()
-
-        # 危险知识→回避相关地点
-        for loc, modifier in knowledge_modifier.items():
-            if modifier < 0.8 and self.state.location == loc:
-                # 这个地点有危险，考虑离开
-                if random.random() < 0.3:
-                    locations = ['square', 'workshop', 'wilderness', 'school', 'mine']
-                    locations.remove(loc)
-                    target = random.choice(locations)
-                    return {'type': 'move', 'desc': f'{n}想起了一些不好的传闻，决定去{self._get_location_cn(target)}', 'target': target}
+        # 默认在广场社交
+        if self.state.location != "square":
+            return {"type":"move","desc": f"{n}去广场逛逛","target":"square"}
         
-        # 调查事件（开放性高的人更喜欢调查）
-        if events:
-            investigate_chance = 0.2 + openness * 0.4
-            if random.random() < investigate_chance:
-                return {"type":"investigate","desc": f"{n}去调查附近的事件","target":""}
-        
-        # 移动到工作地点
-        if work_slot and self.state.location != work_slot['loc']:
-            # 尽责性高→更愿意去工作
-            if random.random() < (0.5 + conscientiousness * 0.3):
-                loc = work_slot["loc"]
-                return {"type":"move","desc": f"{n}前往{self._get_location_cn(loc)}","target":loc}
-        
-        # 商人去广场交易
-        if self.identity.role == Role.MERCHANT and self.state.location != "square":
-            return {"type":"move","desc": f"{n}前往广场做生意","target":"square"}
-        
-        # 开放性高→可能随机探索
-        if openness > 0.6 and random.random() < 0.2:
-            locations = ["square", "workshop", "wilderness", "school", "mine"]
-            if self.state.location in locations:
-                locations.remove(self.state.location)
-            target = random.choice(locations)
-            return {"type":"move","desc": f"{n}想去{self._get_location_cn(target)}看看","target":target}
-        
-        # 默认观察
-        return {"type":"observe","desc": f"{n}在附近观察环境","target":""}
+        return {"type":"observe","desc": f"{n}在广场观察四周","target":""}
 
+    def _goal_to_action(self, goal, hour):
+        """将目标转化为具体行动"""
+        desc = goal.description.lower()
+        role = self.identity.role
+        
+        if role in [Role.FORAGER, Role.FARMER] or 'gather' in desc or 'food' in desc:
+            return {"type": "gather_food", "desc": "去采集食物", "target": "wilderness"}
+        elif role in [Role.BLACKSMITH, Role.CARPENTER] or 'craft' in desc or 'tool' in desc:
+            return {"type": "work", "desc": "去工坊工作", "target": "workshop"}
+        elif role == Role.SCOUT or 'explore' in desc or 'discover' in desc:
+            return {"type": "investigate", "desc": "去荒野探索", "target": "wilderness"}
+        elif role in [Role.ELDER, Role.TEACHER] or 'teach' in desc or 'knowledge' in desc:
+            return {"type": "talk", "desc": "去传播知识", "target": "square"}
+        elif role == Role.STORYTELLER or 'story' in desc or 'collect' in desc:
+            return {"type": "talk", "desc": "去收集故事", "target": "square"}
+        elif role == Role.MINER or 'ore' in desc or 'mine' in desc:
+            return {"type": "work", "desc": "去矿洞采矿", "target": "mine"}
+        elif role == Role.HEALER or 'heal' in desc or 'patient' in desc:
+            return {"type": "work", "desc": "去学校救治", "target": "school"}
+        elif role == Role.MERCHANT or 'gold' in desc or 'earn' in desc:
+            return {"type": "trade", "desc": "去广场做生意", "target": "square"}
+        else:
+            return {"type": "observe", "desc": "在广场观察", "target": "square"}
 
-    def _evaluate_knowledge_impact(self) -> Dict[str, float]:
-        """评估持有知识对当前决策的影响，返回各地点的修正权重"""
-        location_modifier = {}
-        knowledge_text = " ".join([k.claim.lower() for k in self.knowledge])
+    def _role(self, work_slot=None):
+        """根据角色生成工作行动"""
+        n = self.identity.name
+        role = self.identity.role
         
-        # 危险知识 → 减少去相关地点
-        if "狼" in knowledge_text or "危险" in knowledge_text or "野兽" in knowledge_text:
-            location_modifier["wilderness"] = location_modifier.get("wilderness", 1.0) * 0.5
-        if "坍塌" in knowledge_text or "矿洞" in knowledge_text:
-            location_modifier["mine"] = location_modifier.get("mine", 1.0) * 0.6
-        if "森林" in knowledge_text and "危险" in knowledge_text:
-            location_modifier["wilderness"] = location_modifier.get("wilderness", 1.0) * 0.7
-        
-        # 机会知识 → 增加去相关地点
-        if "草药" in knowledge_text or "丰富" in knowledge_text:
-            location_modifier["wilderness"] = location_modifier.get("wilderness", 1.0) * 1.3
-        if "矿" in knowledge_text and "丰富" in knowledge_text:
-            location_modifier["mine"] = location_modifier.get("mine", 1.0) * 1.3
-        if "集市" in knowledge_text or "交易" in knowledge_text:
-            location_modifier["square"] = location_modifier.get("square", 1.0) * 1.2
-        
-        return location_modifier
-    
-    def _get_knowledge_summary(self) -> str:
-        """获取Agent的知识摘要，用于日志"""
-        if not self.knowledge:
-            return ""
-        recent = sorted(self.knowledge, key=lambda k: k.confidence, reverse=True)[:3]
-        return "；".join([k.claim for k in recent])
-
-
-
-    def evaluate_trade(self, market_prices: Dict[str, int]) -> Optional[Dict[str, Any]]:
-        """评估是否需要进行交易，返回交易决策"""
-        # 商人：低买高卖
-        if self.identity.role == Role.MERCHANT:
-            # 找最便宜的供应商
-            best_deal = None
-            best_profit = 0
-            for resource, price in market_prices.items():
-                base_price = 5  # 假设基础价格
-                if price < base_price * 0.8:  # 价格低于基础价格80%→买入
-                    profit = base_price - price
-                    if profit > best_profit:
-                        best_profit = profit
-                        best_deal = {"action": "buy", "resource": resource, "price": price}
-                elif self.state.inventory and resource in self.state.inventory:
-                    # 有库存且价格高于基础价格→卖出
-                    if price > base_price * 1.2:
-                        profit = price - base_price
-                        if profit > best_profit:
-                            best_profit = profit
-                            best_deal = {"action": "sell", "resource": resource, "price": price}
-            return best_deal
-        
-        # 普通Agent：饥饿时买食物
-        if self.state.hunger > 30 and self.state.food < 2:
-            food_price = market_prices.get("food", 5)
-            if self.state.gold >= food_price:
-                return {"action": "buy", "resource": "food", "price": food_price}
-        
-        # 产出者：有富余产品时卖出
-        if self.identity.role in (Role.FORAGER, Role.FARMER) and self.state.food > 5:
-            food_price = market_prices.get("food", 5)
-            if food_price > 4:  # 价格好时卖出
-                return {"action": "sell", "resource": "food", "price": food_price}
-        
-        return None
-
+        role_actions = {
+            Role.ELDER: lambda: {"type":"talk","desc": f"{n}在广场向年轻人讲述古老的传说","target":""},
+            Role.BLACKSMITH: lambda: {"type":"craft_tool","desc": f"{n}在工坊锻造工具","target":""},
+            Role.CARPENTER: lambda: {"type":"craft_furniture","desc": f"{n}在工坊制作家具","target":""},
+            Role.FORAGER: lambda: {"type":"gather_food","desc": f"{n}在荒野采集食物","target":""},
+            Role.SCOUT: lambda: {"type":"investigate","desc": f"{n}探索周边区域","target":""},
+            Role.MERCHANT: lambda: {"type":"trade","desc": f"{n}在广场打理生意","target":""},
+            Role.TEACHER: lambda: {"type":"talk","desc": f"{n}在学校教导镇民知识","target":""},
+            Role.FARMER: lambda: {"type":"gather_food","desc": f"{n}在田野辛勤劳作","target":""},
+            Role.STORYTELLER: lambda: {"type":"talk","desc": f"{n}在广场讲述冒险故事","target":""},
+            Role.HEALER: lambda: {"type":"rest","desc": f"{n}在学校配制药剂","target":""},
+            Role.MINER: lambda: {"type":"gather_material","desc": f"{n}在矿洞深处采集矿石","target":""},
+            Role.PLAYER: lambda: {"type":"observe","desc": f"{n}观察着小镇的生活","target":""},
+        }
+        return role_actions.get(role, lambda: {"type":"rest","desc": f"{n}正在休息","target":""})()
 
     def _get_work_slot(self, hour):
-        if self.identity.role in [Role.ELDER, Role.TEACHER, Role.STORYTELLER, Role.MERCHANT]:
-            slots = [(6,10,"square"),(12,14,"square"),(17,20,"square")]
-        elif self.identity.role in [Role.BLACKSMITH, Role.CARPENTER]:
-            slots = [(8,12,"workshop"),(13,17,"workshop")]
-        elif self.identity.role in [Role.FORAGER, Role.FARMER, Role.SCOUT]:
-            slots = [(7,12,"wilderness"),(13,18,"wilderness")]
-        elif self.identity.role == Role.HEALER:
-            slots = [(8,12,"school"),(13,17,"school")]
-        elif self.identity.role == Role.MINER:
-            slots = [(6,12,"mine"),(13,16,"mine")]
-        else:
-            slots = [(9,17,"square")]
-        for start, end, loc in slots:
-            if start <= hour < end:
-                return {"loc": loc}
+        """获取当前的工作时间段和地点"""
+        role = self.identity.role
+        
+        if role in [Role.ELDER, Role.MERCHANT, Role.TEACHER, Role.STORYTELLER, Role.PLAYER]:
+            if 6 <= hour < 21:
+                return {"loc": "square", "name": "广场", "role": role.value}
+        elif role in [Role.BLACKSMITH, Role.CARPENTER]:
+            if 6 <= hour < 21:
+                return {"loc": "workshop", "name": "工坊", "role": role.value}
+        elif role in [Role.FORAGER, Role.FARMER]:
+            if 6 <= hour < 21:
+                return {"loc": "wilderness", "name": "荒野", "role": role.value}
+        elif role == Role.SCOUT:
+            if 6 <= hour < 21:
+                return {"loc": "wilderness", "name": "荒野", "role": role.value}
+        elif role == Role.HEALER:
+            if 6 <= hour < 21:
+                return {"loc": "school", "name": "学校", "role": role.value}
+        elif role == Role.MINER:
+            if 6 <= hour < 21:
+                return {"loc": "mine", "name": "矿洞", "role": role.value}
         return None
 
-    def _role(self, slot):
-        n = self.identity.name
-        role_actions = {
-            Role.ELDER: ("talk", f"{n}在广场给年轻人分享古老的故事和知识"),
-            Role.BLACKSMITH: ("work", f"{n}在工坊锻造工具，叮叮当当忙个不停"),
-            Role.CARPENTER: ("work", f"{n}在工坊制作木工家具，手艺精湛"),
-            Role.FORAGER: ("work", f"{n}在森林里采集食物和草药"),
-            Role.SCOUT: ("work", f"{n}在荒野探索未知的区域，绘制地图"),
-            Role.FARMER: ("work", f"{n}在田地里耕种庄稼，期待丰收"),
-            Role.MERCHANT: ("trade", f"{n}在广场摆摊，和居民们交易商品"),
-            Role.TEACHER: ("talk", f"{n}在广场教孩子们读书写字"),
-            Role.STORYTELLER: ("talk", f"{n}在广场给大家讲有趣的冒险故事"),
-            Role.HEALER: ("work", f"{n}在学校救治病人，配制药剂"),
-            Role.MINER: ("work", f"{n}在矿洞挖掘矿石，叮叮当当忙个不停"),
-            Role.PLAYER: ("observe", f"{n}在小镇里四处探索，发现新鲜事")
-        }
-        action_type, desc = role_actions.get(self.identity.role, ("work", f"{n}在工作"))
-        return {"type": action_type, "desc": desc, "target": ""}
-    
-    def _get_location_cn(self, location: str) -> str:
-        loc_map = {"square": "广场", "workshop": "工坊", "wilderness": "荒野", "school": "学校", "mine": "矿洞"}
-        return loc_map.get(location, location)
-
-    def add_goal(self, desc, priority=5.0, urgency=0.5):
-        self.goals.append(Goal(id=str(uuid.uuid4())[:8], description=desc, base_priority=priority, urgency=urgency))
+    def add_goal(self, description, priority=5, urgency=0.5):
+        g = Goal(id=str(uuid.uuid4())[:8], description=description, base_priority=priority, urgency=urgency)
+        self.goals.append(g)
 
     def top_goal(self):
         active = [g for g in self.goals if not g.completed]
-        return max(active, key=lambda g: g.base_priority + g.urgency * 10) if active else None
+        if not active:
+            return None
+        return max(active, key=lambda g: g.base_priority * g.urgency)
 
     def to_dict(self):
-        g = self.top_goal()
         return {
             "id": self.identity.id,
             "name": self.identity.name,
             "role": self.identity.role.value,
-            "role_cn": self._get_role_cn(self.identity.role.value),
-            "energy": round(self.state.energy, 1),
+            "role_cn": self.get_role_cn(self.identity.role.value),
+            "location": self.state.location,
+            "location_cn": self.get_location_cn(self.state.location),
+            "energy": self.state.energy,
             "mood": self.state.mood.value,
             "gold": self.state.gold,
-            "location": self.state.location,
-            "location_cn": self._get_location_cn(self.state.location),
-            "goal": g.description if g else "暂无目标",
-            "knowledge_count": len(self.knowledge),
             "food": self.state.food,
-            "hunger": round(self.state.hunger, 1),
+            "hunger": self.state.hunger,
+            "action_points": self.state.ap,
+            "max_ap": self.state.ap_max,
+            "social_ties": self.state.social_ties,
+            "current_task": self.state.current_task.description if self.state.current_task else None,
+            "traits": self.identity.traits,
+            "skills": self.identity.skills,
             "personality": self.identity.personality,
-            "social_ties": {k: round(v, 1) for k, v in self.state.social_ties.items()},
-            "ap": self.state.ap,
-            "ap_max": self.state.ap_max
+            "faction_id": self.state.faction_id,
+            "goals": [{"description": g.description, "completed": g.completed} for g in self.goals],
+            "diary": self.diary[-10:] if self.diary else []
         }
 
-    def _get_role_cn(self, role: str) -> str:
+    def get_role_cn(self, role: str) -> str:
         role_map = {
             "elder": "长者", "blacksmith": "铁匠", "carpenter": "木匠",
             "forager": "采集者", "scout": "侦察兵", "merchant": "商人",
@@ -338,11 +316,18 @@ class Agent:
         }
         return role_map.get(role, role)
 
+    def get_location_cn(self, location: str) -> str:
+        """获取地点中文名（与 world.locations 唯一来源对齐）"""
+        loc_map = {
+            "square": "广场", "workshop": "工坊", "wilderness": "荒野",
+            "school": "学校", "mine": "矿洞",
+        }
+        return loc_map.get(location, location)
+
 def populate_agents():
     agents = []
     agent_data = [
         # id, name, role, traits, location, gold, personality
-        # personality: extraversion, conscientiousness, openness, agreeableness, stability
         ("agent_elder", "梅奶奶", Role.ELDER, ["wise", "social", "patient"], "square", 30,
          {"extraversion": 0.6, "conscientiousness": 0.7, "openness": 0.5, "agreeableness": 0.9, "stability": 0.8}),
         ("agent_blacksmith", "铁匠托林", Role.BLACKSMITH, ["diligent", "proud", "honest"], "workshop", 50,
@@ -372,11 +357,13 @@ def populate_agents():
         a = Agent(AgentIdentity(id=aid, name=name, role=role, traits=traits, personality=personality), location=loc)
         a.state.gold = gold
         agents.append(a)
+    
     # 初始化社交关系
     for a in agents:
         for b in agents:
             if a.identity.id != b.identity.id:
                 a.state.social_ties[b.identity.id] = 0.0
+    
     # 初始化目标
     goals_map = {
         "agent_elder": ("传承古老知识", 8, 0.3),
@@ -396,4 +383,5 @@ def populate_agents():
         if a.identity.id in goals_map:
             desc, pri, urg = goals_map[a.identity.id]
             a.add_goal(desc, pri, urg)
+    
     return agents

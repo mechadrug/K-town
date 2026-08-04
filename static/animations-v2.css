@@ -1,0 +1,286 @@
+﻿/* ========================================
+   K-town v2.0 — 动画与特效
+   Phase 2: 生命力注入
+   ======================================== */
+
+/* === 天气动画 === */
+@keyframes rain-fall {
+  0% { transform: translateY(-20px); opacity: 0; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(550px); opacity: 0; }
+}
+
+@keyframes snow-fall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.6; }
+  100% { transform: translateY(560px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes cloud-drift {
+  0% { transform: translateX(-50px); }
+  50% { transform: translateX(50px); }
+  100% { transform: translateX(-50px); }
+}
+
+@keyframes wind-blow {
+  0% { transform: translateX(-100px); opacity: 0; }
+  20% { opacity: 0.3; }
+  80% { opacity: 0.3; }
+  100% { transform: translateX(200px); opacity: 0; }
+}
+
+.raindrop {
+  animation: rain-fall 0.8s linear infinite;
+}
+
+.snowflake {
+  animation: snow-fall 4s linear infinite;
+}
+
+.cloud-drift {
+  animation: cloud-drift 20s ease-in-out infinite;
+}
+
+.wind-line {
+  animation: wind-blow 2s ease-in-out infinite;
+}
+
+/* === 场景动画 === */
+@keyframes smoke-rise {
+  0% { transform: translateY(0) scale(1); opacity: 0.3; }
+  50% { transform: translateY(-20px) scale(1.5); opacity: 0.2; }
+  100% { transform: translateY(-40px) scale(2); opacity: 0; }
+}
+
+@keyframes tree-sway {
+  0%, 100% { transform: rotate(-1deg); transform-origin: bottom center; }
+  50% { transform: rotate(1.5deg); transform-origin: bottom center; }
+}
+
+@keyframes sparkle-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.8); }
+}
+
+@keyframes river-flow {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -20; }
+}
+
+.smoke-puff {
+  animation: smoke-rise 3s ease-out infinite;
+}
+
+.tree-sway {
+  animation: tree-sway 3s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.sparkle {
+  animation: sparkle-pulse 2s ease-in-out infinite;
+}
+
+.river-flow {
+  stroke-dasharray: 10, 5;
+  animation: river-flow 2s linear infinite;
+}
+
+/* === Agent 动画 === */
+@keyframes agent-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes agent-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes aura-pulse {
+  0%, 100% { opacity: 0.15; r: 14; }
+  50% { opacity: 0.3; r: 18; }
+}
+
+@keyframes label-fade-in {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 0.9; transform: translateY(0); }
+}
+
+.agent-body {
+  animation: agent-breathe 2s ease-in-out infinite;
+}
+
+.agent-token:hover .agent-body {
+  animation: agent-bounce 0.5s ease-in-out infinite;
+}
+
+.agent-aura {
+  animation: aura-pulse 2.5s ease-in-out infinite;
+}
+
+.agent-label-bg {
+  animation: label-fade-in 0.3s ease;
+}
+
+/* === 行走动画（移动时添加） === */
+@keyframes walk-cycle {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2px) rotate(-2deg); }
+  75% { transform: translateY(-2px) rotate(2deg); }
+}
+
+.agent-walking .agent-body {
+  animation: walk-cycle 0.4s ease-in-out infinite;
+}
+
+/* === 地点光晕 === */
+@keyframes loc-glow-pulse {
+  0%, 100% { opacity: 0.06; }
+  50% { opacity: 0.12; }
+}
+
+.loc-glow {
+  animation: loc-glow-pulse 4s ease-in-out infinite;
+}
+
+/* === 昼夜过渡 === */
+#sky {
+  transition: fill 2s ease;
+}
+
+/* === 事件卡片分类颜色 === */
+.event-item.positive { 
+  border-left-color: #7CB342; 
+  background: linear-gradient(90deg, rgba(124,179,66,0.06), transparent);
+}
+.event-item.negative { 
+  border-left-color: #E57373; 
+  background: linear-gradient(90deg, rgba(229,115,115,0.06), transparent);
+}
+.event-item.social { 
+  border-left-color: #BA68C8; 
+  background: linear-gradient(90deg, rgba(186,104,200,0.06), transparent);
+}
+.event-item.player-related { 
+  border-left-color: #FFB74D; 
+  background: linear-gradient(90deg, rgba(255,183,77,0.08), transparent);
+}
+.event-item.info { 
+  border-left-color: #64B5F6; 
+  background: linear-gradient(90deg, rgba(100,181,246,0.04), transparent);
+}
+
+/* === 通知动画增强 === */
+@keyframes toastSlideIn {
+  from { transform: translateX(120%) scale(0.8); opacity: 0; }
+  to { transform: translateX(0) scale(1); opacity: 1; }
+}
+
+@keyframes toastSlideOut {
+  from { transform: translateX(0) scale(1); opacity: 1; }
+  to { transform: translateX(120%) scale(0.8); opacity: 0; }
+}
+
+@keyframes toastIconBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.toast {
+  animation: toastIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toast.toast-out {
+  animation: toastOut 0.3s ease forwards;
+}
+
+.toast-icon {
+  animation: toastIconBounce 0.5s ease;
+}
+
+/* === 进度条动画 === */
+@keyframes barPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.stat-bar-fill {
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-bar-fill.low {
+  animation: barPulse 1.5s ease-in-out infinite;
+}
+
+/* === 按钮涟漪效果 === */
+.action-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 0; height: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.action-btn:active::after {
+  width: 200px; height: 200px;
+}
+
+/* === 面板入场动画 === */
+@keyframes panelSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.panel {
+  animation: panelSlideIn 0.4s ease;
+}
+
+/* === 滚动条美化 === */
+.event-list::-webkit-scrollbar { width: 4px; }
+.event-list::-webkit-scrollbar-track { background: transparent; }
+.event-list::-webkit-scrollbar-thumb { background: var(--earth-200); border-radius: 2px; }
+
+/* === 夜晚特殊效果 === */
+body.theme-night .agent-aura {
+  opacity: 0.08;
+}
+
+body.theme-night .loc-glow {
+  fill: rgba(255,255,255,0.03);
+}
+
+/* === 移动端优化 === */
+@media (max-width: 768px) {
+  .action-btn::after {
+    display: none;
+  }
+  
+  .toast-container {
+    right: 8px;
+    left: 8px;
+    top: 56px;
+  }
+  
+  .toast {
+    font-size: 0.8em;
+    padding: 8px 12px;
+  }
+}
+
+/* === 减少动画偏好 === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
