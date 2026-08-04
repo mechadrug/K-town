@@ -137,6 +137,9 @@
       <button class="action-btn primary" onclick="doWork('work')" title="在当前地点工作，赚取金币（消耗 1 行动力）">
         <span class="btn-icon">🛠️</span> 工作
       </button>
+      <button class="action-btn" onclick="doInvestigate()" title="调查当前地点（消耗 2 行动力），可能发现线索或知识">
+        <span class="btn-icon">🔍</span> 调查
+      </button>
       <button class="action-btn" onclick="doRest()" title="睡觉，结束今天（进入新的一天，行动力重置）">
         <span class="btn-icon">🛏️</span> 休息
       </button>
@@ -199,7 +202,7 @@
         <div class="guide-step"><span class="step-num">1</span> 看小镇：右侧「小镇脉搏」显示此刻谁在哪、谁不开心</div>
         <div class="guide-step"><span class="step-num">2</span> 认识居民：点地图上的人，看他的档案（目标/心情/日记）</div>
         <div class="guide-step"><span class="step-num">3</span> 交个朋友：在档案里点「对话」，和他聊聊（有真后果）</div>
-        <div class="guide-step"><span class="step-num">4</span> 开始生活：底部动作栏移动/工作/休息，每次消耗行动力（AP，每天 12 点，顶栏 🎯 显示剩余）</div>
+        <div class="guide-step"><span class="step-num">4</span> 开始生活：底部动作栏移动/工作/调查/休息，每次消耗行动力（AP，每天 12 点，顶栏 🎯 显示剩余）。调查会发现线索</div>
       </div>
       <button class="guide-btn" onclick="closeGuide()">开始体验</button>
     </div>

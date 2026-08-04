@@ -1976,9 +1976,21 @@ class TickEngine:
 
             agent.state.energy -= 3
 
-            self.knowledge.observe(agent.identity.id, "investigate", f"在{loc_cn}调查了周围的情况", agent.state.location)
-
-            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查周围环境")
+            # 调查：可能发现当前地点的线索/知识（末世遗迹伏笔的入口）
+            if random.random() < 0.4:
+                discoveries = {
+                    "wilderness": "荒野的草丛里似乎有被踩踏的痕迹",
+                    "mine": "矿洞深处的岩壁上刻着古老的符号",
+                    "square": "广场石碑上刻着看不懂的纹路",
+                    "workshop": "工坊旧炉子里藏着半张发黄的图纸",
+                    "school": "学校书架里夹着一本没见过的旧书",
+                }
+                claim = discoveries.get(agent.state.location, f"在{loc_cn}发现了不寻常的痕迹")
+                self.knowledge.observe(agent.identity.id, "investigate", claim, agent.state.location, confidence=0.7)
+                self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查，发现了线索：「{claim}」")
+            else:
+                self.knowledge.observe(agent.identity.id, "investigate", f"在{loc_cn}仔细调查了一遍", agent.state.location, confidence=0.5)
+                self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查了周围的环境，暂时没有特别发现")
 
         elif t == "observe":
 

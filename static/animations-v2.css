@@ -115,6 +115,16 @@
   animation: agent-bounce 0.5s ease-in-out infinite;
 }
 
+/* 持久 token：移动平滑过渡 + 动作反馈 */
+.agent-token {
+  transition: transform 0.4s ease;
+  will-change: transform;
+  cursor: pointer;
+}
+.agent-token.agent-acting {
+  animation: agent-bounce 0.5s ease;
+}
+
 .agent-aura {
   animation: aura-pulse 2.5s ease-in-out infinite;
 }

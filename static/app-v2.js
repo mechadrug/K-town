@@ -12,6 +12,13 @@
   var activeTab = 'events';
   var ICONS = window.KTownIcons || {};
 
+  // 知识主题 → 中文（知识视图不再显示英文键）
+  var SUBJECT_CN = {
+    weather: '天气', resource: '资源', social: '社交', craft: '手艺',
+    rumor: '传闻', investigate: '调查', skill: '技能', observation: '观察',
+    knowledge: '知识', investigation: '调查'
+  };
+
   // ===== 初始化 =====
   document.addEventListener('DOMContentLoaded', function() {
     TownMapV2.init(document.getElementById('map-canvas'));
@@ -168,7 +175,7 @@
       var html = '<div class="pulse-row">';
       locs.forEach(function(l) {
         var lvl = levels[l] || 1;
-        html += '<span class="pulse-loc" title="' + getLocationCn(l) + '（修缮等级 Lv' + lvl + '）"><span class="pulse-loc-icon">' + getLocationIcon(l) + '</span>Lv' + lvl + '·' + (counts[l] || 0) + '</span>';
+        html += '<span class="pulse-loc" title="' + getLocationCn(l) + '（修缮至 ' + lvl + ' 级）"><span class="pulse-loc-icon">' + getLocationIcon(l) + '</span>' + lvl + '级·' + (counts[l] || 0) + '</span>';
       });
       html += '</div>';
       locsEl.innerHTML = html;
@@ -323,7 +330,7 @@
     // 按主题聚类成"知识流"：同主题下看它如何产生→传播→固化/冲突
     var groups = {};
     claims.forEach(function(c) {
-      var key = c.subject || '其他';
+      var key = SUBJECT_CN[c.subject] || c.subject || '其他';
       (groups[key] = groups[key] || []).push(c);
     });
 
@@ -693,6 +700,18 @@
     playSound('rest');
   }
 
+  function doInvestigate() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'investigate' }
+    }));
+    playSound('investigate');
+  }
+
   function addKnowledge() {
     var claim = prompt('输入你想添加到小镇知识库的内容：');
     if (!claim || !claim.trim()) return;
@@ -731,6 +750,7 @@
         case '4': movePlayer('school'); break;
         case '5': movePlayer('mine'); break;
         case 'w': case 'W': doWork('work'); break;
+        case 'i': case 'I': doInvestigate(); break;
         case 'r': case 'R': doRest(); break;
         case 'k': case 'K': addKnowledge(); break;
         case 'Escape': closeDialogue(); closeProfile(); hideLocationPanel(); break;
@@ -879,6 +899,7 @@
   window.movePlayer = movePlayer;
   window.doWork = doWork;
   window.doRest = doRest;
+  window.doInvestigate = doInvestigate;
   window.addKnowledge = addKnowledge;
   window.resetSimulation = resetSimulation;
   window.toggleSound = toggleSound;

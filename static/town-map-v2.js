@@ -359,15 +359,10 @@ window.TownMapV2 = (function() {
     svg.appendChild(g);
   }
 
-  // ===== Agent 绘制 =====
-  function drawAgent(agent) {
+  // ===== Agent 绘制（持久 token + 平滑动画）=====
+  function agentPos(agent) {
     var loc = LOCATIONS[agent.location];
-    if (!loc) return;
-
-    var color = AGENT_COLORS[agent.id] || "#888";
-    var moodColor = MOOD_COLORS[agent.mood] || "#FFB74D";
-    
-    // 计算在地点附近的位置（基于 agent id 确定性散列）
+    if (!loc) return {x: 500, y: 300};
     var hash = 0;
     for (var i = 0; i < agent.id.length; i++) {
       hash = ((hash << 5) - hash) + agent.id.charCodeAt(i);
@@ -375,90 +370,107 @@ window.TownMapV2 = (function() {
     }
     var offsetX = ((hash % 100) / 100 - 0.5) * (loc.width * 0.6);
     var offsetY = (((hash >> 8) % 100) / 100 - 0.5) * (loc.height * 0.3);
-    var cx = loc.x + offsetX;
-    var cy = loc.y + offsetY + 25;
+    return {x: loc.x + offsetX, y: loc.y + offsetY + 25};
+  }
 
-    var g = el("g", {className: "agent-token", "data-id": agent.id});
+  function drawAgent(agent) {
+    var loc = LOCATIONS[agent.location];
+    if (!loc) return;
+    var pos = agentPos(agent);
+    var color = AGENT_COLORS[agent.id] || "#888";
+    var moodColor = MOOD_COLORS[agent.mood] || "#FFB74D";
+    var name = agent.name || agent.id;
 
-    // 名字标签背景
-    var labelBg = el("rect", {
-      x: cx - 24, y: cy - 30, width: 48, height: 16, rx: 8,
+    // 注意：SVG 用 class 属性，className 不生效（el 已按 setAttribute 处理）
+    var g = el("g", {"class": "agent-token", "data-id": agent.id});
+    g.style.transform = "translate(" + pos.x + "px, " + pos.y + "px)";
+
+    // 名字标签（宽度自适应完整姓名，不再截断）
+    var labelW = Math.max(48, name.length * 8 + 10);
+    g.appendChild(el("rect", {
+      x: -labelW / 2, y: -30, width: labelW, height: 16, rx: 8,
       fill: "var(--panel-bg)", stroke: color, "stroke-width": 1.5,
-      className: "agent-label-bg", opacity: 0.9
-    });
-    g.appendChild(labelBg);
-
-    // 名字文字
+      "class": "agent-label-bg", opacity: 0.9
+    }));
     var labelText = el("text", {
-      x: cx, y: cy - 19, "text-anchor": "middle", "font-size": "8",
+      x: 0, y: -19, "text-anchor": "middle", "font-size": "8",
       "font-weight": "600", fill: color
     });
-    labelText.textContent = (agent.name || "").slice(0, 4);
+    labelText.textContent = name;
     g.appendChild(labelText);
 
     // 心情光环（脉动）
-    var aura = el("circle", {
-      cx: cx, cy: cy, r: 14, fill: moodColor, opacity: 0.15,
-      className: "agent-aura"
-    });
-    g.appendChild(aura);
-
+    g.appendChild(el("circle", {cx: 0, cy: 0, r: 14, fill: moodColor, opacity: 0.15, "class": "agent-aura"}));
     // Agent 身体
-    var body = el("circle", {
-      cx: cx, cy: cy, r: 11,
-      fill: color, stroke: "white", "stroke-width": 2.5,
-      className: "agent-body"
-    });
-    g.appendChild(body);
-
+    g.appendChild(el("circle", {cx: 0, cy: 0, r: 11, fill: color, stroke: "white", "stroke-width": 2.5, "class": "agent-body"}));
     // 心情表情
-    var faceText = el("text", {
-      x: cx, y: cy + 4, "text-anchor": "middle", "font-size": "9"
-    });
+    var faceText = el("text", {x: 0, y: 4, "text-anchor": "middle", "font-size": "9", "class": "agent-face"});
     faceText.textContent = MOOD_EMOJI[agent.mood] || "😐";
     g.appendChild(faceText);
-
     // 工作状态指示器
     if (agent.current_task) {
-      var taskIndicator = el("circle", {
-        cx: cx + 10, cy: cy - 10, r: 4,
-        fill: "#FFB74D", stroke: "white", "stroke-width": 1.5,
-        className: "task-indicator"
-      });
-      g.appendChild(taskIndicator);
+      g.appendChild(el("circle", {cx: 12, cy: -12, r: 4, fill: "#FFB74D", stroke: "white", "stroke-width": 1.5, "class": "task-indicator"}));
     }
 
     // 点击事件
     g.addEventListener("click", function(e) {
       e.stopPropagation();
-      if (window.AppV2 && window.AppV2.onAgentClick) {
-        window.AppV2.onAgentClick(agent);
-      }
+      if (window.AppV2 && window.AppV2.onAgentClick) window.AppV2.onAgentClick(agent);
     });
 
     svg.appendChild(g);
-    agentTokens[agent.id] = {element: g, cx: cx, cy: cy, agent: agent};
+    agentTokens[agent.id] = {element: g, pos: pos, mood: agent.mood, task: agent.current_task || ""};
   }
 
-  // ===== 更新 Agent 位置 =====
+  function updateTokenVisual(g, agent) {
+    var aura = g.querySelector(".agent-aura");
+    var body = g.querySelector(".agent-body");
+    var face = g.querySelector(".agent-face");
+    var moodColor = MOOD_COLORS[agent.mood] || "#FFB74D";
+    if (aura) aura.setAttribute("fill", moodColor);
+    if (body) body.setAttribute("fill", AGENT_COLORS[agent.id] || "#888");
+    if (face) face.textContent = MOOD_EMOJI[agent.mood] || "😐";
+    var ind = g.querySelector(".task-indicator");
+    if (agent.current_task && !ind) {
+      g.appendChild(el("circle", {cx: 12, cy: -12, r: 4, fill: "#FFB74D", stroke: "white", "stroke-width": 1.5, "class": "task-indicator"}));
+    } else if (!agent.current_task && ind) {
+      g.removeChild(ind);
+    }
+  }
+
+  // ===== 更新 Agent 位置（持久 token + 平滑移动 + 动作反馈）=====
   function updateAgentPositions(agents) {
     var newIds = {};
     agents.forEach(function(a) { newIds[a.id] = true; });
-    // 清理已离场的 agent token
+    // 清理已离场的 token
     for (var id in agentTokens) {
       if (!newIds[id] && agentTokens[id] && agentTokens[id].element && agentTokens[id].element.parentNode) {
         agentTokens[id].element.parentNode.removeChild(agentTokens[id].element);
         delete agentTokens[id];
       }
     }
-    // 更新仍在场的 agent token
-    for (var id in agentTokens) {
-      if (agentTokens[id] && agentTokens[id].element && agentTokens[id].element.parentNode) {
-        agentTokens[id].element.parentNode.removeChild(agentTokens[id].element);
+    // 更新/新建 token（不再全量重建，移动由 CSS transition 平滑过渡）
+    agents.forEach(function(a) {
+      var tok = agentTokens[a.id];
+      var pos = agentPos(a);
+      if (tok && tok.element) {
+        if (tok.pos && (tok.pos.x !== pos.x || tok.pos.y !== pos.y)) {
+          tok.element.style.transform = "translate(" + pos.x + "px, " + pos.y + "px)";
+        }
+        tok.pos = pos;
+        // 任务变化 → 动作反馈动画（工作/调查等）
+        var newTask = a.current_task || "";
+        if (newTask !== tok.task) {
+          tok.element.classList.remove("agent-acting");
+          void tok.element.getBoundingClientRect();
+          tok.element.classList.add("agent-acting");
+          tok.task = newTask;
+        }
+        updateTokenVisual(tok.element, a);
+      } else {
+        drawAgent(a);
       }
-    }
-    agentTokens = {};
-    agents.forEach(function(a) { drawAgent(a); });
+    });
   }
 
   // ===== 天气系统 =====
