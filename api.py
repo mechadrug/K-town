@@ -66,9 +66,6 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "player": player,
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers],
             "factions": tick_engine.faction_system.factions if hasattr(tick_engine, "faction_system") else {},
-            "era": tick_engine.town_evolution.current_era if hasattr(tick_engine, "town_evolution") else "宁静村庄",
-            "player_influence": tick_engine.player_influence.to_dict() if hasattr(tick_engine, "player_influence") else {},
-            "narrative_summary": tick_engine.narrative.get_daily_summary(tick_engine.current_day) if hasattr(tick_engine, "narrative") else "",
             "location_levels": world.state.location_levels
         }
 
@@ -555,6 +552,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         agent_ids = [a.identity.id for a in agents]
 
         tick_engine.scheduler.generate_daily_schedule(1, agent_ids, world)
+
+        # 重新生成每日目标
+
+        if hasattr(tick_engine, 'quest_engine') and tick_engine.quest_engine:
+            tick_engine.quest_engine.generate_daily_goals(1)
 
         return {"status":"ok", "result": "模拟已重置"}
 

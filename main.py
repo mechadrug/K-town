@@ -49,9 +49,15 @@ def init_system():
 
     engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.rate, cfg.tick.day_length, db=storage)
 
+    # 知识持久化：新知识写穿到 knowledge_pool；并尝试断点恢复（关闭自动重置时生效）
+    knowledge.persistence = storage
+    knowledge.load_from_db(storage.get_knowledge_pool())
+
     # 初始化任务系统
     quest_engine = QuestEngine()
     engine.quest_engine = quest_engine
+    # 第 1 天启动即生成每日目标（此后每天日结时重新生成）
+    quest_engine.generate_daily_goals(1)
 
     # 初始化对话系统
     dialogue_sys = DialogueSystem()

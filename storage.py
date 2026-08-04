@@ -422,6 +422,36 @@ class Storage:
 
     # ------------------------------------------------------------------ 元数据
 
+    def get_knowledge_pool(self) -> List[dict]:
+        """获取知识池全部知识（用于引擎断点恢复 / 审计）"""
+        try:
+            rows = self.conn.execute("SELECT * FROM knowledge_pool").fetchall()
+        except Exception:
+            return []
+        return [self._knowledge_row_to_dict(r) for r in rows]
+
+    @staticmethod
+    def _knowledge_row_to_dict(r: sqlite3.Row) -> dict:
+        return {
+            "id": r["id"],
+            "subject": r["subject"],
+            "claim": r["claim"],
+            "source": r["source"],
+            "confidence": r["confidence"],
+            "scope": r["scope"],
+            "created_by": r["created_by"],
+            "location": r["location"],
+            "actionable": bool(r["actionable"]),
+            "action_type": r["action_type"],
+            "action_target": r["action_target"],
+            "emotional_valence": r["emotional_valence"],
+            "target_agent_ids": json.loads(r["target_agent_ids"]) if r["target_agent_ids"] else [],
+            "solidified": bool(r["solidified"]),
+            "version": r["version"],
+            "contradicted_by": json.loads(r["contradicted_by"]) if r["contradicted_by"] else [],
+            "created_at": r["created_at"],
+        }
+
     def set_meta(self, key: str, value: Any) -> None:
         self.conn.execute(
             "INSERT OR REPLACE INTO town_meta (key, value, updated_at) VALUES (?, ?, ?)",

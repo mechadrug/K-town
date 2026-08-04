@@ -3,13 +3,59 @@ import random,time,uuid
 from typing import Dict,List,Optional,Any
 from models import KnowledgeClaim,ClaimSource,ClaimScope
 
+def claim_to_dict(c: KnowledgeClaim) -> Dict[str, Any]:
+    """KnowledgeClaim → 可持久化字典（storage.add_knowledge / knowledge_pool）"""
+    return {
+        "id": c.id, "subject": c.subject, "claim": c.claim,
+        "source": c.source.value, "confidence": c.confidence, "scope": c.scope.value,
+        "created_by": c.created_by, "location": c.location,
+        "actionable": c.actionable, "action_type": c.action_type, "action_target": c.action_target,
+        "emotional_valence": c.emotional_valence,
+        "solidified": c.solidified, "version": c.version,
+        "created_at": c.created_at, "contradicted_by": c.contradicted_by,
+    }
+
+
 class KnowledgeEngine:
-    def __init__(self):
+    def __init__(self, persistence: Any = None):
         self.claims = {}  # 知识ID -> 知识对象
         self.agent_claims = {}  # Agent ID -> 知识ID列表
         self.subject_index = {}  # 主题 -> 知识ID列表
         self.location_index = {}  # 位置 -> 知识ID列表
         self.version_history = {}  # 知识ID -> 历史版本列表
+        # 可选的持久化钩子（传入 storage.Storage 后，新知识写穿到 knowledge_pool）
+        self.persistence = persistence
+
+    def _persist(self, claim: KnowledgeClaim) -> None:
+        """将新知识写穿到知识池（持久化钩子；失败不影响内存态）"""
+        if self.persistence is not None:
+            try:
+                self.persistence.add_knowledge(claim_to_dict(claim))
+            except Exception:
+                pass
+
+    def load_from_db(self, rows: List[Dict[str, Any]]) -> int:
+        """从知识池加载历史知识，重建内存索引。返回加载条数。"""
+        count = 0
+        for r in rows:
+            try:
+                c = KnowledgeClaim(
+                    id=r["id"], subject=r["subject"], claim=r["claim"],
+                    source=ClaimSource(r["source"]), confidence=r["confidence"],
+                    scope=ClaimScope(r["scope"]), created_by=r["created_by"],
+                    location=r["location"], actionable=bool(r["actionable"]),
+                    action_type=r["action_type"], action_target=r["action_target"],
+                    emotional_valence=r["emotional_valence"],
+                    solidified=bool(r["solidified"]), version=r["version"],
+                    contradicted_by=r["contradicted_by"], created_at=r["created_at"],
+                )
+                self.claims[c.id] = c
+                self.agent_claims.setdefault(c.created_by, []).append(c.id)
+                self._update_index(c)
+                count += 1
+            except Exception:
+                continue
+        return count
 
     def observe(self, agent_id, subject, claim_text, location, confidence=0.6):
         """观察创建新知识，自动检测冲突"""
@@ -30,6 +76,7 @@ class KnowledgeEngine:
         if conflicting:
             for conflict_id in conflicting:
                 self.dispute(c.id, conflict_id)
+        self._persist(c)
         return c
 
     def observe_with_action(self, agent_id, subject, claim_text, location,
@@ -53,6 +100,7 @@ class KnowledgeEngine:
         self.claims[c.id] = c
         self.agent_claims.setdefault(agent_id, []).append(c.id)
         self._update_index(c)
+        self._persist(c)
         return c
 
     def get_actionable_knowledge(self, agent_id: str) -> List[KnowledgeClaim]:
@@ -134,6 +182,7 @@ class KnowledgeEngine:
         self.claims[p.id] = p
         self.agent_claims.setdefault(to_agent, []).append(p.id)
         self._update_index(p)
+        self._persist(p)
         return p
 
     def dispute(self, claim_id, counter_id):

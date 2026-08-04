@@ -20,11 +20,7 @@ from storage import Storage
 
 from factions import FactionSystem
 
-from town_evolution import TownEvolution, PlayerInfluence
-from achievements import AchievementEngine
 from trade import TradeMarket
-
-from narrative import NarrativeEngine
 
 
 
@@ -65,14 +61,7 @@ class TickEngine:
 
         self.faction_system = FactionSystem()
 
-        self.narrative = NarrativeEngine()
-
-        self.achievement_engine = AchievementEngine()
         self.trade_market = TradeMarket()
-
-        self.town_evolution = TownEvolution()
-
-        self.player_influence = PlayerInfluence()
 
         self.player_actions_count = 0
 
