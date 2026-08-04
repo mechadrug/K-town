@@ -49,10 +49,9 @@ class EventScheduler:
     def generate_daily_schedule(self, day, agent_ids, world):
         # 一天 20 小时（世界观：地球转速变慢），事件排布在清醒时段（清晨5点至傍晚16点）
         base = (day-1)*20
-        # 清晨6点更新天气
-        w = ["clear","cloudy","rainy","snowy","windy"]
-        weights = [0.5, 0.2, 0.15, 0.1, 0.05]
-        weather = random.choices(w, weights=weights, k=1)[0]
+        # 清晨天气：与 world.advance 共用同一来源（避免双随机不一致）
+        # 实际天气由 world._change_weather 在 tick%20==6 决定，此处仅调度播报事件
+        weather = world.state.weather if world and hasattr(world, 'state') else "clear"
         self.bus.schedule(Event(tick=base+6, type=EventType.WEATHER_CHANGE, location="square", payload={"weather": weather}), base+6)
 
         # 天气影响事件：根据天气影响工作效率

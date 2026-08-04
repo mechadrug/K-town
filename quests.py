@@ -81,12 +81,12 @@ class QuestEngine:
         for g in self.daily_goals:
             if g.completed:
                 continue
+            # "赚取金币"目标：由任意动作的净收入推进（此前无动作映射到 earn，永远完不成）
+            if g.type == "earn" and gold_earned > 0:
+                g.progress += gold_earned
             # "劳作"也计入"采集"目标（玩家在荒野劳作即采集）
-            if goal_type == g.type or (goal_type == "work" and g.type == "gather"):
-                if g.type == "earn":
-                    g.progress += max(0, gold_earned)
-                else:
-                    g.progress += 1
+            elif goal_type == g.type or (goal_type == "work" and g.type == "gather"):
+                g.progress += 1
             if g.progress >= g.target:
                 g.completed = True
                 rewards += g.reward

@@ -5,8 +5,6 @@
   // ===== 状态 =====
   var currentState = null;
   var ws = null;
-  var visitedLocations = new Set();
-  var talkedAgents = new Set();
   var currentDialogueAgent = null;
   var soundEnabled = true;
   var activeTab = 'events';
@@ -137,26 +135,9 @@
     setText('stat-gold', player.gold != null ? player.gold : 0);
     setText('stat-energy', Math.round(player.energy != null ? player.energy : 100));
     setText('stat-ap', player.action_points != null ? player.action_points : 12);
-    setText('stat-ap-max', 12);
-    setText('player-location', getLocationCn(player.location));
-
-    var energyPct = Math.min(100, Math.max(0, player.energy != null ? player.energy : 100));
-    var apPct = Math.min(100, Math.max(0, ((player.action_points != null ? player.action_points : 12) / 12) * 100));
-    
-    var energyBar = document.getElementById('energy-bar');
-    var apBar = document.getElementById('ap-bar');
-    if (energyBar) energyBar.style.width = energyPct + '%';
-    if (apBar) apBar.style.width = apPct + '%';
-    
-    if (energyBar) {
-      if (energyPct < 30) energyBar.classList.add('low');
-      else energyBar.classList.remove('low');
-    }
-    
-    setText('energy-value', Math.round(energyPct));
-    var apLabel = (player.action_points != null ? player.action_points : 12) + '/12';
-    if ((player.night_ap || 0) > 0) apLabel += ' 🌙' + player.night_ap;
-    setText('ap-value', apLabel);
+    // AP 上限 12；有十三时夜间行动力时显示 🌙（独立池）
+    var nightAp = player.night_ap || 0;
+    setText('stat-ap-max', 12 + (nightAp > 0 ? '🌙' + nightAp : ''));
 
     // 十三时：夜间行动力 > 0 时高亮提示（可夜行探索）
     var apStatEl = document.querySelector('.topbar-stat.ap');
@@ -233,7 +214,7 @@
         return (b.created_at || 0) - (a.created_at || 0);
       }).slice(0, 2);
       if (claims.length > 0) {
-        knEl.innerHTML = claims.map(function(c) { return '💬 “' + c.claim + '”'; }).join('<br>');
+        knEl.innerHTML = claims.map(function(c) { return '💬 “' + esc(c.claim) + '”'; }).join('<br>');
       } else {
         knEl.innerHTML = '<span style="color:var(--text-muted)">尚无流传</span>';
       }
@@ -301,7 +282,7 @@
     item.innerHTML = 
       '<span class="event-icon">' + (evt.icon || '📋') + '</span>' +
       '<div class="event-content">' +
-        '<div class="event-text">' + (evt.text || '') + '</div>' +
+        '<div class="event-text">' + esc(evt.text) + '</div>' +
         (time ? '<div class="event-time">' + time + '</div>' : '') +
       '</div>';
 
@@ -310,11 +291,6 @@
     while (list.children.length > 8) {
       list.removeChild(list.lastChild);
     }
-  }
-
-  function clearEvents() {
-    var list = document.getElementById('event-list');
-    if (list) list.innerHTML = '<div class="placeholder-text">暂无动态</div>';
   }
 
   // ===== 任务系统 =====
@@ -392,7 +368,7 @@
       html += '<div class="knowledge-flow-body">';
       list.slice(0, 3).forEach(function(c) {
         var who = (c.source === 'conversation' || c.source === 'rumor') ? '传到' : '来自';
-        html += '<div class="knowledge-flow-line">💬 “' + (c.claim || '') + '”' +
+        html += '<div class="knowledge-flow-line">💬 “' + esc(c.claim) + '”' +
           '<span class="knowledge-flow-meta">' + who + ' ' + getAgentName(c.created_by || '') + ' · ' + Math.round((c.confidence || 0) * 100) + '%</span></div>';
       });
       if (list.length > 3) html += '<div class="knowledge-flow-more">… 另有 ' + (list.length - 3) + ' 条</div>';
@@ -406,44 +382,6 @@
       item.innerHTML = html;
       container.appendChild(item);
     });
-  }
-
-  // ===== 地点点击 =====
-  function onLocationClick(id, loc) {
-    var panel = document.getElementById('location-panel');
-    var title = document.getElementById('loc-panel-title');
-    var body = document.getElementById('loc-panel-body');
-    
-    if (!panel || !body) return;
-    
-    title.textContent = '📍 ' + loc.name;
-    
-    var agentsHere = (currentState.agents || []).filter(function(a) {
-      return a.location === id;
-    });
-    
-    var html = '<p style="font-size:0.8em;color:var(--text-muted);margin-bottom:10px">' + loc.desc + '</p>';
-    html += '<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:6px;font-weight:600">在场居民：</div>';
-    
-    if (agentsHere.length > 0) {
-      html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
-      agentsHere.forEach(function(a) {
-        var color = getAgentColor(a.id);
-        html += '<span style="background:' + color + '15;border:1px solid ' + color + '40;color:' + color + ';padding:3px 10px;border-radius:12px;font-size:0.75em;font-weight:500;cursor:pointer" onclick="openProfile(\'' + a.id + '\')">' + (a.name || a.id) + '</span>';
-      });
-      html += '</div>';
-    } else {
-      html += '<div style="font-size:0.8em;color:var(--text-muted)">暂时无人</div>';
-    }
-    
-    body.innerHTML = html;
-    panel.style.display = 'block';
-    playSound('click');
-  }
-
-  function hideLocationPanel() {
-    var panel = document.getElementById('location-panel');
-    if (panel) panel.style.display = 'none';
   }
 
   // ===== Agent 档案 =====
@@ -646,14 +584,13 @@
         respEl.className = 'dlg-message dlg-message-agent';
         var text = data.message || '……';
         if (data.success === false) showToast(text, 'error');
-        respEl.innerHTML = '<span>' + (agent.name || '居民') + '：' + text + '</span>';
+        respEl.innerHTML = '<span>' + esc(agent.name || '居民') + '：' + esc(text) + '</span>';
         messages.appendChild(respEl);
         messages.scrollTop = messages.scrollHeight;
         if (data.knowledge_gained) showToast('📚 ' + data.knowledge_gained, 'info');
         // 对话消耗 AP：即时更新顶栏显示（避免与实际不符）
         if (data.ap_remaining !== undefined) {
           setText('stat-ap', data.ap_remaining);
-          setText('ap-value', data.ap_remaining + '/12');
         }
       })
       .catch(function() {
@@ -718,7 +655,6 @@
       type: 'player_action',
       action: { type: 'move', target: dest }
     }));
-    visitedLocations.add(dest);
     playSound('move');
   }
 
@@ -817,7 +753,7 @@
         case 'i': case 'I': doInvestigate(); break;
         case 'r': case 'R': doRest(); break;
         case 'k': case 'K': addKnowledge(); break;
-        case 'Escape': closeDialogue(); closeProfile(); hideLocationPanel(); break;
+        case 'Escape': closeDialogue(); closeProfile(); break;
       }
     });
 
@@ -849,8 +785,8 @@
       '<span class="event-icon">📰</span>' +
       '<div class="event-content">' +
         '<div class="event-text" style="font-weight:600;color:var(--warm-500)">每日摘要</div>' +
-        '<div class="event-text" style="margin-top:4px">' + (summary.title || '') + '</div>' +
-        (summary.body ? '<div class="event-text" style="font-size:0.85em;color:var(--text-muted);margin-top:2px">' + summary.body + '</div>' : '') +
+        '<div class="event-text" style="margin-top:4px">' + esc(summary.title) + '</div>' +
+        (summary.body ? '<div class="event-text" style="font-size:0.85em;color:var(--text-muted);margin-top:2px">' + esc(summary.body) + '</div>' : '') +
       '</div>';
     list.insertBefore(item, list.firstChild);
   }
@@ -859,6 +795,13 @@
   function setText(id, text) {
     var el = document.getElementById(id);
     if (el) el.textContent = text;
+  }
+
+  // HTML 转义：innerHTML 拼接服务端/LLM 字符串前必须经过（防 XSS 与乱码）
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function getTimeOfDay(hour) {
@@ -955,7 +898,6 @@
 
   // ===== 公开 API =====
   window.AppV2 = {
-    onLocationClick: onLocationClick,
     onAgentClick: onAgentClick
   };
   

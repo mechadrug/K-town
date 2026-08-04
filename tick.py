@@ -1552,7 +1552,8 @@ class TickEngine:
 
         if event.type == EventType.WEATHER_CHANGE:
 
-            w = event.payload.get("weather", "unknown")
+            # 天气以 world.advance 的实时值唯一为准（事件载荷只是播报占位）
+            w = self.world.state.weather
 
             w_cn = self.world.get_weather_name(w) if w != "unknown" else "未知"
 
@@ -1839,6 +1840,11 @@ class TickEngine:
         """执行单个动作，真实改变世界状态。玩家与 NPC 共用同一动作管线。"""
 
         t = action.get("type", "")
+
+        # 归一化：craft/gather 类动作视为劳作（work 分支按职业产出金币/资源/知识）
+        # 修复：此前这些动作无分支，铁匠/木匠/采集者/农民/矿工的劳作是静默空操作
+        if t in ("craft_tool", "craft_furniture", "gather_food", "gather_material"):
+            t = "work"
 
         tgt = action.get("target", "")
 

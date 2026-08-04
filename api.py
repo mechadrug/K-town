@@ -461,6 +461,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 insight = tick_engine._check_insight(actor, claim_text)
                 if insight:
                     result = insight
+                # 每日目标：提交思考推进"传播知识"目标
+                if hasattr(tick_engine, 'quest_engine') and tick_engine.quest_engine:
+                    tick_engine.quest_engine.update_progress(actor, action_type="add_claim")
             logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
             return {"status": "ok", "result": result}
 
@@ -579,6 +582,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         bus.__init__()
 
         knowledge.__init__()
+
+        knowledge.persistence = logger  # 重设持久化钩子（__init__ 会清掉它）
 
         logger.__init__()
 
