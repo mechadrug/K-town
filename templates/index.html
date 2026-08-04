@@ -37,16 +37,7 @@
           <h2>\U0001f5fa\ufe0f \u5c0f\u9547\u5730\u56fe</h2>
           <span style="font-size:0.8em;color:var(--text-secondary)">\u70b9\u51fb\u5730\u70b9\u67e5\u770b\u8be6\u60c5</span>
         </div>
-        <div class="map-canvas" id="map-canvas">
-          <svg class="map-connections" width="100%" height="100%">
-            <line x1="50%" y1="30%" x2="20%" y2="25%"/>
-            <line x1="50%" y1="30%" x2="80%" y2="25%"/>
-            <line x1="50%" y1="30%" x2="22%" y2="70%"/>
-            <line x1="50%" y1="30%" x2="80%" y2="70%"/>
-            <line x1="20%" y1="25%" x2="22%" y2="70%"/>
-            <line x1="80%" y1="25%" x2="80%" y2="70%"/>
-          </svg>
-        </div>
+        <svg class="map-canvas" id="map-canvas"></svg>
       </div>
 
       <!-- Tabbed Content -->
@@ -162,7 +153,10 @@
     </div>
   </div>
 
+  <script src="/static/town-map.js"></script>
+  <script src="/static/sound.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/visualization.js"></script>
+  <div class="sound-toggle" id="soundToggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
 </body>
 </html>
