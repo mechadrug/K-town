@@ -134,14 +134,14 @@
     setText('weather-text', getWeatherName(data.weather));
     setText('weather-icon', getWeatherIcon(data.weather));
 
-    setText('stat-gold', player.gold || 0);
-    setText('stat-energy', Math.round(player.energy || 100));
-    setText('stat-ap', player.action_points || 12);
+    setText('stat-gold', player.gold != null ? player.gold : 0);
+    setText('stat-energy', Math.round(player.energy != null ? player.energy : 100));
+    setText('stat-ap', player.action_points != null ? player.action_points : 12);
     setText('stat-ap-max', 12);
     setText('player-location', getLocationCn(player.location));
 
-    var energyPct = Math.min(100, Math.max(0, player.energy || 100));
-    var apPct = Math.min(100, Math.max(0, ((player.action_points || 12) / (player.max_ap || 12)) * 100));
+    var energyPct = Math.min(100, Math.max(0, player.energy != null ? player.energy : 100));
+    var apPct = Math.min(100, Math.max(0, ((player.action_points != null ? player.action_points : 12) / 12) * 100));
     
     var energyBar = document.getElementById('energy-bar');
     var apBar = document.getElementById('ap-bar');
@@ -154,7 +154,7 @@
     }
     
     setText('energy-value', Math.round(energyPct));
-    var apLabel = (player.action_points || 12) + '/12';
+    var apLabel = (player.action_points != null ? player.action_points : 12) + '/12';
     if ((player.night_ap || 0) > 0) apLabel += ' 🌙' + player.night_ap;
     setText('ap-value', apLabel);
 
