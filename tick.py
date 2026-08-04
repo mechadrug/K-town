@@ -122,6 +122,8 @@ class TickEngine:
 
         self._gold_sink_actions = []  # 金币回收事件记录
 
+        self._upgrades_done = 0  # 小镇修缮次数（世界观：末世重建）
+
         # 自动重置
 
         if auto_reset:
@@ -433,6 +435,9 @@ class TickEngine:
             # 食物经济闭环：按当天饥饿程度记录需求（供>需价跌、需>供价涨）
             hungry = sum(1 for a in self.agents if a.state.hunger > 20)
             self.world.record_demand('food', max(1, hungry))
+
+            # 小镇重建（世界观：末世后居民合力修缮破旧建筑）
+            self._town_upgrade_check()
 
             # 新的一天：生成玩家每日目标
             if hasattr(self, 'quest_engine') and self.quest_engine:
@@ -896,6 +901,28 @@ class TickEngine:
                 self._daily_gold_sunk += fee
 
                 self._gold_sink_actions.append(f"{agent.identity.name}花费{fee}金币学习技能")
+
+    def _town_upgrade_check(self):
+        """小镇重建（世界观：几十万年后末世，居民合力修缮破旧建筑）"""
+        total_gold = sum(a.state.gold for a in self.agents)
+        threshold = 100 * (self._upgrades_done + 1) ** 2
+        if total_gold < threshold:
+            return
+        upgradable = [loc for loc, lvl in self.world.state.location_levels.items() if lvl < 5]
+        if not upgradable:
+            return
+        loc = random.choice(upgradable)
+        self.world.state.location_levels[loc] += 1
+        self._upgrades_done += 1
+        # 修缮后资源更丰（镇民合力投入）
+        for res, amt in self.world.resources.get(loc, {}).items():
+            self.world.resources[loc][res] = amt + 5
+        loc_cn = self.world.locations.get(loc, {}).get("name", loc)
+        self.current_day_events.append(
+            {"type": "building_upgrade", "action": f"{loc_cn}修缮一新，焕然重生！", "tick": self.world.state.tick})
+        self.db.log_world_event(self.world.state.tick, self.current_day,
+                                "building_upgrade", loc, {"level": self.world.state.location_levels[loc]})
+        print(f"[town] {loc_cn} 修缮至 Lv{self.world.state.location_levels[loc]}")
 
 
 
@@ -1857,6 +1884,15 @@ class TickEngine:
             else:
 
                 agent.state.gold += 2
+
+            # 知识驱动发展：劳作中精进技能（技能等级提升产出）
+            skill = agent.identity.skills.get(role, 0)
+            if skill > 0:
+                agent.state.gold += min(3, skill)
+            if random.random() < 0.12:
+                agent.identity.skills[role] = skill + 1
+                self.daily_agent_logs[agent.identity.id].append(
+                    f"{agent.get_role_cn(role)}技能提升到{skill + 1}级，手艺更精进了")
 
             self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}工作")
 

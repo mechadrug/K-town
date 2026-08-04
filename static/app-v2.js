@@ -164,9 +164,11 @@
 
     if (locsEl) {
       var locs = ['square', 'workshop', 'wilderness', 'school', 'mine'];
+      var levels = data.location_levels || {};
       var html = '<div class="pulse-row">';
       locs.forEach(function(l) {
-        html += '<span class="pulse-loc"><span class="pulse-loc-icon">' + getLocationIcon(l) + '</span>' + (counts[l] || 0) + '</span>';
+        var lvl = levels[l] || 1;
+        html += '<span class="pulse-loc" title="' + getLocationCn(l) + '（修缮等级 Lv' + lvl + '）"><span class="pulse-loc-icon">' + getLocationIcon(l) + '</span>Lv' + lvl + '·' + (counts[l] || 0) + '</span>';
       });
       html += '</div>';
       locsEl.innerHTML = html;
