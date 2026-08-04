@@ -11,6 +11,7 @@
   var soundEnabled = true;
   var activeTab = 'events';
   var ICONS = window.KTownIcons || {};
+  var lastMapLoc = null;
 
   // 防抖：防止连点导致 AP 误扣 / 动作堆积（每次动作间隔 ≥300ms）
   var lastActionAt = 0;
@@ -155,6 +156,18 @@
 
     TownMapV2.update(data.agents || [], data.weather, hour);
     setTimeTheme(hour);
+
+    // 分层界面：玩家位置变化时切换地图舞台 + 更新地点栏（等级/在场人数）
+    if (player.location && player.location !== lastMapLoc) {
+      lastMapLoc = player.location;
+      TownMapV2.setLocation(player.location);
+      var locLevel = (data.location_levels && data.location_levels[player.location]) || 1;
+      setText('map-loc-icon', getLocationIcon(player.location));
+      setText('map-loc-name', getLocationCn(player.location));
+      setText('map-loc-level', '修缮等级 ' + locLevel);
+    }
+    var hereCount = (data.agents || []).filter(function(a) { return a.location === player.location; }).length;
+    setText('map-loc-count', '在场 ' + hereCount + ' 人');
 
     // 更新知识列表
     if (data.knowledge && data.knowledge.claims) {

@@ -158,13 +158,11 @@ class TickEngine:
 
     async def run(self):
 
-        """主循环（回合制）：由玩家行动驱动（1 AP = 1 小时）；玩家闲时小镇缓慢自走（观察模式）。"""
+        """主循环（纯回合制）：世界时间只随玩家 AP 推进（1 AP = 1 小时），无闲时自动前进。"""
 
         self._save_current_state()
 
         self._running = True
-
-        last_activity = time.time()
 
         try:
 
@@ -177,15 +175,6 @@ class TickEngine:
                         self._pending_advance -= 1
 
                         await self.step()
-
-                    last_activity = time.time()
-
-                elif time.time() - last_activity >= self.rate * 2:
-
-                    # 玩家闲时：小镇按自己的节奏生活（观察水族箱）
-                    last_activity = time.time()
-
-                    await self.step()
 
                 await asyncio.sleep(0.05)
 

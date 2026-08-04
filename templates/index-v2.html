@@ -47,8 +47,14 @@
       </div>
     </header>
 
-    <!-- ===== 主地图区 ===== -->
+    <!-- ===== 主地图区（分层界面：当前地点舞台）===== -->
     <main class="map-container">
+      <div class="map-loc-bar" id="map-loc-bar">
+        <span class="map-loc-icon" id="map-loc-icon">🏛️</span>
+        <span class="map-loc-name" id="map-loc-name">广场</span>
+        <span class="map-loc-level" id="map-loc-level">修缮等级 1</span>
+        <span class="map-loc-count" id="map-loc-count">在场 0 人</span>
+      </div>
       <svg class="map-svg" id="map-canvas" viewBox="0 0 1200 720" preserveAspectRatio="xMidYMid meet"></svg>
     </main>
 

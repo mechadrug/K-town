@@ -6,6 +6,11 @@ window.TownMapV2 = (function() {
   var SVG_NS = "http://www.w3.org/2000/svg";
   var svg = null;
   var agentTokens = {};
+
+  // 分层界面：一次只显示一个地点（舞台居中放大 + 等级标注）
+  var currentLoc = "square";
+  var LOCATION_STAGE = {x: 600, y: 400};
+  var locStageGroup = null;
   var animFrameIds = [];
   var currentWeather = "clear";
   var currentHour = 12;
@@ -249,8 +254,8 @@ window.TownMapV2 = (function() {
     }));
   }
 
-  function drawPixelBuilding(g, loc) {
-    var S = 10; // 像素格
+  function drawPixelBuilding(g, loc, S) {
+    S = S || 10; // 像素格（舞台分层界面用 16 放大）
     var w = loc.width, h = loc.height;
     var cx = loc.x, bx = cx - w / 2, by = loc.y - h / 2;
     var wallC = loc.color, roofC = loc.roofColor, trim = "rgba(0,0,0,0.2)";
@@ -379,16 +384,17 @@ window.TownMapV2 = (function() {
 
   // ===== Agent 绘制（持久 token + 平滑动画）=====
   function agentPos(agent) {
+    // 分层界面：在场居民簇拥在舞台大建筑周围
     var loc = LOCATIONS[agent.location];
-    if (!loc) return {x: 500, y: 300};
+    if (!loc) return {x: LOCATION_STAGE.x, y: LOCATION_STAGE.y};
     var hash = 0;
     for (var i = 0; i < agent.id.length; i++) {
       hash = ((hash << 5) - hash) + agent.id.charCodeAt(i);
       hash = hash & hash;
     }
-    var offsetX = ((hash % 100) / 100 - 0.5) * (loc.width * 0.6);
-    var offsetY = (((hash >> 8) % 100) / 100 - 0.5) * (loc.height * 0.3);
-    return {x: loc.x + offsetX, y: loc.y + offsetY + 25};
+    var offsetX = ((hash % 100) / 100 - 0.5) * (loc.width * 1.7 * 0.6);
+    var offsetY = (((hash >> 8) % 100) / 100 - 0.5) * (loc.height * 1.7 * 0.3);
+    return {x: LOCATION_STAGE.x + offsetX, y: LOCATION_STAGE.y + offsetY + 30};
   }
 
   function drawAgent(agent) {
@@ -607,24 +613,66 @@ window.TownMapV2 = (function() {
     }
   }
 
+  // ===== 分层界面：渲染当前地点舞台 =====
+  function setLocation(locId) {
+    var loc = LOCATIONS[locId] || LOCATIONS.square;
+    if (locStageGroup && locStageGroup.parentNode) svg.removeChild(locStageGroup);
+    currentLoc = locId in LOCATIONS ? locId : "square";
+    locStageGroup = el("g", {id: "loc-stage"});
+
+    // 大号像素建筑（居中于舞台，1.7 倍）
+    var sc = {
+      x: LOCATION_STAGE.x, y: LOCATION_STAGE.y,
+      width: loc.width * 1.7, height: loc.height * 1.7,
+      color: loc.color, roofColor: loc.roofColor, variant: loc.variant
+    };
+    drawPixelBuilding(locStageGroup, sc, 16);
+
+    // 地点专属动态点缀
+    if (loc.variant === "workshop") {
+      for (var i = 0; i < 3; i++) {
+        var sm = el("circle", {
+          cx: LOCATION_STAGE.x + sc.width / 2 - 26, cy: LOCATION_STAGE.y - sc.height / 2 - 55 - i * 20,
+          r: 5 + i * 3, fill: "rgba(180,180,180,0.3)", "class": "smoke-puff"
+        });
+        sm.style.animationDelay = (i * 0.8) + "s";
+        locStageGroup.appendChild(sm);
+      }
+    } else if (loc.variant === "mine") {
+      for (var i = 0; i < 5; i++) {
+        var sp = el("circle", {
+          cx: LOCATION_STAGE.x - 30 + Math.random() * 60, cy: LOCATION_STAGE.y + 20 + Math.random() * 30,
+          r: 2 + Math.random() * 2, fill: "#FFD54F", "class": "sparkle"
+        });
+        sp.style.animationDelay = (i * 0.6) + "s";
+        locStageGroup.appendChild(sp);
+      }
+    }
+
+    svg.appendChild(locStageGroup);
+    agentTokens = {}; // 让在场居民按新地点重排
+  }
+
   // ===== 公开 API =====
   return {
     init: function(svgElement) {
       svg = svgElement;
       svg.innerHTML = "";
       drawBackground();
-      drawPaths();
-      drawSceneAnimations();
       drawScenery();
-      Object.keys(LOCATIONS).forEach(function(id) { drawLocation(id); });
+      setLocation("square");
       agentTokens = {};
     },
     update: function(agents, weather, hour) {
       if (!svg) return;
-      updateAgentPositions(agents);
+      // 分层界面：只显示当前地点的在场居民
+      var here = (agents || []).filter(function(a) { return a.location === currentLoc; });
+      updateAgentPositions(here);
       if (weather) setWeather(weather);
       if (hour !== undefined) setHour(hour);
     },
+    setLocation: function(locId) { if (svg) setLocation(locId); },
+    getCurrentLoc: function() { return currentLoc; },
     setWeather: function(w) { if (svg) setWeather(w); },
     setHour: function(h) { if (svg) setHour(h); },
     getLocations: function() { return LOCATIONS; }
