@@ -345,7 +345,8 @@
     if (mood) mood.textContent = '心情：' + getMoodText(agent.mood);
 
     if (stats) {
-      stats.innerHTML = 
+      stats.innerHTML =
+        '<div class="profile-stat-row"><span>🔍 正在</span><span>' + (agent.current_task || '在' + getLocationCn(agent.location) + '四处走走') + '</span></div>' +
         '<div class="profile-stat-row"><span>⚡ 体力</span><div class="mini-bar"><div class="mini-bar-fill energy" style="width:' + (agent.energy || 0) + '%"></div></div><span>' + Math.round(agent.energy || 0) + '</span></div>' +
         '<div class="profile-stat-row"><span>💰 金币</span><span style="color:var(--warm-500);font-weight:600">' + (agent.gold || 0) + '</span></div>' +
         '<div class="profile-stat-row"><span>📍 位置</span><span>' + getLocationCn(agent.location) + '</span></div>';
@@ -472,6 +473,13 @@
       .then(function(data) {
         var optsEl = document.getElementById('dlg-options');
         if (!optsEl) return;
+        // 关系等级 + 心情（对话语境可见）
+        var relEl = document.getElementById('dlg-relation');
+        if (relEl) {
+          var relParts = [data.level || '陌生人'];
+          if (data.mood) relParts.push('心情' + getMoodText(data.mood));
+          relEl.textContent = relParts.join(' · ');
+        }
         var list = data.options || [];
         optsEl.innerHTML = '';
         if (list.length === 0) {
@@ -482,6 +490,7 @@
           var btn = document.createElement('button');
           btn.className = 'dialogue-option';
           btn.innerHTML = '<span class="opt-icon">💬</span><span>' + (opt.text || opt.id || '对话') + '</span>';
+          btn.title = opt.desc || '';
           btn.onclick = function() { executeDialogue(agent, opt.id, opt.text); };
           optsEl.appendChild(btn);
         });

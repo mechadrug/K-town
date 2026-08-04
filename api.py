@@ -20,7 +20,7 @@ from llm import LLMClient
 
 from agent import populate_agents
 
-from models import Event, EventType, PlayerAction, TradeOffer
+from models import Event, EventType, PlayerAction, TradeOffer, Mood
 
 
 
@@ -71,6 +71,21 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "narrative_summary": tick_engine.narrative.get_daily_summary(tick_engine.current_day) if hasattr(tick_engine, "narrative") else "",
             "location_levels": world.state.location_levels
         }
+
+    def _dialogue_context(target) -> dict:
+        """构建对话语境：心情 + 正在做的事（决定话题与后果）"""
+        return {
+            "mood": target.state.mood.value,
+            "current_task": target.state.current_task.description if target.state.current_task else None,
+        }
+
+    def _shift_mood(target, direction: int):
+        """按情绪梯度移动一格心情（+1 变好 / -1 变差）"""
+        ladder = ["sad", "angry", "anxious", "neutral", "happy"]
+        current = target.state.mood.value
+        idx = ladder.index(current) if current in ladder else 3
+        new_idx = max(0, min(len(ladder) - 1, idx + direction))
+        target.state.mood = Mood(ladder[new_idx])
 
     @app.get("/")
 
@@ -565,13 +580,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     async def get_dialogue_options(agent_id: str):
 
-        """获取与指定Agent的对话选项"""
+        """获取与指定Agent的对话选项（语境化：心情/正在做的事）"""
 
         if not dialogue_sys:
 
             return {"options": [], "tie": 0, "level": "未知"}
-
-        
 
         player = None
 
@@ -587,23 +600,26 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
                 target = a
 
-        
-
         if not player or not target:
 
             return {"options": [], "tie": 0, "level": "未知"}
 
-        
-
         tie = target.state.social_ties.get(player.identity.id, 0)
 
-        options = dialogue_sys.generate_options(player, target)
+        ctx = _dialogue_context(target)
+
+        options = dialogue_sys.generate_options(player, target, ctx)
 
         level = dialogue_sys.get_relationship_level(tie)
 
-        
-
-        return {"options": options, "tie": round(tie, 1), "level": level, "agent_name": target.identity.name}
+        return {
+            "options": options,
+            "tie": round(tie, 1),
+            "level": level,
+            "agent_name": target.identity.name,
+            "mood": target.state.mood.value,
+            "current_task": ctx["current_task"],
+        }
 
 
 
@@ -647,9 +663,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         
 
-        # 获取选项
+        # 获取选项（语境化）
 
-        options = dialogue_sys.generate_options(player, target)
+        ctx = _dialogue_context(target)
+
+        options = dialogue_sys.generate_options(player, target, ctx)
 
         option = None
 
@@ -661,39 +679,25 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
                 break
 
-        
-
         if not option:
 
             return {"success": False, "message": "无效的对话选项"}
 
-        
-
         # 检查AP
 
-        ap_cost = 1
-
-        if option.get("energy_cost"):
-
-            ap_cost = 2
+        ap_cost = 2 if option.get("energy_cost") else 1
 
         if player.state.ap < ap_cost:
 
             return {"success": False, "message": f"AP不足（需要{ap_cost}点）"}
 
-        
-
         player.state.ap -= ap_cost
-
-        
 
         # 执行对话
 
-        result = dialogue_sys.execute_dialogue(player, target, option)
+        result = dialogue_sys.execute_dialogue(player, target, option, ctx)
 
-        
-
-        # 应用结果
+        # 应用关系变化（双向）
 
         tie_change = result["tie_change"]
 
@@ -701,40 +705,44 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         target.state.social_ties[player.identity.id] = current_tie + tie_change
 
-        
+        player.state.social_ties[target.identity.id] = \
+            player.state.social_ties.get(target.identity.id, 0) + tie_change * 0.7
 
-        # 双向关系
+        # 应用心情变化（对话有情绪后果）
 
-        reverse_tie = player.state.social_ties.get(target.identity.id, 0)
+        if result.get("mood_effect", 0) != 0:
+            _shift_mood(target, result["mood_effect"])
 
-        player.state.social_ties[target.identity.id] = reverse_tie + tie_change * 0.7
+        # 知识交换：成功的"闲聊/请教/分享"——对方的知识传给你；你的知识也传给在场者
+        if result["success"] and option.get("give_knowledge"):
+            top = max(knowledge.agent_knowledge(target.identity.id),
+                      key=lambda c: c.confidence, default=None)
+            if top and top.confidence > 0.4:
+                knowledge.observe(player.identity.id, top.subject, top.claim,
+                                  target.state.location, confidence=min(0.9, top.confidence * 0.8))
+                if result.get("knowledge_gained"):
+                    result["knowledge_gained"] = f"{result['knowledge_gained']}，还听说了「{top.claim}」"
+            p_top = max(knowledge.agent_knowledge(player.identity.id),
+                        key=lambda c: c.confidence, default=None)
+            if p_top and p_top.confidence > 0.5:
+                for a in agents:
+                    if a.identity.id != player.identity.id and a.state.location == player.state.location:
+                        knowledge.propagate(p_top.id, player.identity.id, a.identity.id, 0.6)
 
-        
-
-        # 记录日志
+        # 记录日志（进入日报，让对话可见可回溯）
 
         tick_engine.daily_agent_logs[player.identity.id].append(
-
             f"与{target.identity.name}对话：{result['message']}"
-
         )
 
-        
-
         return {
-
             "success": result["success"],
-
             "message": result["message"],
-
             "tie_change": tie_change,
-
             "new_tie": round(current_tie + tie_change, 1),
-
             "knowledge_gained": result.get("knowledge_gained"),
-
+            "mood_effect": result.get("mood_effect", 0),
             "ap_remaining": player.state.ap
-
         }
 
 
