@@ -16,7 +16,7 @@ from knowledge import KnowledgeEngine
 
 from llm import LLMClient
 
-from models import Event, EventType, Mood
+from models import Event, EventType, Mood, AgentTask
 
 from storage import Storage
 
@@ -32,7 +32,7 @@ class TickEngine:
 
                  knowledge: KnowledgeEngine, logger, llm: LLMClient,
 
-                 rate: float = 1.0, day_length: int = 20, auto_reset: bool = True,
+                 day_length: int = 20, auto_reset: bool = True,
 
                  db: Storage = None, wake_hour: int = 5, waking_hours: int = 12):
 
@@ -48,7 +48,6 @@ class TickEngine:
 
         self.llm = llm
 
-        self.rate = rate
 
         self.day_length = day_length
 
@@ -112,9 +111,7 @@ class TickEngine:
 
         # 经济监控
 
-        self._daily_gold_sunk = 0  # 当日金币回收量
 
-        self._gold_sink_actions = []  # 金币回收事件记录
 
         self._upgrades_done = 0  # 小镇修缮次数（世界观：末世重建）
 
@@ -548,27 +545,7 @@ class TickEngine:
 
         
 
-        # 场景2：知识冲突
-
-        elif agent.knowledge:
-
-            conflicting = [k for k in agent.knowledge if k.contradicted_by]
-
-            if conflicting:
-
-                scenario = "knowledge_conflict"
-
-                context = {
-
-                    "conflicting_knowledge": [{"claim": k.claim, "conflicts": k.contradicted_by} for k in conflicting[:2]],
-
-                    "personality": agent.identity.personality
-
-                }
-
-        
-
-        # 场景3：社交困境（朋友需要帮忙但自己很累）
+        # 场景2：社交困境（朋友需要帮忙但自己很累）
 
         elif agent.state.energy < 35 and agents_here:
 
@@ -778,57 +755,6 @@ class TickEngine:
 
 
 
-    async def _execute_trade(self, agent, trade: Dict[str, Any]):
-
-        """执行交易"""
-
-        action = trade.get("action")
-
-        resource = trade.get("resource")
-
-        price = trade.get("price", 5)
-
-        
-
-        if action == "buy":
-
-            if agent.state.gold >= price:
-
-                agent.state.gold -= price
-
-                if resource == "food":
-
-                    agent.state.food += 1
-
-                else:
-
-                    agent.state.inventory.append(resource)
-
-                self.world.record_demand(resource)
-
-                self.daily_agent_logs[agent.identity.id].append(f"以{price}金币购买了{resource}")
-
-        elif action == "sell":
-
-            if resource == "food" and agent.state.food > 0:
-
-                agent.state.food -= 1
-
-                agent.state.gold += price
-
-                self.world.record_supply(resource)
-
-                self.daily_agent_logs[agent.identity.id].append(f"以{price}金币卖出了{resource}")
-
-            elif resource in agent.state.inventory:
-
-                agent.state.inventory.remove(resource)
-
-                agent.state.gold += price
-
-                self.world.record_supply(resource)
-
-                self.daily_agent_logs[agent.identity.id].append(f"以{price}金币卖出了{resource}")
 
 
 
@@ -854,9 +780,7 @@ class TickEngine:
 
                     agent.state.food += 1
 
-                    self._daily_gold_sunk += food_price
 
-                    self._gold_sink_actions.append(f"{agent.identity.name}花费{food_price}金币购买食物")
 
             
 
@@ -868,9 +792,7 @@ class TickEngine:
 
                     agent.state.gold -= 1
 
-                    self._daily_gold_sunk += 1
 
-                    self._gold_sink_actions.append(f"{agent.identity.name}花费1金币维护工具")
 
             
 
@@ -882,9 +804,7 @@ class TickEngine:
 
                 agent.state.gold -= fee
 
-                self._daily_gold_sunk += fee
 
-                self._gold_sink_actions.append(f"{agent.identity.name}花费{fee}金币学习技能")
 
     def _town_upgrade_check(self):
         """小镇重建（世界观：几十万年后末世，居民合力修缮破旧建筑）"""
@@ -1374,7 +1294,7 @@ class TickEngine:
 
                 "gold_change": gold_change_agent,
 
-                "knowledge_count": len(agent.knowledge),
+                "knowledge_count": len(self.knowledge.agent_knowledge(agent.identity.id)),
 
                 "narrative": narrative,
 
@@ -1623,37 +1543,8 @@ class TickEngine:
 
                     a.state.social_ties[agent1] = a.state.social_ties.get(agent1, 0) + change
 
-        elif event.type == EventType.PRICE_CHANGE:
 
-            # 价格变化，影响交易
 
-            pass
-
-        elif event.type == EventType.KNOWLEDGE_CONFLICT:
-
-            claim1 = event.payload.get("claim1", "")
-
-            claim2 = event.payload.get("claim2", "")
-
-            self.knowledge.dispute(claim1, claim2)
-
-        elif event.type == EventType.AGENT_GOAL_COMPLETE:
-
-            agent_id = event.payload.get("agent_id", "")
-
-            goal = event.payload.get("goal", "")
-
-            for a in self.agents:
-
-                if a.identity.id == agent_id:
-
-                    # 完成目标，心情变好
-
-                    a.state.mood = Mood.HAPPY
-
-                    a.state.gold += 20
-
-                    break
 
         elif event.type == EventType.FESTIVAL:
 
@@ -1749,15 +1640,6 @@ class TickEngine:
 
             self.world.record_supply('food', 5)
 
-        elif event.type == EventType.SKILL_SHARE:
-
-            aids = event.payload.get('agents', [])
-
-            for aid in aids:
-
-                skill_name = event.payload.get('skill', '新技能')
-
-                self.knowledge.observe(aid, 'skill', f'学会了{skill_name}', event.location)
 
         elif event.type == EventType.TOWN_MEETING:
 
@@ -1785,15 +1667,6 @@ class TickEngine:
 
                 location='square', payload={'claim': random.choice(claims), 'from': f, 'to': t}), event.tick + 2)
 
-        elif event.type == EventType.HARVEST_FESTIVAL:
-
-            for a in self.agents:
-
-                a.state.mood = Mood.HAPPY
-
-                a.state.food += random.randint(1, 3)
-
-                a.state.energy = min(100, a.state.energy + 10)
 
         elif event.type == EventType.ANIMAL_ATTACK:
 
@@ -1817,15 +1690,6 @@ class TickEngine:
 
                     break
 
-        elif event.type == EventType.BUILDING_UPGRADE:
-
-            loc = event.location
-
-            for a in self.agents:
-
-                if a.state.location == loc:
-
-                    a.state.energy = min(100, a.state.energy + 5)
 
 
 
@@ -1843,6 +1707,12 @@ class TickEngine:
         tgt = action.get("target", "")
 
         loc_cn = agent.get_location_cn(agent.state.location)
+
+        # 记录"正在做的事"（档案/对话语境显示；休息/观察时清空）
+        if t in ("work", "move", "talk", "investigate", "trade"):
+            agent.state.current_task = AgentTask(description=f"在{loc_cn}忙活着", location=agent.state.location)
+        elif t in ("rest", "sleep", "observe"):
+            agent.state.current_task = None
 
         # 玩家行动消耗AP（不足则拦截；夜晚走十三时夜间行动力，不扣常规AP）
         cur_hour = tick % self.day_length

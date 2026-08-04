@@ -65,7 +65,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "knowledge": knowledge.to_dict(),
             "player": player,
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers],
-            "factions": tick_engine.faction_system.factions if hasattr(tick_engine, "faction_system") else {},
+            "factions": tick_engine.faction_system.factions,
             "location_levels": world.state.location_levels
         }
 
@@ -203,8 +203,6 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "version": claim.version,
 
             "contradicted_by": claim.contradicted_by,
-
-            "version_history": knowledge.get_version_history(claim_id),
 
             "conflicting_claims": [{"id": c.id, "claim": c.claim, "confidence": c.confidence} for c in knowledge.get_conflicting_claims(claim_id)]
 
@@ -462,7 +460,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 if insight:
                     result = insight
                 # 每日目标：提交思考推进"传播知识"目标
-                if hasattr(tick_engine, 'quest_engine') and tick_engine.quest_engine:
+                if tick_engine.quest_engine:
                     tick_engine.quest_engine.update_progress(actor, action_type="add_claim")
             logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
             return {"status": "ok", "result": result}
@@ -605,8 +603,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         # 重新生成每日目标
 
-        if hasattr(tick_engine, 'quest_engine') and tick_engine.quest_engine:
-            tick_engine.quest_engine.generate_daily_goals(1)
+        tick_engine.quest_engine.generate_daily_goals(1)
 
         return {"status":"ok", "result": "模拟已重置"}
 
@@ -616,7 +613,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         """获取任务列表"""
 
-        if hasattr(tick_engine, 'quest_engine') and tick_engine.quest_engine:
+        if tick_engine.quest_engine:
 
             return tick_engine.quest_engine.to_dict()
 

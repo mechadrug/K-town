@@ -12,9 +12,6 @@ class EventBus:
 
     def publish(self, event):
         self._event_log.append(event)
-        for cb in self._subscribers.get(event.location,[]):
-            try: cb(event)
-            except: pass
 
     def schedule(self, event, at_tick):
         event.tick = at_tick
@@ -49,7 +46,7 @@ class EventScheduler:
         base = (day-1)*20
         # 清晨天气：与 world.advance 共用同一来源（避免双随机不一致）
         # 实际天气由 world._change_weather 在 tick%20==6 决定，此处仅调度播报事件
-        weather = world.state.weather if world and hasattr(world, 'state') else "clear"
+        weather = world.state.weather
         self.bus.schedule(Event(tick=base+6, type=EventType.WEATHER_CHANGE, location="square", payload={"weather": weather}), base+6)
 
         # 天气影响事件：根据天气影响工作效率
@@ -75,14 +72,6 @@ class EventScheduler:
             items = ["tool","furniture","weapon"]
             a = random.choice(agent_ids)
             self.bus.schedule(Event(tick=base+12, type=EventType.ITEM_CRAFTED, location="workshop", payload={"item": random.choice(items), "agent_id": a}), base+12)
-
-        # 价格变化事件
-        price_change = {
-            "food": random.randint(-2, 2),
-            "tool": random.randint(-3, 3),
-            "material": random.randint(-1, 1)
-        }
-        self.bus.schedule(Event(tick=base+13, type=EventType.PRICE_CHANGE, location="square", payload={"price_changes": price_change}), base+13)
 
         # 传闻传播事件
         if random.random()<0.4:

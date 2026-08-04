@@ -32,7 +32,7 @@ def init_system():
     cfg = load_config("config.yaml")
     print("=== K-town Server ===")
     print(f"LLM: {cfg.llm.model} @ {cfg.llm.base_url}")
-    print(f"Tick: {cfg.tick.rate}s, Day: {cfg.tick.day_length}h")
+    print(f"Day: {cfg.tick.day_length}h, Wake: {cfg.tick.wake_hour}")
 
     world = World()
     bus = EventBus()
@@ -47,7 +47,7 @@ def init_system():
         storage.log_world_event(0, "agent_spawned", a.state.location, [a.identity.id], None)
     print(f"Spawned {len(agents)} agents")
 
-    engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.rate, cfg.tick.day_length,
+    engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.day_length,
                         db=storage, wake_hour=cfg.tick.wake_hour, waking_hours=cfg.tick.waking_hours)
 
     # 知识持久化：新知识写穿到 knowledge_pool；并尝试断点恢复（关闭自动重置时生效）
@@ -87,7 +87,7 @@ def init_system():
 async def main():
     app, engine, llm, cfg = init_system()
     asyncio.create_task(engine.run())
-    print(f"Tick engine running ({cfg.tick.rate}s/tick)")
+    print("Tick engine running (回合制)")
 
     server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=cfg.server.http_port, log_level="info"))
     print(f"Dashboard: http://localhost:{cfg.server.http_port}")
@@ -105,7 +105,7 @@ async def main():
         engine.stop()
         await llm.close()
         # Close database safely
-        if hasattr(engine, "db") and hasattr(engine.db, "close"):
+        if engine.db:
             engine.db.close()
         print("=== Stopped ===")
 

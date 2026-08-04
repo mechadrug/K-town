@@ -1,30 +1,21 @@
 """Agent 模块 v2.0 — 知识驱动决策 + 经济闭环"""
 import random,time,uuid
 from typing import List,Optional,Dict,Any
-from models import AgentIdentity,AgentState,Goal,MemoryEntry,Mood,Role,KnowledgeClaim,ClaimSource
+from models import AgentIdentity,AgentState,Goal,Mood,Role
 
 class Agent:
     def __init__(self, identity:AgentIdentity, location="square"):
         self.identity = identity
         self.state = AgentState(location=location)
-        self.memory_short = []
-        self.memory_long = []
         self.diary = []
         self.goals = []
-        self.knowledge = []
 
     def perceive(self, events):
-        self.memory_short.extend(events)
-        if len(self.memory_short)>20:
-            self.memory_short = self.memory_short[-20:]
+        # 感知事件（当前不持久化短期记忆，知识由 KnowledgeEngine 承载）
+        pass
 
     def think(self, hour):
-        # 压缩短期记忆
-        if len(self.memory_short)>10:
-            for m in self.memory_short[-5:]:
-                self.memory_long.append(MemoryEntry(summary=m,importance=7.0,location=self.state.location))
-            self.memory_short = self.memory_short[:-5]
-        
+
         # 人格影响心情稳定性
         stability = self.identity.personality.get("stability", 0.5)
         

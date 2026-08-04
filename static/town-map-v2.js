@@ -11,8 +11,6 @@ window.TownMapV2 = (function() {
   var currentLoc = "square";
   var LOCATION_STAGE = {x: 600, y: 400};
   var locStageGroup = null;
-  var currentWeather = "clear";
-  var currentHour = 12;
 
   // 地点配置（像素画风，更大画布 1200x720）
   var LOCATIONS = {
@@ -128,7 +126,7 @@ window.TownMapV2 = (function() {
     var riverG = el("g", {id: "river"});
     riverG.appendChild(el("path", {
       d: "M0,450 C150,430 250,460 400,440 C550,420 700,450 850,430 C920,420 1000,440 1000,440",
-      fill: "none", stroke: "#4A90D9", "stroke-width": 16, opacity: 0.25, className: "river-water"
+      fill: "none", stroke: "#4A90D9", "stroke-width": 16, opacity: 0.25, 
     }));
     riverG.appendChild(el("path", {
       d: "M0,452 C150,432 250,462 400,442 C550,422 700,452 850,432 C920,422 1000,442 1000,442",
@@ -362,7 +360,7 @@ window.TownMapV2 = (function() {
 
   // ===== 天气系统 =====
   function setWeather(weather) {
-    currentWeather = weather;
+    
     var existing = document.getElementById("weather-overlay");
     if (existing) existing.remove();
     if (!weather || weather === "clear") return;
@@ -424,7 +422,7 @@ window.TownMapV2 = (function() {
 
   // ===== 时间设置 =====
   function setHour(hour) {
-    currentHour = hour;
+    
     var stops = svg.querySelectorAll("#skyGradient stop");
     if (stops.length < 2) return;
     

@@ -7,7 +7,6 @@
   var ws = null;
   var currentDialogueAgent = null;
   var soundEnabled = true;
-  var activeTab = 'events';
   var ICONS = window.KTownIcons || {};
   var lastMapLoc = null;
   var knowledgeSubmittedToday = false;
@@ -237,7 +236,6 @@
 
   // ===== Tab 切换 =====
   function switchTab(tabName) {
-    activeTab = tabName;
     
     // 更新按钮状态
     var btns = document.querySelectorAll('.tab-btn');
@@ -778,7 +776,7 @@
     if (!list) return;
 
     var item = document.createElement('div');
-    item.className = 'event-item info narrative-summary';
+    item.className = 'event-item info';
     item.style.borderLeftColor = 'var(--warm-500)';
     item.style.background = 'linear-gradient(90deg, rgba(255,167,38,0.06), transparent)';
     item.innerHTML =
@@ -832,15 +830,6 @@
 
   function getLocationIcon(loc) {
     return (ICONS.location || {})[loc] || '📍';
-  }
-
-  function getAgentColor(id) {
-    return {
-      agent_elder: '#8D6E63', agent_blacksmith: '#FF7043', agent_carpenter: '#7E57C2',
-      agent_forager: '#66BB6A', agent_scout: '#42A5F5', agent_merchant: '#FFA726',
-      agent_teacher: '#5C6BC0', agent_farmer: '#9CCC65', agent_storyteller: '#EC407A',
-      agent_healer: '#26C6DA', agent_miner: '#78909C', agent_player: '#FF6B35'
-    }[id] || '#888';
   }
 
   function getAgentEmoji(id) {

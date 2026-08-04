@@ -22,7 +22,6 @@ class KnowledgeEngine:
         self.agent_claims = {}  # Agent ID -> 知识ID列表
         self.subject_index = {}  # 主题 -> 知识ID列表
         self.location_index = {}  # 位置 -> 知识ID列表
-        self.version_history = {}  # 知识ID -> 历史版本列表
         # 可选的持久化钩子（传入 storage.Storage 后，新知识写穿到 knowledge_pool）
         self.persistence = persistence
 
@@ -272,10 +271,6 @@ class KnowledgeEngine:
             return []
         return [self.claims[cid] for cid in c.contradicted_by if cid in self.claims]
 
-    def get_version_history(self, claim_id):
-        """获取知识的历史版本"""
-        return self.version_history.get(claim_id, [])
-
     def _find_conflicting_claims(self, subject, claim_text):
         """查找与指定内容冲突的知识（相同主题但内容不同）"""
         conflicts = []
@@ -312,4 +307,3 @@ class KnowledgeEngine:
         self.agent_claims = {}
         self.subject_index = {}
         self.location_index = {}
-        self.version_history = {}

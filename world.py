@@ -12,7 +12,6 @@ class World:
             "school": {"id": "school", "name": "学校", "type": "school", "agents": [], "description": "教学育人、治病救人的场所"},
             "mine": {"id": "mine", "name": "矿洞", "type": "mine", "agents": [], "description": "采集矿石、挖掘珍贵矿物的地下洞穴"},
         }
-        self.state.locations = self.locations
         self._weathers = ["clear", "cloudy", "rainy", "snowy", "windy"]
         self._weather_names = {
             "clear": "晴朗", "cloudy": "多云", "rainy": "下雨", "snowy": "下雪", "windy": "大风"
