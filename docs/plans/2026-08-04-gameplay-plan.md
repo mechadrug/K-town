@@ -84,7 +84,7 @@
 
 | 功能 | 状态 | 说明 |
 |---|---|---|
-| F2.1 成就/小镇进化/叙事引擎 | 冻结待取舍 | 等核心闭环呼吸后，逐个评估启用或删除（含 town_evolution.py 的 NameError 修复） |
+| F2.1 成就/小镇进化/叙事引擎 | ✅ 已删除（68f8364） | narrative/town_evolution/achievements 三模块已删（含 NameError）；trade.py 也已删（未接入） |
 | F2.2 知识持久化 | 后置 | knowledge_pool 落库 + 重启加载（设计主计划 Phase 4.3） |
 | F2.3 tick.py 拆分 | 后置 | 1961 行单体，在闭环稳定后按职责拆分（勿提前） |
 
