@@ -6,24 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 K-town is a multi-agent town simulation game. Residents (AI agents) have independent thoughts, memories, knowledge, goals, and social relationships — they are NOT player-centric NPCs. Players can observe or join as human residents. The core loop: the environment generates events → agents perceive them → knowledge evolves → social transmission occurs → developers and players observe and adjust the world.
 
-First deliverable (v0.1): a 2D town map, 10 agents, 3 locations, 5 event types. Agents can move, observe, record knowledge, converse, and spread rumors. A player can enter and influence one event.
+First deliverable (v0.1): a 2D town map, 12 agents, 5 locations, 22 event types. Agents move, observe, record knowledge, converse, and spread rumors. A player can enter and influence the town as a resident.
 
-## Tech Stack (planned)
+> **重要**：方向与路线图以 `docs/design-master-plan-2026-08-04.md` 为准。旧技术栈（Go/Godot/PostgreSQL）已废弃；本仓库实际为 Python + Web 实现（见下方"实际技术栈"）。
+
+## Tech Stack (actual)
 
 | Layer | Technology |
 |-------|-----------|
-| Client | Godot 2D (C# or GDScript) |
-| Game Server | Go — tick loop, event bus, agent state machines, real-time sync |
-| Agent Runtime | Rule-based decisions in Go; LLM calls reserved for key decisions, complex dialogue, knowledge summarization, and planning |
-| Database | PostgreSQL (structured state) + pgvector or Qdrant (semantic memory) |
-| Cache/Queue | Redis |
-| Communication | WebSocket (real-time state sync), HTTP (player actions) |
+| Client | HTML + CSS + vanilla JS（SVG 手绘地图、WebSocket 实时推送） |
+| Game Server | Python 3.11 + FastAPI + Uvicorn（tick 循环、事件总线、Agent 状态机、REST + WebSocket） |
+| Agent Runtime | 规则引擎（agent.py 五层决策）；LLM 仅用于关键决策（llm.py，每日限次 + 缓存，无 key 走 mock） |
+| Database | SQLite（`storage.py` 单一数据访问层，WAL，权威 DDL，schema 版本检测自动重建） |
+| Communication | WebSocket（实时状态同步）、HTTP（玩家动作） |
 
-### Agent Tiers (for scaling to 1000+ agents)
+### Agent Tiers（未来扩展，当前 12 Agent 暂不启用）
 
-1. **Cold** — far from players, no key events. Low-frequency updates, schedule + summary only.
-2. **Warm** — active areas, socializing/working/exploring. Rule/utility-AI decisions, occasional LLM.
-3. **Hot** — interacting with players or in critical events. Higher LLM frequency.
+1. **Cold** — 远离玩家、无关键事件。低频更新。
+2. **Warm** — 活跃区域。规则/效用决策，偶尔 LLM。
+3. **Hot** — 与玩家互动或关键事件中。更高 LLM 频率。
 
 ## Repository Layout
 
@@ -31,16 +32,31 @@ First deliverable (v0.1): a 2D town map, 10 agents, 3 locations, 5 event types. 
 K-town/
   CLAUDE.md              — Claude Code 项目指南（本文件）
   AGENTS.md              — 通用 AI 编码助手指南（Codex、Copilot 等）
-  .gitignore             — 已排除 docs-local/ 等个人工作目录
   README.md              — 项目介绍
+  main.py                — 服务入口（python main.py，端口 8090）
+  config.py / config.yaml— 配置（config.yaml 含 LLM key，已被 .gitignore 忽略）
+  models.py              — dataclass 数据模型（知识/状态/事件/目标/记忆）
+  world.py               — World：地点/资源/价格/天气（地点清单唯一来源）
+  events.py              — EventBus + EventScheduler（每日事件日程）
+  agent.py               — Agent：perceive/think/decide + populate_agents()
+  knowledge.py           — 知识引擎（KnowledgeClaim 观察/传播/质疑/固化）
+  storage.py             — ★唯一数据访问层（单一连接/权威 DDL/全部方法）
+  tick.py                — TickEngine：advance→事件→决策→执行→结算→日报
+  llm.py                 — LLM 客户端（Anthropic 兼容，mock 兜底）
+  api.py                 — FastAPI 路由 + WebSocket（玩家动作统一走 tick._handle_action）
+  test_smoke.py          — 冒烟测试（python test_smoke.py，验证核心闭环跨天落库）
+  templates/index-v2.html + static/*-v2.* — 唯一前端
   docs/                  — 共享文档案（Git 跟踪）
-    product/             — 产品设计文档
-    architecture/        — 架构文档
+    product/             — 产品设计文档（vision/world-view-v2/gameplay-design/...）
+    architecture/        — 架构文档（overview 为现状，backend-go/godot-client 为废弃方案）
     plans/               — 实施计划
+    design-master-plan-2026-08-04.md — ★当前路线图（取代旧评审文档）
     development-progress.md
     handoff.md           — AI session 交接状态
   docs-local/            — 个人笔记/草稿/实验文件（Git 忽略，AI 不应修改）
 ```
+
+> 已被删除的废弃件：`client/`（Godot）、`server/`（Go 残留）、v1 前端（index.html + style.css/app.js/town-map.js/sound.js/visualization.js）、孤儿模块（db.py / database.py / logger.py / static_db.py / knowledge_v3.py / commands.py / fix_goal.py / update_api.py / test_full.py）。
 
 ## Development Workflow
 

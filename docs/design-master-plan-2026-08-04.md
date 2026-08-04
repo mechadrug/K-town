@@ -1,0 +1,198 @@
+# K-town 修正版主计划（Master Plan v0.3+）
+
+> 制定日期：2026-08-04
+> 制定视角：游戏大师 + 代码大师（三方独立评审合成）
+> 本文件取代并修正 `design-master-review-2026-08-04.md`、`design-review-2026-08-04.md`、`design-architecture-refactor.md`、`design-frontend-redesign.md`、`design-mechanics-depth.md`、`plans/2026-08-04-v0.3-phased-plan.md` 中与当前现实不符的部分。
+> 读者：未来的每个 Claude Code session。先读本文件，再动手。
+
+---
+
+## 0. 结论先行（TL;DR）
+
+**K-town 现状（v0.2.1 实测）不是"功能完善"，而是一个"文件俱全、接线半成"的僵尸水族箱：**
+
+- `step()` 里 `agent.decide()` 返回的动作**从不执行**（`_handle_action` 零调用点）——Agent 不移动、不工作、不社交，世界状态几乎不变。
+- 数据层 4 套并存（db.py / database.py / logger.py / static_db.py），tick.py 用的 `StaticPersistence` 写不存在的 `snapshots` 表、不存在的 `agents_snapshot` 列、不存在的 `save_agent_log` 方法 → **第 10 tick 写库即崩，第 24 tick 生成日报即崩，模拟连一天都跑不满**（DB 实测 `day_summaries`=0 行）。
+- 前端入口 `index-v2.html` 以 **GBK 编码保存**，api.py 用严格 UTF-8 读取 → `GET /` 直接 500，页面根本打不开。
+- 前端-后端协议大面积失配：move 发 `destination` 后端读 `target`；work/rest/add_claim/reset 后端无分支；对话是前端本地假回复。
+- 6 个玩法系统（派系/叙事/小镇进化/成就/交易市场/任务）被实例化但驱动逻辑全在从未被调用的 `_handle_action` 里，全部空转。
+- 一批一次性脚本（fix_goal.py / update_api.py）、损坏冒烟测试（test_full.py）、废弃技术栈残留（client/ Go 时代、server/）躺在仓库里。
+
+**三方独立评审（游戏/代码/客户端）的共识结论：**
+
+1. **游戏层**："不是一个连贯的游戏，但它是'活的观察型小镇 + 轻触式影响'这个强原型的底子，被一堆未整合的系统埋住了。**先别加系统，先把一条闭环做活。**" 招牌资产是「知识→决策→行为→新知识」自进化闭环，必须被玩家看见。
+2. **代码层**："接线失败的半成品，最高价值动作是先修接线让程序能跑，再删死代码，最后才谈拆分与去重——**顺序不能反**。"
+3. **客户端层**："v2 视觉方向正确值得保留，但根上就是坏的（编码 500 + 协议失配 + 对话假 + 档案看不到'他为什么这样活' + 信息架构把玩家放中间把小镇放角落）。"
+
+---
+
+## 1. 产品定位修正（世界观 / 策划）
+
+### 1.1 一句话定位
+
+> **K-town 是一座"会自己活过来的小镇"，玩家先观察，后作为一位普通居民轻触地影响它。小镇是主角，不是玩家。**
+
+### 1.2 核心循环（只做一条，先做活）
+
+```
+环境事件 → Agent 感知 → 思考(think) → 决策(decide) → 执行(EXECUTE动作) → 世界变化
+   ↑                                                                        ↓
+   └── 知识/关系/情绪演化 ← 观察结果 ← 新知识被记录 ← 行为产生后果
+```
+
+**这条循环的验收标准（P0，本期必须达成）：**
+- [ ] Agent 的 move/work/talk 真实改变 `location / energy / gold / food / social_ties / knowledge`
+- [ ] 每个动作被玩家可见：日报与事件流能解释"因为知道 X，所以做了 Y"
+- [ ] 模拟可连续运行 ≥30 天不崩（v0.3 原计划的验收标准）
+- [ ] 重启/刷新后状态可追溯（每日摘要、世界快照、Agent 行为日志落库可查）
+
+### 1.3 玩家角色修正（回退"玩家英雄化"）
+
+| 修正前（v0.3 计划方向，过度设计） | 修正后（回归"一位居民"） |
+|---|---|
+| 5 条 ×5 级技能树 | 移除，冻结为"可学技能"薄层（见路线图 P3） |
+| 声望从新来者爬到传奇 | 移除，保留好感度分层（陌生人→知己 6 级） |
+| 12 个每日目标/成就矩阵 | 每日目标改为 3 个薄目标，挂在真实可执行动作上 |
+| 以玩家命名建筑 | 移除 |
+| 玩家是 Leader | 玩家是一位有 12AP 的旅行者，世界对其行为产生涟漪而非服从 |
+
+### 1.4 系统的取舍（"冻结"而非"再加"）
+
+| 系统 | 判断 | 理由 |
+|---|---|---|
+| 知识引擎（knowledge.py） | **保留并深化** | 唯一差异化招牌，已接进 decide() 第 2 层 |
+| 情绪传染 + 人格五维 | 保留 | 已在 agent.py 内跑通，是"活人感"种子 |
+| 食物消耗 / 金币回收 / 关系衰减 | 保留 | 压力骨架已进 think()，只差接上动作层 |
+| 派系（factions.py） | 保留（轻接线） | 按好感聚簇，低价换来"小镇社会结构"可读性 |
+| 叙事（narrative.py StoryArc） | **冻结** | 与 _generate_day_summary 重复，等核心闭环活后再决定 |
+| 小镇进化 / 玩家影响力（town_evolution.py） | **冻结** | 依赖动作闭环，且含 NameError bug，先不驱动 |
+| 成就（achievements.py） | **冻结** | 装饰系统，等闭环呼吸后再启用 |
+| 交易市场（trade.py TradeMarket） | **冻结**（其定价引擎作为路线图积木） | 真实交易走 world.state.trade_offers + 动作层 |
+| 命令模式（commands.py） | **删除** | 被 api.py 手写分支架空，MoveCommand 还调 world 不存在的方法 |
+
+### 1.5 世界观（沿用 v2，收敛口径）
+
+- **小镇**：边境小镇（"边境小镇"）。5 地点：广场 / 工坊 / 荒野 / 学校 / 矿洞。
+- **居民**：12 位（含医生希尔达、矿工戈尔），5 维人格，各司其职。
+- **知识**：结构化 `KnowledgeClaim`（subject/claim/source/confidence/scope/contradicted_by/solidified），观察→传播→质疑→修正→固化。
+- **玩家**：旅行者，可旁观、可加入。AP 每日 12 点。
+- **世界演变**：宁静村庄 →（冻结，路线图 P3）贸易驿站 → 学识小镇…
+
+---
+
+## 2. 架构修正（代码大师）
+
+### 2.1 技术栈决策：接受现实，拥抱 Python + Web
+
+- **决定**：保留 Python 3.11 + FastAPI + SQLite + HTML/JS(WebSocket) 栈，**不迁移 Go/Godot/PostgreSQL**。理由：开发效率、零部署、WebSocket 已够原型用；原计划的 1000+ Agent 分层（Cold/Warm/Hot）是规模问题，当前阶段不假装存在。
+- **必须更新**：CLAUDE.md、AGENTS.md 中过时的 Go/Godot/PostgreSQL 描述 → 改为实际栈。
+- **删除**：client/（Godot 残留，git rm）、server/（Go 时代残留，磁盘删除）。
+
+### 2.2 目标模块结构（单一事实来源）
+
+```
+main.py          入口/依赖装配（单例存储、广播回调）
+config.py/.yaml  配置（移除死字段 ws_port）
+models.py        dataclass 数据模型（保留）
+world.py         World（地点/资源/价格/天气）——地点清单唯一来源
+events.py        EventBus + EventScheduler（保留）
+agent.py         Agent（perceive/think/decide + execute 应用动作 + to_dict 补全）
+knowledge.py     知识引擎（唯一，v1 保留，v3 删除）
+storage.py       ★唯一数据访问层（单一连接/权威 DDL/全部方法）——替代 db.py/database.py/logger.py/static_db.py
+tick.py          TickEngine（step：advance→事件→决策→执行→结算→日报；动作执行从 _handle_action 接入）
+llm.py           LLM 客户端（保留）
+api.py           FastAPI 路由（状态载荷收敛为一个构建函数；玩家动作统一走 _handle_action）
+templates/index-v2.html + static/*-v2.*  唯一前端（v1 全套删除）
+```
+
+### 2.3 关键接缝修正（"能跑"的前提）
+
+1. **决策→执行**：`step()` 在 `decide()` 后调用（修复后的）`_handle_action(agent, action, tick)`。一条动作管线，玩家与 NPC 共用。
+2. **单一持久化**：`storage.py` 一个模块一个连接，`_init_schema()` 用 `schema_version` 检测并重建权威表结构（消除"表不存在/列不匹配"整类崩溃）。
+3. **知识引擎唯一**：保留 knowledge.py（v1，签名与现调用一致），删 knowledge_v3.py，tick.py 类型注解与运行时对象统一。
+4. **api.py 对账**：`get_agent_logs/get_world_snapshot/get_events` 在 storage 上补齐；`/api/state`、WS 初始推送、WS 行动后推送三处载荷收敛为同一构建函数。
+5. **中文映射唯一**：职业/地点中文名收敛为 `Agent.get_role_cn` / `Agent.get_location_cn`，删除 tick.py 孤儿 role_map。
+6. **错误边界**：DB 写失败不得杀死整个 tick 任务（per-agent/per-event try/except + 日志）。
+
+---
+
+## 3. 清理清单（删除/修正，可立即执行）
+
+### 3.1 删除（孤儿模块，无运行时引用）
+- `db.py`、`database.py`（两代死数据层）
+- `knowledge_v3.py`（休眠双份引擎）
+- `commands.py`（被架空且含崩溃调用的命令模式）
+- `fix_goal.py`、`update_api.py`（已应用的一次性脚本）
+- `test_full.py`（损坏冒烟测试，用新 `test_smoke.py` 替代）
+- `client/`（git rm，Godot 残留 24 文件）
+- `server/`（磁盘删除，Go 时代残留）
+- 前端 v1：`templates/index.html`、`static/style.css`、`static/app.js`、`static/town-map.js`、`static/sound.js`、`static/visualization.js`
+
+### 3.2 修正
+- `run_server.ps1` → `python main.py`（原为坏的 `python -m server`）
+- `__main__.py` docstring → `python -m ktown` 描述（或直接运行 main）
+- `.gitignore`（NUL 损坏 + Go 时代残留规则）→ 重写
+- `config.py` 删除死字段 `ws_port`
+- `requirements.txt` 增补最小运行依赖说明
+
+---
+
+## 4. 分阶段任务（综合路线图）
+
+### Phase 0：修复工程基底 —— "让它跑起来"（本期执行）
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| 0.1 统一持久层 | 新建 storage.py（单一连接+权威 DDL+全部方法），重接 main/tick/api，删 4 旧层 | 服务器连续运行 ≥3 天；每日摘要/快照/行为日志落库 |
+| 0.2 接通决策-执行 | step() 调用 _handle_action；修复 tick 变量、方法缺失、talk 知识传播 | Agent 位置/体力/金币/关系随动作真实变化 |
+| 0.3 修 Agent 接口 | to_dict() 补 goals/diary/personality；get_location_cn；删孤儿 role_map | 档案面板显示真实目标与日记 |
+| 0.4 修 api.py | 状态载荷收敛；玩家动作统一走 _handle_action（含 work/rest/add_claim/reset）；AP 按 agent_id 扣 | /api/history、/api/logs/agents 不再 500 |
+| 0.5 修前端入口 | index-v2.html 转 UTF-8；app-v2.js 协议对齐（move→target）；CSS 损坏块修复 | GET / 200；移动/工作/休息/添加知识真实生效 |
+| 0.6 清理 | 3.1/3.2 全部执行 | `git status` 干净，仅剩有效文件 |
+| 0.7 冒烟测试 | 新建 test_smoke.py 直驱 step() 跑 60+ tick，断言移动与落库 | 测试通过；修复所有回归 |
+
+### Phase 1：让闭环可见（紧随其后）
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| 1.1 知识流动可视化 | 知识 Tab 升级为"谁信了什么→传给谁→置信度变化→冲突/固化"流动视图 | 玩家能看到知识在镇里"活" |
+| 1.2 事件流真实化 | 事件流由真实动作/事件驱动，每条可点击跳转 Agent 档案 | 事件不再是占位符 |
+| 1.3 因果叙事 | 日报/事件流解释"因为知道 X 所以做了 Y" | 因果可读 |
+| 1.4 信息架构 | 玩家数值只留一处，侧栏第一屏为"小镇脉搏"（在场者/心情/正在做的事/正在传的知识） | 第一眼是小镇的生活 |
+
+### Phase 2：深化一条经济闭环（反馈循环示范）
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| 2.1 食物经济闭环 | 食物稀缺→涨价→更多人采集→价格回落；用 world 供需 + 动作层驱动 | 金币总量趋于稳定；供需曲线可见 |
+| 2.2 关系后果化 | 好感阈值驱动可见行为（靠近/回避/帮忙/分享秘密），取代独立派系引擎 | 好友聚集、宿敌回避可观察 |
+| 2.3 玩家经济参与 | 玩家采集/买卖/休息真实改变市场 | 玩家行为引发涟漪 |
+
+### Phase 3：玩家体验收敛（薄目标，不新增系统）
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| 3.1 12AP 居民 | 移动/3 轮对话/采集/休息/交易真实可用 | 玩家每天必须选择 |
+| 3.2 每日 3 目标 | 薄层挂在可执行动作上，完成有奖励 | 目标进度真实推进 |
+| 3.3 决定启用/冻结装饰系统 | 在核心闭环呼吸后，评估成就/小镇进化/叙事/技能树去留 | 明确裁切清单 |
+
+### Phase 4：整合验证
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| 4.1 30 天稳定性 | 跑满 30 天模拟 | 无崩溃、无异常 |
+| 4.2 性能 | Tick < 3 秒（12 Agent）；LLM 调用缓存/限流生效 | 达标 |
+| 4.3 数据卫生 | VACUUM、外键、二级索引、（路线图）知识持久化 | schema 规范化 |
+| 4.4 文档 | CLAUDE.md/README/handoff/development-progress 与实际一致 | 无三套技术栈并存 |
+
+---
+
+## 5. 风险登记（修正版）
+
+| 风险 | 概率 | 影响 | 缓解 |
+|---|---|---|---|
+| 动作执行后经济快速失衡 | 高 | 中 | 参数上下限 + 每日监控指标（Phase 2 前可先观察） |
+| 知识传播过多导致同质化 | 中 | 高 | 置信度衰减 + 传播成本（体力），控制扩散速率 |
+| LLM 成本/延迟 | 中 | 中 | 每日 10 次上限 + 缓存（已实现），无 key 走 mock |
+| 前端返工 | 中 | 高 | Phase 0 先对齐协议，再做视觉；一切以"能玩"为先 |
+
+---
+
+## 6. 本 Session 立即执行范围
+
+按 Phase 0 执行：0.1–0.7 全部落地 + 3.1/3.2 清理 + 文档同步。以 `test_smoke.py` 通过、`GET /` 返回 200、模拟可连跑多天为完成标志。Phase 1–4 作为交接给后续 session 的路线图。

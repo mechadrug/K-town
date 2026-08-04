@@ -1,38 +1,59 @@
 # K-town 开发交接记录
 
 ## 当前状态（2026-08-04）
-- 版本：v0.2.1
+- 版本：v0.3-基底重构（从"僵尸水族箱"修复为可运行的核心闭环）
 - 分支：feature/v0.2-game-ui
-- 状态：所有核心功能完善完成，前端可视化正常
-
-## 本次完成工作
-
-### 关键 Bug 修复
-- 删除所有文件的 UTF-8 BOM（导致 Python 解析失败）
-- 修复 tick.py 重复的 stop() 方法
-- 修复 main.py 重复的 create_app 调用
-- 修复 main.py 损坏的字节（0x3f -> 0x9f）
-
-### 前端完全重构
-- app.js：添加 updateUI 函数声明，实现完整的 UI 更新逻辑
-- index.html：重构为清洁的三栏布局，新手引导弹窗
-- style.css：添加居民卡片、每日摘要、AP 条、可视化指示器样式
-
-### 新功能实现
-- AP 系统：玩家每天12点行动点（移动1、工作2、调查2、对话1、休息0）
-- 食物消耗：居民每天消耗1-3单位食物，饿了会自动购买
-- 每日摘要：中文叙事描述，每个居民的活动、心情、财富变化
-- 实体化知识系统：前端可查看所有知识和固化状态
+- **路线图**：`docs/design-master-plan-2026-08-04.md`（修正版主计划，Phase 0–4）—— 新 session 先读它
 
 ## 运行方式
 ```powershell
 cd C:\Users\azi\Desktop\K-town-demo-v0.1.0
-python main.py
+python main.py          # 或 run_server.ps1
 ```
-访问 http://localhost:8090
+访问 http://localhost:8090 ；冒烟测试：`python test_smoke.py`
 
-## 后续开发建议
-- 二维地图可视化（Canvas/SVG 小镇布局）
-- 事件链系统完喈（传闻→调查→发现）
-- 技能学习系统：玩家可向居民学习技能
-- 多玩家支持：多个玩家同时在线
+## 本次会话完成（Phase 0 落地）
+
+### 审计结论（三方大师评审：游戏/代码/客户端）
+原 v0.2.1 不可运行：① `step()` 从不执行 `decide()` 的动作（`_handle_action` 死代码）→ 世界静止；
+② 数据层 4 套并存（db.py/database.py/logger.py/static_db.py）互相冲突 → tick 10 写库崩、tick 24 日报崩，
+模拟从未跨天（DB 实测 day_summaries=0）；③ index-v2.html 是 GBK 编码 → GET / 直接 500；
+④ 前端-后端协议失配（move 发 destination 后端读 target、work/rest/add_claim/reset 无分支）；
+⑤ 6 个玩法系统（派系/叙事/时代/成就/交易/任务）"只挂不跑"。
+
+### 修复（全部验证通过）
+- ✅ **storage.py**：唯一数据访问层（单一连接、权威 DDL、schema_version 自动重建损坏表）。
+      取代 4 套旧层；main/tick/api 共享同一实例。
+- ✅ **决策→执行链**：step() 调用 `_handle_action(agent, action, tick)`；玩家动作同管线。
+- ✅ **Agent 生活节奏**：傍晚广场聚集/社交决策层 → 小镇有每日空间节律。
+- ✅ **Agent 接口**：to_dict() 含 goals/diary/personality/location_cn/role_cn；新增 get_location_cn。
+- ✅ **api.py**：状态载荷收敛 `_build_state_payload()`；/api/history、/api/logs/agents 不再 500；
+      玩家动作支持 work/rest/add_claim/reset/talk。
+- ✅ **前端**：index-v2.html 转 UTF-8；app-v2.js 协议对齐 + 真实对话接线 + 档案目标/日记渲染；
+      animations-v2.css 注释修复、style-v2.css 补 --bg-card。
+- ✅ **清理**：删 client/（Godot）、server/（Go）、v1 前端六件套、9 个孤儿/一次性模块、
+      一次性文档脚本、过期评审文档、重写损坏的 .gitignore、k_town.db 移出 git 跟踪、
+      修 run_server.ps1（python main.py）。
+
+### 验证结果
+- ✅ `python test_smoke.py` → **ALL PASS OK**：60 tick，Agent 移动、体力消耗、跨 2 天、日报内存+落库、知识产生、无异常
+- ✅ `python main.py` 实测：GET / 200；/api/state、/api/history/1、/api/logs/agents/1 全 200；
+      存活到 tick 48（第 3 天），day_summaries=2、agent_decisions=576、world_snapshots=40、agent_logs=24 全部落库
+
+## 技术债 / 已知问题
+- 知识系统仍为内存态（knowledge_pool 未写入）——路线图 Phase 4.3
+- narrative/town_evolution/achievements/trade_market 已实例化但**冻结**（驱动逻辑待核心闭环呼吸后接入/取舍）
+- Agent diary 暂为空（无日记写入逻辑）；档案显示 goals 正常
+- tick.py 仍为 1961 行单体——拆分排在 Phase 0 之后（P2），勿在闭环稳定前动
+- knowledge 增长快（无去重/合并）——Phase 1 知识流动可视化时一并处理
+- config.yaml 的 LLM key 是真 key（已 gitignore）；无 key 时 llm.py 自动走 mock
+
+## 下一步（按设计主计划）
+- **Phase 1 让闭环可见**：知识流动可视化、事件流真实化、因果叙事、信息架构修正（第一屏给"小镇脉搏"）
+- **Phase 2 深化一条经济闭环**：食物稀缺→涨价→行为变化→回落；关系后果化
+- **Phase 3 玩家体验收敛**：12AP 居民真实可用；每日 3 目标薄层
+- **Phase 4 整合验证**：30 天稳定性、tick<3s、知识持久化、VACUUM/外键/索引
+
+## 提交提示
+工作区大量变更未提交（storage.py 新文件、大量删除、前端修复、文档）。按 CLAUDE.md 提交规范分批：
+chore/refactor（清理/入口）→ feat/fix（storage+执行链+前端）→ docs（主计划+handoff+progress）。勿 `git add -A`。

@@ -6,16 +6,18 @@ This file provides guidance to AI coding agents (Codex, Copilot, Cursor, etc.) w
 
 A multi-agent town simulation game. Residents are independent AI agents with persistent memory, knowledge, goals, and social relationships — not player-centric NPCs. Players can observe or join as human residents.
 
-**v0.1 target**: 2D town map, 10 agents, 3 locations, 5 event types. Agents move, observe, record knowledge, converse, spread rumors. Player can enter and influence one event.
+**Current state (v0.3-refactor)**: 12 agents, 5 locations (square/workshop/wilderness/school/mine), 22 event types. Agents move, work, socialize, record & spread knowledge. Player is a resident (12 AP/day) who can observe and lightly influence the town.
 
-## Tech Stack (planned)
+> **Direction**: see `docs/design-master-plan-2026-08-04.md` (the authoritative roadmap). The old Go/Godot/PostgreSQL plan is abandoned.
 
-- **Client**: Godot 2D (C# or GDScript)
-- **Server**: Go — tick loop, event bus, agent state machines, WebSocket sync
-- **Agent Runtime**: Rule-based (Go) for routine decisions; LLM for key decisions, dialogue, summarization
-- **DB**: PostgreSQL + pgvector/Qdrant (semantic memory), Redis (cache/queue)
+## Tech Stack (actual)
 
-## Agent Tiers
+- **Client**: HTML + CSS + vanilla JS (`templates/index-v2.html` + `static/*-v2.*`) — SVG hand-drawn map, WebSocket realtime
+- **Server**: Python 3.11 + FastAPI + Uvicorn (`main.py` → port 8090) — tick loop, event bus, agent loop
+- **Agent Runtime**: rule-based 5-layer decision (`agent.py:decide`); LLM only for key decisions (`llm.py`, rate-limited + cached, mock without key)
+- **DB**: SQLite via `storage.py` — the ONE data access layer (WAL, authoritative DDL, schema-version rebuild)
+
+## Agent Tiers (future scale-up, not yet enabled)
 
 1. **Cold** — far from players, low-frequency updates (schedule + summary only)
 2. **Warm** — active areas, rule/utility-AI decisions, occasional LLM
