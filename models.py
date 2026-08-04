@@ -35,6 +35,7 @@ class AgentTask:
 @dataclass
 class AgentState:
     energy:float=100.0;mood:Mood=Mood.NEUTRAL;gold:int=0;location:str="";current_task:Optional[AgentTask]=None;inventory:List[str]=field(default_factory=list);social_ties:Dict[str,float]=field(default_factory=dict);food:int=5;hunger:float=0;ap:int=12;ap_max:int=12
+    night_ap:int=0  # 十三时：独立的夜间行动力（每13天+1，仅夜晚可用）
     # 新增：派系ID
     faction_id:str=""
 

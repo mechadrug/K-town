@@ -137,7 +137,7 @@
     setText('stat-gold', player.gold || 0);
     setText('stat-energy', Math.round(player.energy || 100));
     setText('stat-ap', player.action_points || 12);
-    setText('stat-ap-max', player.max_ap || 12);
+    setText('stat-ap-max', 12);
     setText('player-location', getLocationCn(player.location));
 
     var energyPct = Math.min(100, Math.max(0, player.energy || 100));
@@ -154,19 +154,18 @@
     }
     
     setText('energy-value', Math.round(energyPct));
-    setText('ap-value', (player.action_points || 12) + '/' + (player.max_ap || 12));
+    var apLabel = (player.action_points || 12) + '/12';
+    if ((player.night_ap || 0) > 0) apLabel += ' 🌙' + player.night_ap;
+    setText('ap-value', apLabel);
 
-    // 十三时：行动力 > 12 时高亮提示（可夜行探索）
+    // 十三时：夜间行动力 > 0 时高亮提示（可夜行探索）
     var apStatEl = document.querySelector('.topbar-stat.ap');
     if (apStatEl) {
-      if ((player.action_points || 12) > 12) apStatEl.classList.add('night-ap');
+      if ((player.night_ap || 0) > 0) apStatEl.classList.add('night-ap');
       else apStatEl.classList.remove('night-ap');
     }
 
-    TownMapV2.update(data.agents || [], data.weather, hour);
-    setTimeTheme(hour);
-
-    // 分层界面：玩家位置变化时切换地图舞台 + 更新地点栏（等级/在场人数）
+    // 分层界面：玩家位置变化时先切换舞台，再更新居民（避免旧地点人群残留）
     if (player.location && player.location !== lastMapLoc) {
       lastMapLoc = player.location;
       TownMapV2.setLocation(player.location);
@@ -175,6 +174,8 @@
       setText('map-loc-name', getLocationCn(player.location));
       setText('map-loc-level', '修缮等级 ' + locLevel);
     }
+    TownMapV2.update(data.agents || [], data.weather, hour);
+    setTimeTheme(hour);
     var hereCount = (data.agents || []).filter(function(a) { return a.location === player.location; }).length;
     setText('map-loc-count', '在场 ' + hereCount + ' 人');
 
@@ -649,6 +650,11 @@
         messages.appendChild(respEl);
         messages.scrollTop = messages.scrollHeight;
         if (data.knowledge_gained) showToast('📚 ' + data.knowledge_gained, 'info');
+        // 对话消耗 AP：即时更新顶栏显示（避免与实际不符）
+        if (data.ap_remaining !== undefined) {
+          setText('stat-ap', data.ap_remaining);
+          setText('ap-value', data.ap_remaining + '/12');
+        }
       })
       .catch(function() {
         var respEl = document.createElement('div');

@@ -81,7 +81,8 @@ class QuestEngine:
         for g in self.daily_goals:
             if g.completed:
                 continue
-            if goal_type == g.type:
+            # "劳作"也计入"采集"目标（玩家在荒野劳作即采集）
+            if goal_type == g.type or (goal_type == "work" and g.type == "gather"):
                 if g.type == "earn":
                     g.progress += max(0, gold_earned)
                 else:

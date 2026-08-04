@@ -307,6 +307,7 @@ class Agent:
             "hunger": self.state.hunger,
             "action_points": self.state.ap,
             "max_ap": self.state.ap_max,
+            "night_ap": self.state.night_ap,
             "social_ties": self.state.social_ties,
             "current_task": self.state.current_task.description if self.state.current_task else None,
             "traits": self.identity.traits,

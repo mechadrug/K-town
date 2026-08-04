@@ -469,11 +469,12 @@ class TickEngine:
 
             self._llm_calls_today = 0
 
-            # 重置玩家AP（主角的"十三时"：每过 13 天，行动力 +1，可用于夜晚行动）
+            # 重置玩家AP（每日基础 12；十三时 = 独立的夜间行动力池，仅夜晚可用）
             for a in self.agents:
                 if a.identity.role.value == 'player':
-                    a.state.ap_max = 12 + (self.current_day + 1) // 13
-                    a.state.ap = a.state.ap_max
+                    a.state.ap_max = 12
+                    a.state.ap = 12
+                    a.state.night_ap = (self.current_day + 1) // 13
 
             self.current_day += 1
 
@@ -1843,19 +1844,16 @@ class TickEngine:
 
         loc_cn = agent.get_location_cn(agent.state.location)
 
-        # 玩家行动消耗AP（不足则拦截，不执行）
-
+        # 玩家行动消耗AP（不足则拦截；夜晚走十三时夜间行动力，不扣常规AP）
+        cur_hour = tick % self.day_length
+        at_night = not (self.wake_hour <= cur_hour < self.wake_hour + self.waking_hours)
         if agent.identity.role.value == 'player' and t in ('move', 'work', 'talk', 'rest', 'investigate'):
-
-            ap_cost = 2 if t == 'investigate' else 1
-
-            if agent.state.ap < ap_cost:
-
-                self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
-
-                return
-
-            agent.state.ap -= ap_cost
+            if not at_night:
+                ap_cost = 2 if t == 'investigate' else 1
+                if agent.state.ap < ap_cost:
+                    self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
+                    return
+                agent.state.ap -= ap_cost
 
         # 记录动作前金币（用于每日目标"赚取金币"进度）
 
