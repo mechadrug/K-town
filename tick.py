@@ -400,6 +400,10 @@ class TickEngine:
             # 每日金币回收（防通胀）
             self._apply_gold_sinks()
 
+            # 新的一天：生成玩家每日目标
+            if hasattr(self, 'quest_engine') and self.quest_engine:
+                self.quest_engine.generate_daily_goals(self.current_day)
+
             summary = self._generate_day_summary(self.current_day)
 
             self.day_summaries.append(summary)
@@ -1726,11 +1730,9 @@ class TickEngine:
 
                 self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
 
-        # 更新每日目标进度（仅玩家，薄层）
+        # 记录动作前金币（用于每日目标"赚取金币"进度）
 
-        if agent.identity.role.value == 'player' and hasattr(self, 'quest_engine'):
-
-            self.quest_engine.update_daily_goal_progress(t)
+        gold_before = agent.state.gold
 
         if t == "move" and tgt:
 
@@ -1903,6 +1905,13 @@ class TickEngine:
             self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}观察四周")
 
         agent.state.energy = max(0, min(100, agent.state.energy))
+
+        # 每日目标进度（仅玩家，薄层）—— 动作执行后追踪，完成即发奖励
+        if agent.identity.role.value == 'player' and hasattr(self, 'quest_engine') and self.quest_engine:
+            gold_earned = max(0, agent.state.gold - gold_before)
+            reward = self.quest_engine.update_progress(agent, action_type=t, gold_earned=gold_earned)
+            if reward:
+                self.daily_agent_logs[agent.identity.id].append(f"🎯 完成每日目标，获得{reward}金币奖励")
 
 
 

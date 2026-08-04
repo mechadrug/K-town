@@ -101,6 +101,83 @@
   padding-top: 6px;
 }
 
+/* === 知识流动视图 === */
+.knowledge-flow-item {
+  background: var(--bg-card);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.knowledge-flow-head {
+  font-weight: 700;
+  font-size: 0.82em;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+.knowledge-flow-count {
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.knowledge-flow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.knowledge-flow-line {
+  font-size: 0.75em;
+  color: var(--text-secondary);
+}
+.knowledge-flow-meta {
+  font-size: 0.7em;
+  color: var(--text-muted);
+}
+.knowledge-flow-more {
+  font-size: 0.7em;
+  color: var(--text-muted);
+}
+.knowledge-flow-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+.kf-badge {
+  font-size: 0.68em;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.kf-badge.solid { background: rgba(255, 167, 38, 0.15); color: var(--warm-600); }
+.kf-badge.conflict { background: rgba(229, 115, 115, 0.15); color: #C62828; }
+.kf-badge.spread { background: rgba(100, 181, 246, 0.15); color: #1565C0; }
+.confidence-bar {
+  display: inline-block;
+  width: 60px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  overflow: hidden;
+}
+.confidence-fill {
+  display: block;
+  height: 100%;
+  background: var(--warm-400);
+  border-radius: 3px;
+}
+.knowledge-flow-item .confidence-bar {
+  display: block;
+  width: 100%;
+  margin: 6px 0 0;
+}
+
 /* === 任务列表 === */
 .quest-list {
   display: flex;

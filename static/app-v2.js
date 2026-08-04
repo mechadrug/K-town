@@ -307,28 +307,49 @@
     var container = document.getElementById('knowledge-list');
     if (!container) return;
     container.innerHTML = '';
-
+    claims = claims || [];
     if (claims.length === 0) {
       container.innerHTML = '<div class="placeholder-text">暂无知识记录</div>';
       return;
     }
 
-    // 按置信度排序
-    claims.sort(function(a, b) { return (b.confidence || 0) - (a.confidence || 0); });
-    claims.slice(0, 15).forEach(function(c) {
-      var conf = Math.round((c.confidence || 0) * 100);
+    // 按主题聚类成"知识流"：同主题下看它如何产生→传播→固化/冲突
+    var groups = {};
+    claims.forEach(function(c) {
+      var key = c.subject || '其他';
+      (groups[key] = groups[key] || []).push(c);
+    });
+
+    var keys = Object.keys(groups).sort(function(a, b) { return groups[b].length - groups[a].length; });
+    keys.slice(0, 8).forEach(function(key) {
+      var list = groups[key].slice().sort(function(a, b) { return (a.created_at || 0) - (b.created_at || 0); });
+      var holders = {};
+      list.forEach(function(c) { if (c.created_by) holders[c.created_by] = true; });
+      var holderCount = Object.keys(holders).length;
+      var maxConf = Math.max.apply(null, list.map(function(c) { return c.confidence || 0; }));
+      var hasConflict = list.some(function(c) { return (c.contradicted_by || []).length > 0; });
+      var isSolidified = list.some(function(c) { return c.solidified; });
+      var conf = Math.round(maxConf * 100);
+
       var item = document.createElement('div');
-      item.className = 'knowledge-item ' + (c.solidified ? 'solidified' : '');
-      item.innerHTML = 
-        '<div class="knowledge-claim">🔖 ' + (c.claim || '') + '</div>' +
-        '<div class="knowledge-meta">' +
-          '<span>👤 ' + getAgentName(c.created_by || '') + '</span>' +
-          '<span>📍 ' + getLocationCn(c.location || '') + '</span>' +
-          '<span>置信 ' + conf + '%' +
-            '<span class="confidence-bar"><span class="confidence-fill" style="width:' + conf + '%"></span></span>' +
-          '</span>' +
-          (c.solidified ? '<span style="color:var(--warm-500)">✓ 已固化</span>' : '') +
+      item.className = 'knowledge-flow-item';
+      var html = '<div class="knowledge-flow-head">📚 ' + key +
+        '<span class="knowledge-flow-count">' + list.length + ' 条 · ' + holderCount + ' 人持有</span></div>';
+      html += '<div class="knowledge-flow-body">';
+      list.slice(0, 3).forEach(function(c) {
+        var who = (c.source === 'conversation' || c.source === 'rumor') ? '传到' : '来自';
+        html += '<div class="knowledge-flow-line">💬 “' + (c.claim || '') + '”' +
+          '<span class="knowledge-flow-meta">' + who + ' ' + getAgentName(c.created_by || '') + ' · ' + Math.round((c.confidence || 0) * 100) + '%</span></div>';
+      });
+      if (list.length > 3) html += '<div class="knowledge-flow-more">… 另有 ' + (list.length - 3) + ' 条</div>';
+      html += '</div>';
+      html += '<div class="confidence-bar"><div class="confidence-fill" style="width:' + conf + '%"></div></div>';
+      html += '<div class="knowledge-flow-badges">' +
+        (isSolidified ? '<span class="kf-badge solid">✓ 已固化</span>' : '') +
+        (hasConflict ? '<span class="kf-badge conflict">⚡ 有冲突</span>' : '') +
+        (list.length > 1 ? '<span class="kf-badge spread">↗ 已传播</span>' : '') +
         '</div>';
+      item.innerHTML = html;
       container.appendChild(item);
     });
   }

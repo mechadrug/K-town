@@ -1,191 +1,104 @@
-"""Quest and Achievement system for K-town."""
-import time
-import uuid
+"""K-town 每日目标薄层。
+
+设计依据：docs/product/gameplay-design-v3.md §5
+- 每天生成 3 个目标，全部来自"真实可执行动作"池
+- 进度挂在动作执行上实时追踪（tick._handle_action 挂钩）
+- 完成后立即发放金币奖励，并写入日报
+- 不搞技能树/声望/排行榜 —— 薄层，不喧宾夺主
+"""
+
+import random
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, field
 
 
-@dataclass
-class Quest:
-    id: str
-    title: str
-    description: str
-    category: str
-    status: str = "active"
-    progress: int = 0
-    target: int = 1
-    reward_gold: int = 0
-    reward_text: str = ""
-    started_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
+# 目标模板池：type 与 tick._handle_action 的动作挂钩
+GOAL_POOL: List[Dict[str, Any]] = [
+    {"type": "work", "target": 2, "desc": "工作 2 次", "reward": 15, "icon": "🛠️"},
+    {"type": "talk", "target": 2, "desc": "与 2 位居民交谈", "reward": 15, "icon": "💬"},
+    {"type": "move", "target": 3, "desc": "走访 3 个不同地点", "reward": 10, "icon": "🚶"},
+    {"type": "investigate", "target": 1, "desc": "调查 1 次周围环境", "reward": 20, "icon": "🔍"},
+    {"type": "gather", "target": 2, "desc": "采集或劳作 2 次", "reward": 15, "icon": "🌿"},
+    {"type": "earn", "target": 20, "desc": "赚取 20 金币", "reward": 10, "icon": "🪙"},
+    {"type": "knowledge", "target": 1, "desc": "传播 1 条知识", "reward": 20, "icon": "📚"},
+    {"type": "rest", "target": 1, "desc": "休息恢复 1 次", "reward": 5, "icon": "🛏️"},
+]
 
-    def to_dict(self):
+# 动作类型 → 目标类型
+_ACTION_TO_TYPE: Dict[str, str] = {
+    "work": "work", "craft_tool": "work", "craft_furniture": "work",
+    "gather_food": "gather", "gather_material": "gather",
+    "talk": "talk", "move": "move", "investigate": "investigate",
+    "rest": "rest", "sleep": "rest", "add_claim": "knowledge",
+}
+
+
+class DailyGoal:
+    def __init__(self, goal_type: str, desc: str, target: int, reward: int, icon: str):
+        self.type = goal_type
+        self.desc = desc
+        self.target = target
+        self.reward = reward
+        self.icon = icon
+        self.progress = 0
+        self.completed = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        pct = round(self.progress / self.target * 100) if self.target else 0
         return {
-            "id": self.id,
-            "title": self.title,
-            "description": self.description,
-            "category": self.category,
-            "status": self.status,
+            "id": f"goal_{self.type}",
+            "title": self.desc,
+            "description": self.desc,
+            "category": "daily",
+            "status": "completed" if self.completed else "active",
             "progress": self.progress,
             "target": self.target,
-            "reward_gold": self.reward_gold,
-            "reward_text": self.reward_text,
-            "progress_pct": min(100, round(self.progress / max(1, self.target) * 100))
-        }
-
-
-@dataclass
-class Achievement:
-    id: str
-    title: str
-    description: str
-    icon: str
-    unlocked: bool = False
-    unlocked_at: Optional[float] = None
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "description": self.description,
+            "progress_pct": min(100, pct),
+            "reward_gold": self.reward,
+            "reward_text": f"{self.reward} 金币",
             "icon": self.icon,
-            "unlocked": self.unlocked
         }
 
 
 class QuestEngine:
     def __init__(self):
-        self.quests: Dict[str, Quest] = {}
-        self.achievements: Dict[str, Achievement] = {}
-        self._init_quests()
-        self._init_achievements()
+        self.daily_goals: List[DailyGoal] = []
+        self.completed_history: List[str] = []  # 历史完成记录（用于 total_completed）
+        self.current_day = 1
 
-    def _init_quests(self):
-        tutorial_quests = [
-            Quest("q_hello", "Meet Grandmother Mae", "Say hello to Elder Mae at the square", "tutorial", target=1, reward_gold=10, reward_text="10 gold and Mae's blessing"),
-            Quest("q_explore", "Town Wanderer", "Visit 3 different locations", "tutorial", target=3, reward_gold=15, reward_text="15 gold for exploring"),
-            Quest("q_first_work", "Self-reliant", "Complete 3 work actions", "tutorial", target=3, reward_gold=20, reward_text="20 gold for hard work"),
-            Quest("q_social", "Make Friends", "Talk to 3 different residents", "tutorial", target=3, reward_gold=15, reward_text="15 gold for socializing"),
-            Quest("q_knowledge", "Knowledge Keeper", "Create 2 knowledge claims", "tutorial", target=2, reward_gold=25, reward_text="25 gold for sharing knowledge"),
-        ]
-        main_quests = [
-            Quest("q_economy", "Economic Pillar", "Earn 100 gold total", "main", target=100, reward_gold=50, reward_text="Economic contributor"),
-            Quest("q_well_connected", "Social Butterfly", "Befriend 5 residents", "main", target=5, reward_gold=50, reward_text="Everyone considers you a friend"),
-            Quest("q_explorer", "Pioneer Explorer", "Explore the wilderness 5 times", "main", target=5, reward_gold=40, reward_text="Discover the secrets around town"),
-            Quest("q_master", "Town Leader", "Complete all main quests", "main", target=4, reward_gold=200, reward_text="Became the town leader"),
-        ]
-        daily_quests = [
-            Quest("q_daily_work", "Hardworking Day", "Complete 5 work actions today", "daily", target=5, reward_gold=10, reward_text="Hard work pays off"),
-            Quest("q_daily_social", "Social Day", "Talk to 2 residents today", "daily", target=2, reward_gold=8, reward_text="Building connections"),
-            Quest("q_daily_explore", "Curiosity", "Visit all locations today", "daily", target=5, reward_gold=12, reward_text="Well-traveled"),
-        ]
-        for q in tutorial_quests + main_quests + daily_quests:
-            self.quests[q.id] = q
+    def generate_daily_goals(self, day: int, count: int = 3) -> None:
+        """新的一天，从动作池随机生成 count 个目标"""
+        self.current_day = day
+        self.daily_goals = []
+        pool = GOAL_POOL[:]
+        random.shuffle(pool)
+        for g in pool[:count]:
+            self.daily_goals.append(DailyGoal(g["type"], g["desc"], g["target"], g["reward"], g["icon"]))
 
-    def _init_achievements(self):
-        achievements = [
-            Achievement("a_first_step", "First Step", "Complete your first tutorial quest", "flag"),
-            Achievement("a_worker", "Worker", "Work 20 times total", "gear"),
-            Achievement("a_social_butterfly", "Social Butterfly", "Talk to all residents", "smile"),
-            Achievement("a_rich", "Small Fortune", "Earn 500 gold total", "coins"),
-            Achievement("a_scholar", "Scholar", "Create 10 knowledge claims", "book"),
-            Achievement("a_explorer", "Explorer", "Explore wilderness 10 times", "compass"),
-            Achievement("a_survivor", "Survivor", "Survive a disaster event", "shield"),
-            Achievement("a_friend", "Good Friend", "Reach max friendship with any resident", "heart"),
-        ]
-        for a in achievements:
-            self.achievements[a.id] = a
-
-    def update_progress(self, quest_id: str, amount: int = 1):
-        q = self.quests.get(quest_id)
-        if not q or q.status != "active":
-            return
-        q.progress = min(q.target, q.progress + amount)
-        if q.progress >= q.target:
-            q.status = "completed"
-            q.completed_at = time.time()
-
-    def check_event(self, event_type: str, data: Dict[str, Any] = None):
-        data = data or {}
-        if event_type == "player_move":
-            visited = data.get("visited_locations", [])
-            q = self.quests.get("q_explore")
-            if q and q.status == "active":
-                q.progress = min(q.target, len(visited))
-                if q.progress >= q.target:
-                    q.status = "completed"
-                    q.completed_at = time.time()
-        elif event_type == "player_work":
-            self.update_progress("q_first_work")
-            self.update_progress("q_daily_work")
-        elif event_type == "player_talk":
-            talked = data.get("talked_agents", [])
-            q = self.quests.get("q_social")
-            if q and q.status == "active":
-                q.progress = min(q.target, len(talked))
-                if q.progress >= q.target:
-                    q.status = "completed"
-                    q.completed_at = time.time()
-            self.update_progress("q_daily_social")
-        elif event_type == "player_claim":
-            self.update_progress("q_knowledge")
-        elif event_type == "player_gold":
-            total = data.get("total_gold", 0)
-            q = self.quests.get("q_economy")
-            if q and q.status == "active":
-                q.progress = min(q.target, total)
-                if q.progress >= q.target:
-                    q.status = "completed"
-                    q.completed_at = time.time()
-        elif event_type == "player_explore":
-            self.update_progress("q_explorer")
-            self.update_progress("q_daily_explore")
-
-    def get_active_quests(self) -> List[Dict]:
-        return [q.to_dict() for q in self.quests.values() if q.status == "active"]
-
-    def get_completed_quests(self) -> List[Dict]:
-        return [q.to_dict() for q in self.quests.values() if q.status == "completed"]
-
-    def get_all_achievements(self) -> List[Dict]:
-        return [a.to_dict() for a in self.achievements.values()]
+    def update_progress(self, player, action_type: str = "", gold_earned: int = 0) -> int:
+        """根据玩家一次动作更新目标进度。返回本次发放的奖励金币（0 表示无）。"""
+        goal_type = _ACTION_TO_TYPE.get(action_type, "")
+        rewards = 0
+        for g in self.daily_goals:
+            if g.completed:
+                continue
+            if goal_type == g.type:
+                if g.type == "earn":
+                    g.progress += max(0, gold_earned)
+                else:
+                    g.progress += 1
+            if g.progress >= g.target:
+                g.completed = True
+                rewards += g.reward
+                self.completed_history.append(f"第{self.current_day}天 · {g.desc}")
+        if rewards > 0:
+            player.state.gold += rewards
+        return rewards
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "active_quests": self.get_active_quests(),
-            "completed_quests": self.get_completed_quests(),
-            "achievements": self.get_all_achievements(),
-            "total_completed": sum(1 for q in self.quests.values() if q.status == "completed"),
-            "total_quests": len(self.quests)
+            "active_quests": [g.to_dict() for g in self.daily_goals if not g.completed],
+            "completed_quests": [g.to_dict() for g in self.daily_goals if g.completed],
+            "achievements": [],
+            "total_completed": len(self.completed_history),
+            "total_quests": len(self.daily_goals),
         }
-
-
-    def get_daily_goals(self) -> List[Dict]:
-        daily = [q for q in self.quests.values() if q.category == 'daily' and q.status == 'active']
-        return [q.to_dict() for q in daily]
-
-    def update_daily_goal_progress(self, action_type: str, amount: int = 1):
-        for q in self.quests.values():
-            if q.category != 'daily' or q.status != 'active':
-                continue
-            if q.id == 'q_daily_work' and action_type == 'work':
-                q.progress = min(q.target, q.progress + amount)
-                if q.progress >= q.target:
-                    q.status = 'completed'
-                    q.completed_at = time.time()
-            elif q.id == 'q_daily_social' and action_type == 'talk':
-                q.progress = min(q.target, q.progress + amount)
-                if q.progress >= q.target:
-                    q.status = 'completed'
-                    q.completed_at = time.time()
-            elif q.id == 'q_daily_explore' and action_type == 'move':
-                q.progress = min(q.target, q.progress + amount)
-                if q.progress >= q.target:
-                    q.status = 'completed'
-                    q.completed_at = time.time()
-
-    def reset(self):
-        self.quests.clear()
-        self.achievements.clear()
-        self._init_quests()
-        self._init_achievements()
