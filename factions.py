@@ -86,28 +86,5 @@ class FactionSystem:
         for a in agents:
             a.state.faction_id = agent_faction_map.get(a.identity.id, "")
     
-    def get_faction_influence(self, faction_id: str) -> int:
-        """获取派系影响力"""
-        if faction_id in self.factions:
-            return self.factions[faction_id].get("influence", 0)
-        return 0
     
-    def get_shared_faction(self, agent1_id: str, agent2_id: str) -> str:
-        """检查两个Agent是否在同一个派系"""
-        for f_id, info in self.factions.items():
-            members = info.get("members", [])
-            if agent1_id in members and agent2_id in members:
-                return f_id
-        return ""
 
-def apply_tie_decay(agents, decay_rate=0.02):
-    """关系衰减：久不联系的关系自然下降"""
-    for a in agents:
-        for other_id in list(a.state.social_ties.keys()):
-            tie = a.state.social_ties[other_id]
-            if abs(tie) > 0.5:
-                # 缓慢衰减
-                if tie > 0:
-                    a.state.social_ties[other_id] = max(0, tie - decay_rate)
-                else:
-                    a.state.social_ties[other_id] = min(0, tie + decay_rate)

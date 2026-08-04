@@ -452,18 +452,7 @@ class Storage:
             "created_at": r["created_at"],
         }
 
-    def set_meta(self, key: str, value: Any) -> None:
-        self.conn.execute(
-            "INSERT OR REPLACE INTO town_meta (key, value, updated_at) VALUES (?, ?, ?)",
-            (key, json.dumps(value, ensure_ascii=False), time.time()),
-        )
-        self.conn.commit()
 
-    def get_meta(self, key: str) -> Optional[Any]:
-        row = self.conn.execute("SELECT value FROM town_meta WHERE key = ?", (key,)).fetchone()
-        return json.loads(row["value"]) if row else None
-
-    # ------------------------------------------------------------------ 重置 / 关闭
 
     def reset(self) -> None:
         """清空全部受管表数据（保留 schema）。"""

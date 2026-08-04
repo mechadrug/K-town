@@ -9,8 +9,6 @@ class EventBus:
         self._event_log = []
         self._scheduled = []
 
-    def subscribe(self, location, callback):
-        self._subscribers.setdefault(location,[]).append(callback)
 
     def publish(self, event):
         self._event_log.append(event)
@@ -129,12 +127,4 @@ class EventScheduler:
         }
         return impact_map.get(weather, 0)
     
-    def generate_knowledge_conflict_event(self, day, claim1_id, claim2_id, location):
-        """生成知识冲突事件"""
-        base = (day-1)*24
-        self.bus.schedule(Event(tick=base+14, type=EventType.KNOWLEDGE_CONFLICT, location=location, payload={"claim1": claim1_id, "claim2": claim2_id}), base+14)
     
-    def generate_goal_complete_event(self, day, agent_id, goal, location):
-        """生成Agent完成目标事件"""
-        base = (day-1)*24
-        self.bus.schedule(Event(tick=base+17, type=EventType.AGENT_GOAL_COMPLETE, location=location, payload={"agent_id": agent_id, "goal": goal}), base+17)

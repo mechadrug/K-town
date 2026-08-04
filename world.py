@@ -96,19 +96,8 @@ class World:
         if location in self.locations and agent_id in self.locations[location]["agents"]:
             self.locations[location]["agents"].remove(agent_id)
 
-    def get_resource(self, location: str, resource_type: str) -> int:
-        return self.resources.get(location, {}).get(resource_type, 0)
 
-    def consume_resource(self, location: str, resource_type: str, amount: int = 1) -> bool:
-        if self.get_resource(location, resource_type) >= amount:
-            self.resources[location][resource_type] -= amount
-            return True
-        return False
 
-    def add_resource(self, location: str, resource_type: str, amount: int = 1):
-        if location not in self.resources:
-            self.resources[location] = {}
-        self.resources[location][resource_type] = self.resources[location].get(resource_type, 0) + amount
 
     def to_dict(self):
         return {

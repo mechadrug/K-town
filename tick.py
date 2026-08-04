@@ -22,8 +22,6 @@ from storage import Storage
 
 from factions import FactionSystem
 
-from trade import TradeMarket
-
 
 
 
@@ -70,9 +68,6 @@ class TickEngine:
 
         self.faction_system = FactionSystem()
 
-        self.trade_market = TradeMarket()
-
-        self.player_actions_count = 0
 
         self.day_summaries: List[Dict[str, Any]] = []
 
@@ -106,7 +101,6 @@ class TickEngine:
 
         # 已处理事件去重集合（避免重复处理相同事件）
 
-        self._processed_event_keys: set = set()
 
         # LLM调用追踪（每天限制次数）
 
@@ -2048,7 +2042,14 @@ class TickEngine:
                     "school": "学校书架里夹着一本没见过的旧书",
                 }
                 claim = discoveries.get(agent.state.location, f"在{loc_cn}发现了不寻常的痕迹")
-                self.knowledge.observe(agent.identity.id, "investigate", claim, agent.state.location, confidence=0.7)
+                # 资源富集地点的线索记为"可行动知识"（seek_resource）→ 驱动其他 Agent 前来采集
+                if agent.state.location in ("wilderness", "mine"):
+                    self.knowledge.observe_with_action(
+                        agent.identity.id, "investigate", claim, agent.state.location,
+                        confidence=0.7, action_type="seek_resource",
+                        action_target=agent.state.location, emotional_valence=0.5)
+                else:
+                    self.knowledge.observe(agent.identity.id, "investigate", claim, agent.state.location, confidence=0.7)
                 self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查，发现了线索：「{claim}」")
             else:
                 self.knowledge.observe(agent.identity.id, "investigate", f"在{loc_cn}仔细调查了一遍", agent.state.location, confidence=0.5)

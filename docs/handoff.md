@@ -1,7 +1,7 @@
 # K-town 开发交接记录
 
 ## 当前状态（2026-08-04）
-- 版本：v0.3-基底重构（从"僵尸水族箱"修复为可运行的核心闭环）
+- 版本：v0.4（可玩的观察型小镇 + 回合制 + 二十时世界观）
 - 分支：feature/v0.2-game-ui
 - **路线图**：`docs/design-master-plan-2026-08-04.md`（修正版主计划，Phase 0–4）—— 新 session 先读它
 
@@ -41,11 +41,9 @@ python main.py          # 或 run_server.ps1
       存活到 tick 48（第 3 天），day_summaries=2、agent_decisions=576、world_snapshots=40、agent_logs=24 全部落库
 
 ## 技术债 / 已知问题
-- 知识系统仍为内存态（knowledge_pool 未写入）——路线图 Phase 4.3
-- narrative/town_evolution/achievements/trade_market 已实例化但**冻结**（驱动逻辑待核心闭环呼吸后接入/取舍）
-- Agent diary 暂为空（无日记写入逻辑）；档案显示 goals 正常
-- tick.py 仍为 1961 行单体——拆分排在 Phase 0 之后（P2），勿在闭环稳定前动
-- knowledge 增长快（无去重/合并）——Phase 1 知识流动可视化时一并处理
+- tick.py 仍为单体（约 1950 行）——拆分排在 P2 后置，勿在闭环稳定前动
+- 断点恢复需 Agent 状态持久化（当前仅知识/日报/快照落库；关掉 `auto_reset` 可保留知识）
+- 前端仍残留未使用的 CSS 块（trade/achievement/settings/tutorial 等样式，低优先可后续清理）
 - config.yaml 的 LLM key 是真 key（已 gitignore）；无 key 时 llm.py 自动走 mock
 
 ## 执行进度（2026-08-04，v0.4 已基本落地）
@@ -66,6 +64,6 @@ python main.py          # 或 run_server.ps1
 - **平衡调优**：技能成长、修缮阈值、食物经济参数（可现场看效果再调）
 - **世界观伏笔深化**：20 小时谜团、失落文明遗迹的发现链（对应侦察兵罗文的目标）
 
-## 提交提示
-工作区大量变更未提交（storage.py 新文件、大量删除、前端修复、文档）。按 CLAUDE.md 提交规范分批：
-chore/refactor（清理/入口）→ feat/fix（storage+执行链+前端）→ docs（主计划+handoff+progress）。勿 `git add -A`。
+## 提交状态
+- 当前工作树已全部提交（最近提交含 AP 显示修复 5e136b2 与审计清理批次）。
+- 后续提交按 CLAUDE.md 规范分批：chore/refactor → feat/fix → docs。勿 `git add -A`。

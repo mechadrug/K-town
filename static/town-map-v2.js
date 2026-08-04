@@ -11,10 +11,8 @@ window.TownMapV2 = (function() {
   var currentLoc = "square";
   var LOCATION_STAGE = {x: 600, y: 400};
   var locStageGroup = null;
-  var animFrameIds = [];
   var currentWeather = "clear";
   var currentHour = 12;
-  var sceneElements = {};
 
   // 地点配置（像素画风，更大画布 1200x720）
   var LOCATIONS = {
@@ -45,17 +43,6 @@ window.TownMapV2 = (function() {
     }
   };
 
-  // 道路连接
-  var PATHS = [
-    { from: "square", to: "workshop", type: "main" },
-    { from: "square", to: "wilderness", type: "main" },
-    { from: "square", to: "school", type: "main" },
-    { from: "square", to: "mine", type: "main" },
-    { from: "workshop", to: "school", type: "dirt" },
-    { from: "wilderness", to: "school", type: "dirt" },
-    { from: "wilderness", to: "mine", type: "dirt" },
-    { from: "workshop", to: "mine", type: "dirt" }
-  ];
 
   // Agent 个人色
   var AGENT_COLORS = {
@@ -121,7 +108,6 @@ window.TownMapV2 = (function() {
     // 昼夜色调遮罩层
     var tint = el("rect", {x: 0, y: 0, width: 1000, height: 600, fill: "transparent", id: "daynight-tint", pointerEvents: "none"});
     svg.appendChild(tint);
-    sceneElements.daynightTint = tint;
 
     // 远山层次
     var hills = el("g", {id: "hills"});
@@ -149,84 +135,11 @@ window.TownMapV2 = (function() {
       fill: "none", stroke: "#6BB3F0", "stroke-width": 6, opacity: 0.35
     }));
     svg.appendChild(riverG);
-    sceneElements.river = riverG;
   }
 
   // ===== 道路绘制 =====
-  function drawPaths() {
-    var g = el("g", {id: "paths"});
-    PATHS.forEach(function(p) {
-      var from = LOCATIONS[p.from];
-      var to = LOCATIONS[p.to];
-      if (!from || !to) return;
-      
-      var midX = (from.x + to.x) / 2;
-      var midY = (from.y + to.y) / 2 - 20;
-      var pathD = "M" + from.x + "," + (from.y + 30) + " Q" + midX + "," + midY + " " + to.x + "," + (to.y + 30);
-      
-      // 道路阴影
-      g.appendChild(el("path", {
-        d: pathD, fill: "none", stroke: "rgba(0,0,0,0.08)",
-        "stroke-width": p.type === "main" ? 16 : 10, "stroke-linecap": "round"
-      }));
-      
-      // 道路主体
-      g.appendChild(el("path", {
-        d: pathD, fill: "none", 
-        stroke: p.type === "main" ? "#C4A882" : "#A1887F",
-        "stroke-width": p.type === "main" ? 10 : 6,
-        "stroke-linecap": "round", opacity: 0.6
-      }));
-      
-      if (p.type === "main") {
-        g.appendChild(el("path", {
-          d: pathD, fill: "none", stroke: "#E8D5B8",
-          "stroke-width": 1.5, "stroke-dasharray": "6,8",
-          "stroke-linecap": "round", opacity: 0.4
-        }));
-      }
-    });
-    svg.appendChild(g);
-  }
 
   // ===== 场景动画元素 =====
-  function drawSceneAnimations() {
-    var sceneG = el("g", {id: "scene-animations"});
-    
-    // 工坊烟囱的烟
-    var smokeG = el("g", {id: "workshop-smoke"});
-    var workshop = LOCATIONS.workshop;
-    for (var i = 0; i < 3; i++) {
-      var smoke = el("circle", {
-        cx: workshop.x + 30 + i * 5, cy: workshop.y - 70 - i * 15,
-        r: 6 + i * 3, fill: "rgba(180,180,180,0.3)", className: "smoke-puff"
-      });
-      smoke.style.animationDelay = (i * 0.8) + "s";
-      smokeG.appendChild(smoke);
-    }
-    sceneG.appendChild(smokeG);
-    sceneElements.smoke = smokeG;
-
-    // 荒野像素树已内置于像素建筑（drawPixelBuilding 的 wilderness 变体）
-
-    // 矿洞的矿石闪光
-    var mineG = el("g", {id: "mine-sparkle"});
-    var mine = LOCATIONS.mine;
-    for (var i = 0; i < 4; i++) {
-      var sparkle = el("circle", {
-        cx: mine.x - 30 + Math.random() * 60,
-        cy: mine.y + 10 + Math.random() * 30,
-        r: 2 + Math.random() * 2,
-        fill: "#B0BEC5", className: "sparkle",
-        style: "animation-delay:" + (i * 1.2) + "s"
-      });
-      mineG.appendChild(sparkle);
-    }
-    sceneG.appendChild(mineG);
-    sceneElements.sparkles = mineG;
-
-    svg.appendChild(sceneG);
-  }
 
   // ===== 像素点缀（岩石/草丛/花）=====
   function drawScenery() {
@@ -331,56 +244,6 @@ window.TownMapV2 = (function() {
   }
 
   // ===== 地点绘制 =====
-  function drawLocation(id) {
-    var loc = LOCATIONS[id];
-    if (!loc) return;
-
-    var g = el("g", {className: "location-marker", "data-id": id});
-    g.style.cursor = "pointer";
-
-    // 光晕
-    var glow = el("ellipse", {
-      cx: loc.x, cy: loc.y + 30, rx: loc.width / 2 + 15, ry: 18,
-      fill: "rgba(0,0,0,0.06)", className: "loc-glow"
-    });
-    g.appendChild(glow);
-
-    // 建筑阴影
-    g.appendChild(el("ellipse", {
-      cx: loc.x + 5, cy: loc.y + loc.height / 2 + 10,
-      rx: loc.width / 2, ry: 6, fill: "rgba(0,0,0,0.08)"
-    }));
-
-    // 像素画建筑主体（含钟楼/烟囱/矿洞/树等地点专属形态）
-    drawPixelBuilding(g, loc);
-
-    // 名称标签背景
-    var nameBg = el("rect", {
-      x: loc.x - 35, y: loc.y + loc.height / 2 + 14,
-      width: 70, height: 22, rx: 11, ry: 11,
-      fill: "var(--panel-bg)", stroke: "var(--panel-border)",
-      "stroke-width": 1, opacity: 0.92, filter: "url(#softShadow)"
-    });
-    g.appendChild(nameBg);
-
-    // 名称文字
-    var nameText = el("text", {
-      x: loc.x, y: loc.y + loc.height / 2 + 29,
-      "text-anchor": "middle", "font-size": "12",
-      "font-weight": "600", fill: "var(--text-primary)"
-    });
-    nameText.textContent = loc.name;
-    g.appendChild(nameText);
-
-    // 点击事件
-    g.addEventListener("click", function() {
-      if (window.AppV2 && window.AppV2.onLocationClick) {
-        window.AppV2.onLocationClick(id, loc);
-      }
-    });
-
-    svg.appendChild(g);
-  }
 
   // ===== Agent 绘制（持久 token + 平滑动画）=====
   function agentPos(agent) {
@@ -672,9 +535,5 @@ window.TownMapV2 = (function() {
       if (hour !== undefined) setHour(hour);
     },
     setLocation: function(locId) { if (svg) setLocation(locId); },
-    getCurrentLoc: function() { return currentLoc; },
-    setWeather: function(w) { if (svg) setWeather(w); },
-    setHour: function(h) { if (svg) setHour(h); },
-    getLocations: function() { return LOCATIONS; }
   };
 })();

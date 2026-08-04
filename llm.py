@@ -30,9 +30,6 @@ class LLMClient:
         except Exception as e:
             return f"[LLM error] {str(e)[:80]}"
 
-    async def dialogue(self, name, role, other, topic):
-        return await self.call(f"You are {name}, a {role}. {other} wants to talk about: {topic}. Respond in 1-2 sentences in Chinese.")
-
     async def close(self):
         if self._session and not self._session.closed:
             await self._session.close()

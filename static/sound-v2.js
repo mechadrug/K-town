@@ -42,6 +42,7 @@ window.KTownSound = (function() {
     // 玩家行动
     move: function() { playTone(440, 0.12, "sine", 0.06); setTimeout(function() { playTone(520, 0.1, "sine", 0.05); }, 80); },
     work: function() { playTone(330, 0.15, "triangle", 0.08); setTimeout(function() { playTone(330, 0.1, "triangle", 0.06); }, 150); },
+    investigate: function() { playTone(660, 0.1, "sine", 0.05); setTimeout(function() { playTone(880, 0.12, "sine", 0.05); }, 100); },
     talk: function() { playTone(520, 0.08, "sine", 0.05); playTone(580, 0.08, "sine", 0.05); },
     rest: function() { playTone(220, 0.4, "sine", 0.04); },
     addKnowledge: function() { playTone(660, 0.12, "square", 0.05); playTone(880, 0.12, "square", 0.03); },

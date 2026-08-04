@@ -237,52 +237,7 @@ class KnowledgeEngine:
                 solidified.append(claim.id)
         return solidified
 
-    def rumor_spread(self, claim_id, from_agent, to_agents):
-        """传闻传播，置信度大幅衰减，30%概率变形"""
-        orig = self.claims.get(claim_id)
-        if not orig:
-            return []
-        results = []
-        for to in to_agents:
-            varied = f"听说{orig.claim}" if random.random() < 0.3 else orig.claim
-            r = KnowledgeClaim(
-                id=f"claim_rumor_{uuid.uuid4().hex[:8]}",
-                subject=orig.subject,
-                claim=varied,
-                source=ClaimSource.RUMOR,
-                confidence=orig.confidence * 0.6,
-                scope=ClaimScope.GROUP,
-                created_by=to,
-                location=orig.location,
-                actionable=orig.actionable,
-                action_type=orig.action_type,
-                action_target=orig.action_target,
-                emotional_valence=orig.emotional_valence * 0.7
-            )
-            self.claims[r.id] = r
-            self.agent_claims.setdefault(to, []).append(r.id)
-            self._update_index(r)
-            results.append(r)
-        return results
 
-    def update_claim(self, claim_id, new_claim_text, new_confidence=None):
-        """更新知识，保留历史版本"""
-        c = self.claims.get(claim_id)
-        if not c:
-            return False
-        if claim_id not in self.version_history:
-            self.version_history[claim_id] = []
-        self.version_history[claim_id].append({
-            "claim": c.claim,
-            "confidence": c.confidence,
-            "version": c.version,
-            "updated_at": time.time()
-        })
-        c.claim = new_claim_text
-        c.version += 1
-        if new_confidence is not None:
-            c.confidence = min(1.0, max(0.1, new_confidence))
-        return True
 
     def agent_knowledge(self, agent_id):
         """获取Agent的所有知识"""
