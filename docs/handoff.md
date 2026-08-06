@@ -70,10 +70,11 @@ static/ + templates/index-v2.html  唯一前端（图标系统 icons.js、分层
 - `api.py` 的 `logger` 参数名实际是 Storage 实例（历史命名，注意别混淆）
 
 ## 路线图（读这些文档）
-- `docs/design-master-plan-2026-08-04.md` — 主计划（Phase 0-4 + 系统取舍）
+- `docs/design-master-plan-2026-08-04.md` — 主计划（Phase 0-4 + 系统取舍 + 远期 Phase 5 世界自生成）
 - `docs/product/gameplay-design-v3.md` — 权威玩法设计
 - `docs/plans/2026-08-04-gameplay-plan.md` — v0.4 功能/实现安排
 - `docs/product/world-view-v2.md` — 世界观（含"为什么失忆"伏笔）
+- `docs/product/world-self-generation.md` — 世界自生成设计（NPC 设计游戏资产，远期支柱，2026-08-06 定稿）
 - `docs/development-progress.md` — 进度记录
 
 ## 提交规范

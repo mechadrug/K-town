@@ -7,6 +7,7 @@
 > **配套详细设计**：
 > - 玩法逻辑设计 → `docs/product/gameplay-design-v3.md`（游戏大师视角，完整玩法）
 > - v0.4 功能与实现安排 → `docs/plans/2026-08-04-gameplay-plan.md`（P0–P2 功能 + 实现顺序）
+> - 世界自生成（远期支柱）→ `docs/product/world-self-generation.md`（NPC 按意志设计游戏资产；Phase 5）
 
 ---
 
@@ -182,6 +183,20 @@ templates/index-v2.html + static/*-v2.*  唯一前端（v1 全套删除）
 | 4.2 性能 | Tick < 3 秒（12 Agent）；LLM 调用缓存/限流生效 | 达标 |
 | 4.3 数据卫生 | VACUUM、外键、二级索引、（路线图）知识持久化 | schema 规范化 |
 | 4.4 文档 | CLAUDE.md/README/handoff/development-progress 与实际一致 | 无三套技术栈并存 |
+
+### Phase 5：世界自生成（远期支柱，优先级低于 Phase 0–4）
+> 玩家命题：NPC 按自己意志触发游戏资产设计 → item 维度无限大。
+> 详细设计：`docs/product/world-self-generation.md`。核心洞察：**资产原型 = 带结构化参数的可执行知识**，
+> 复用知识引擎（观察→传播→质疑→固化）作为社会共识机制，不新建独立创作系统。
+> **Phase 0–4 顺序不变**；P1 资产数据化（纯重构、行为不回归）可与 Phase 2 并行铺垫。
+
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| 5.1 资产数据化 | 配方/物品定义从常量/代码挪入 storage 数据行（type/instance 分离 + 执行器 registry） | 新增一条配方只插数据行，不改代码，行为不回归 |
+| 5.2 可执行知识 | knowledge.py 支持 claim_type（recipe/design/…）+ 结构化参数模板；固化阈值同知识 | NPC 设计的新配方固化后可直接被其他 agent 制作 |
+| 5.3 创作决策层 | decide() 增"创作意图"层：需求缺口×目标×技能×性格 → 模板+受限参数（LLM 仅增强语义，数值由规则抽取） | 无 key（mock）也能产生结构合法的提案 |
+| 5.4 三重校验门 | 规则门（参数范围/查重/不违反已固化知识）→ 社会门（试用+传播置信度→固化）→ 开发者门（资产浏览器/封禁/回滚） | 垃圾提案被拦截且有日志；失败也是叙事 |
+| 5.5 资产生命周期 | idea→prototype→used→solidified→lost→考古复兴（接"金色发现"事件）；失传≠删除，入档案馆 | 无限生成但不失控；前端只读活跃集，故事链可见 |
 
 ---
 

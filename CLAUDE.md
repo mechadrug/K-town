@@ -79,6 +79,7 @@ docs/
     world-v0.1.md          — town, locations, resources, event types
     agent-model.md         — agent state, memory, goals, behavior strategies
     knowledge-system.md    — KnowledgeClaim, propagation, conflict, solidification
+    world-self-generation.md — 远期支柱：NPC 按意志设计游戏资产（资产原型=可执行知识，Phase 5）
   architecture/
     overview.md            — system architecture diagram
     backend-go.md          — Go service boundaries, modules, APIs
