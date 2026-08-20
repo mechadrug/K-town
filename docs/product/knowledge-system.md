@@ -46,7 +46,7 @@ class KnowledgeClaim:
 - 所有引用该知识的Agent会收到更新通知
 
 ### 2.6 固化
-- 公共知识的confidence达到0.9以上，且被至少5个Agent接受，会被固化为小镇公共知识
+- 公共知识的confidence达到0.85以上，且被至少5个Agent接受，会被固化为小镇公共知识（口径与 gameplay-design-v4 / world-self-generation 统一）
 - 固化的知识会被记录到小镇档案馆，所有Agent可以查询
 - 固化的知识不可再修改，只能被新的知识反驳
 

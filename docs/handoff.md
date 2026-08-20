@@ -1,21 +1,22 @@
 # K-town 开发交接记录
 
-> 交接给下一位开发者。先读本文件，再读 `docs/design-master-plan-2026-08-04.md`（路线图）与 `docs/product/gameplay-design-v3.md`（玩法设计）。
+> 交接给下一位开发者。先读本文件，再读 `docs/design-master-plan-2026-08-04.md`（路线图）与 `docs/product/gameplay-design-v4.md`（玩法设计）。
 
-## 当前状态（2026-08-04，v0.4）
-- **版本**：v0.4 —— 可玩的观察型小镇 + 回合制 + 二十时世界观
-- **分支**：feature/v0.2-game-ui；工作树干净，全部已提交
+## 当前状态（2026-08-20，v0.4 完成 / v0.5 设计已定稿）
+- **版本**：v0.4（可玩的观察型小镇 + 回合制 + 二十时世界观）已完成；**v0.5 设计重构已定稿，实施待启动**
+- **分支**：feature/v0.2-game-ui
 - **技术栈**：Python 3.11 + FastAPI + SQLite + HTML/JS(WebSocket)。**无** Go/Godot/PostgreSQL（已废弃并删除）
+- **本次变更**：v4 玩法设计（游戏感三件套）+ 美术方向定稿 + 仓库清理（见下方）
 
 ## 运行方式
 ```powershell
-cd C:\Users\azi\Desktop\K-town-demo-v0.1.0
+cd <本仓库根目录>
 python main.py          # 端口 8090
 python test_smoke.py    # 冒烟测试（直驱 tick，验证跨天/落库/知识/无异常）
 ```
 
 ## 玩法一句话
-几十万年后的世界，地球转速变慢，**一天 20 小时**（清醒 12h + 睡眠 8h）。小镇破破烂烂，居民各自生活、合力重建。
+约两万八千年后的世界，大缓变后地球转速变慢，**一天 20 小时**（清醒 12h + 睡眠 8h）。小镇破破烂烂，居民各自生活、合力重建。
 你是**失忆的旅行者**（古玉佩 = 封印钥匙）：每天 12 点行动力（1 AP = 过 1 小时），"休息"结束今天；每 13 天多 1 点**十三时**夜间行动力，可深夜出门见别人看不见的东西；每天一次"知识"思考，触及遗迹真相会领悟技能、想起记忆碎片。
 
 ## 核心机制（回合制）
@@ -55,27 +56,30 @@ static/ + templates/index-v2.html  唯一前端（图标系统 icons.js、分层
 6. **小镇重建**：居民攒钱逐级修缮建筑（Lv1→5，阈值平方增长），修缮后资源更丰
 7. **数据层单一**：所有持久化走 storage.py；schema 版本不符自动重建
 
-## 已完成（v0.4 全板块 + 两轮审计清理）
-- P0 前端四问题修复、对话重设计、小镇脉搏、每日目标、知识流动视图
-- P1 日记/关系后果/食物经济/事件链
-- 世界观 20h + 回合制 + 十三时 + 每日领悟 + 小镇重建
-- 两轮穷尽式审计清理：删死代码/死符号/防御性代码（见 commit 6b4060e / cc0875b）
+## 本次重构已做（2026-08-20，文档 + 清理）
+- **gameplay-design-v4.md**（取代 v3）：三支柱 + 游戏感三件套——情绪闭环（4 维情绪×性格偏移→决策渗透→情绪记忆→习惯→性格演化，近似 RL 规则表）、危机干预（四干预→结局分支）、长期目标线（重建弧线 + 身世之谜接线）
+- **art-direction-v1.md**：美术方向成文（水彩软化像素、地图道路/像素小人/建筑细节、动效接入、死 CSS 清理）
+- **路线图 Phase 6-9**（v0.5a-d）：见主计划 §4b
+- **仓库清理**：删 15 个根目录一次性脚本 + k_town.db + __pycache__；归档 vision/world-v0.1/report_260528 至 docs/archive/2026-08-20/（加状态横幅）；世界观五篇入库；知识固化阈值统一 0.85
 
 ## 已知问题 / 剩余工作
+- **v0.5 实施待启动**（主计划 Phase 6-9）：Phase 6 情绪闭环（初心灵魂，优先级最高）→ Phase 7 危机干预+经济修复 → Phase 8 长期目标线 → Phase 9 UI/美术重构
 - **tick.py 仍是单体（约 1900 行）**：拆分属 P2 后置，等稳定后按职责拆（勿在闭环稳定前大动）
 - **断点恢复补全**：Agent 状态不落库（关掉 `auto_reset` 可保留知识/日报/快照）；要做完整存档需 Agent 实例序列化
 - **平衡调优**：技能成长、修缮阈值、食物经济、对话门控、每日目标池（现场看效果再调）
-- **世界观伏笔深化**：20 小时之谜、遗迹发现链、古玉佩来历、观星/溯源等技能深度效果
-- **前端遗留**：CSS 里 trade/achievement/settings/tutorial 套件与 icons 未用分类为"未来功能"占位，低优先可清理
+- **前端遗留**：CSS 里 trade/achievement/settings/tutorial 套件与 icons 未用分类为"未来功能"占位（art-direction §5 已列清理清单）
+- **半成品代码**：perceive() 空壳、warn_others 死分支、交易无 NPC 侧、inventory 只增不减、价格未入决策（Phase 6/7 处理）
 - `api.py` 的 `logger` 参数名实际是 Storage 实例（历史命名，注意别混淆）
 
 ## 路线图（读这些文档）
-- `docs/design-master-plan-2026-08-04.md` — 主计划（Phase 0-4 + 系统取舍 + 远期 Phase 5 世界自生成）
-- `docs/product/gameplay-design-v3.md` — 权威玩法设计
-- `docs/plans/2026-08-04-gameplay-plan.md` — v0.4 功能/实现安排
-- `docs/product/world-view-v2.md` — 世界观（含"为什么失忆"伏笔）
-- `docs/product/world-self-generation.md` — 世界自生成设计（NPC 设计游戏资产，远期支柱，2026-08-06 定稿）
+- `docs/design-master-plan-2026-08-04.md` — 主计划（Phase 0-5 已完成 + Phase 6-9 = v0.5 游戏感三件套 + 远期 Phase 5 世界自生成）
+- `docs/product/gameplay-design-v4.md` — ★权威玩法设计（取代 v3）
+- `docs/product/art-direction-v1.md` — ★权威美术方向
+- `docs/product/世界观/` — 世界观基底五篇（末世重建/20h/失忆旅行者）
+- `docs/plans/2026-08-04-gameplay-plan.md` — v0.4 功能/实现安排（历史）
+- `docs/product/world-self-generation.md` — 世界自生成设计（NPC 设计游戏资产，远期支柱，Phase 5）
 - `docs/development-progress.md` — 进度记录
+- `docs/archive/2026-08-20/` — 过时文档归档（vision/world-v0.1/report_260528，仅历史参考）
 
 ## 提交规范
 按 CLAUDE.md：`<type>(<scope>): <English>` + 中文描述；分批 chore/refactor → feat/fix → docs；禁 `git add -A`。

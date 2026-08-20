@@ -47,22 +47,25 @@ K-town/
   test_smoke.py          — 冒烟测试（python test_smoke.py，验证核心闭环跨天落库）
   templates/index-v2.html + static/*-v2.* — 唯一前端
   docs/                  — 共享文档案（Git 跟踪）
-    product/             — 产品设计文档（vision/world-view-v2/gameplay-design/...）
+    product/             — 产品设计文档（★gameplay-design-v4.md 玩法 / art-direction-v1.md 美术 / 世界观/ 五篇 / knowledge-system / agent-model）
     architecture/        — 架构文档（overview 为现状，backend-go/godot-client 为废弃方案）
     plans/               — 实施计划
-    design-master-plan-2026-08-04.md — ★当前路线图（取代旧评审文档）
+    design-master-plan-2026-08-04.md — ★当前路线图（Phase 0-5 已完成；Phase 6-9 = v0.5 游戏感三件套）
     development-progress.md
     handoff.md           — AI session 交接状态
+    archive/             — 过时文档归档（2026-08-20 起，只归档不删除）
   docs-local/            — 个人笔记/草稿/实验文件（Git 忽略，AI 不应修改）
 ```
 
-> 已被删除的废弃件：`client/`（Godot）、`server/`（Go 残留）、v1 前端（index.html + style.css/app.js/town-map.js/sound.js/visualization.js）、孤儿模块（db.py / database.py / logger.py / static_db.py / knowledge_v3.py / commands.py / fix_goal.py / update_api.py / test_full.py）。
+> 已被删除的废弃件：`client/`（Godot）、`server/`（Go 残留）、v1 前端（index.html + style.css/app.js/town-map.js/sound.js/visualization.js）、孤儿模块（db.py / database.py / logger.py / static_db.py / knowledge_v3.py / commands.py / fix_goal.py / update_api.py / test_full.py）、根目录一次性脚本（check_cliches.py / fix_*.py / verify*.py / final_check.py / find_exact.py，2026-08-20 清理）。
+>
+> **仓库卫生规则**：一次性修复/验证脚本不入库（用完即删或放 docs-local/）；开发产生的临时 db/pycache 已被 .gitignore 覆盖。
 
 ## Development Workflow
 
 This project is designed for AI-assisted development. The workflow is:
 
-1. **Write a PRD** for each major system before coding (see `docs/report_260528_001.md` §5 for template).
+1. **Write a PRD** for each major system before coding (see `docs/archive/2026-08-20/report_260528_001.md` §5 for template — 已归档，仅作模板参考).
 2. **Write an Implementation Plan** from the PRD — include goal, architecture, file structure, task breakdown, data models, test approach, acceptance criteria, and suggested commit messages.
 3. **Each task = one commit.** Split features into granular, independently committable units (e.g., "add Agent schema", not "implement entire agent system").
 4. **Use sub-agents** for parallelizable work (e.g., one agent on backend systems, one on frontend, one on docs/schema).
@@ -75,20 +78,20 @@ Every completed phase should update docs so future Claude Code sessions can resu
 ```
 docs/
   product/
-    vision.md              — long-term vision, non-goals, core experience
-    world-v0.1.md          — town, locations, resources, event types
+    gameplay-design-v4.md  — ★权威玩法设计（三支柱 + 游戏感三件套：情绪闭环/危机干预/长期目标）
+    art-direction-v1.md    — ★权威美术方向（风格锚点/地图升级/动效/死 CSS 清理）
+    世界观/               — 世界观基底五篇（末世重建/20h/失忆旅行者）
     agent-model.md         — agent state, memory, goals, behavior strategies
     knowledge-system.md    — KnowledgeClaim, propagation, conflict, solidification
     world-self-generation.md — 远期支柱：NPC 按意志设计游戏资产（资产原型=可执行知识，Phase 5）
   architecture/
     overview.md            — system architecture diagram
-    backend-go.md          — Go service boundaries, modules, APIs
-    godot-client.md        — client scenes, sync, UI
     logging-and-replay.md  — event logs, agent decision logs, knowledge change logs, replay/debug
   plans/
     YYYY-MM-DD-feature.md  — per-feature implementation plans
   development-progress.md  — version progress tracker
   handoff.md               — AI session handoff state
+  archive/                 — 过时文档归档（只归档不删除）
 ```
 
 ## Key Design Principles
