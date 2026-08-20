@@ -21,6 +21,10 @@ GOAL_POOL: List[Dict[str, Any]] = [
     {"type": "earn", "target": 20, "desc": "赚取 20 金币", "reward": 10, "icon": "🪙"},
     {"type": "knowledge", "target": 1, "desc": "传播 1 条知识", "reward": 20, "icon": "📚"},
     {"type": "rest", "target": 1, "desc": "休息恢复 1 次", "reward": 5, "icon": "🛏️"},
+    # 关系型目标（趣味性增强）：与居民建立羁绊
+    {"type": "befriend", "target": 3, "desc": "与 3 位不同居民交谈加深关系", "reward": 25, "icon": "🤝"},
+    # 探索型目标：去荒野/矿洞探索（可能有身世线索）
+    {"type": "explore_wild", "target": 2, "desc": "去荒野或矿洞探索 2 次", "reward": 25, "icon": "🧭"},
 ]
 
 # 动作类型 → 目标类型
@@ -30,6 +34,9 @@ _ACTION_TO_TYPE: Dict[str, str] = {
     "talk": "talk", "move": "move", "investigate": "investigate",
     "rest": "rest", "sleep": "rest", "add_claim": "knowledge",
 }
+
+# 关系型目标：每次交谈（talk）也计入 befriend（与不同居民交谈）
+# 探索型目标：investigate 计入 explore_wild（荒野/矿洞探索）
 
 
 class DailyGoal:
@@ -74,7 +81,7 @@ class QuestEngine:
         for g in pool[:count]:
             self.daily_goals.append(DailyGoal(g["type"], g["desc"], g["target"], g["reward"], g["icon"]))
 
-    def update_progress(self, player, action_type: str = "", gold_earned: int = 0) -> int:
+    def update_progress(self, player, action_type: str = "", gold_earned: int = 0, location: str = "") -> int:
         """根据玩家一次动作更新目标进度。返回本次发放的奖励金币（0 表示无）。"""
         goal_type = _ACTION_TO_TYPE.get(action_type, "")
         rewards = 0
@@ -86,6 +93,12 @@ class QuestEngine:
                 g.progress += gold_earned
             # "劳作"也计入"采集"目标（玩家在荒野劳作即采集）
             elif goal_type == g.type or (goal_type == "work" and g.type == "gather"):
+                g.progress += 1
+            # 关系型目标：talk 计入 befriend
+            elif g.type == "befriend" and action_type == "talk":
+                g.progress += 1
+            # 探索型目标：荒野/矿洞的 investigate 计入 explore_wild
+            elif g.type == "explore_wild" and action_type == "investigate" and location in ("wilderness", "mine"):
                 g.progress += 1
             if g.progress >= g.target:
                 g.completed = True

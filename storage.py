@@ -16,7 +16,6 @@ import time
 from typing import Any, Dict, List, Optional
 
 DB_PATH = "k_town.db"
-SCHEMA_VERSION = 3
 
 # 受本层管理、可按版本重建的表
 _MANAGED_TABLES = [
@@ -29,8 +28,11 @@ _MANAGED_TABLES = [
     "agent_logs",
     "knowledge_pool",
     "knowledge_distribution",
+    "agent_states",
     "town_meta",
 ]
+
+SCHEMA_VERSION = 4
 
 
 class Storage:
@@ -80,7 +82,9 @@ class Storage:
         if not row:
             return None
         try:
-            return int(json.loads(row["value"]))
+            v = row["value"]
+            # JSON 类型列可能已被 sqlite3 自动反序列化为 int/str
+            return v if isinstance(v, int) else int(json.loads(v))
         except Exception:
             return None
 
@@ -172,6 +176,13 @@ class Storage:
                 agent_name TEXT,
                 behaviors JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE agent_states (
+                agent_id TEXT PRIMARY KEY,
+                state JSON,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
@@ -360,6 +371,20 @@ class Storage:
 
     # ------------------------------------------------------------------ Agent 行为日志
 
+    def save_agents_state(self, agents_state: list) -> None:
+        """存档：保存全部 Agent 完整状态（含情绪/习惯/性格/关系/技能/日记）。"""
+        for s in agents_state:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO agent_states (agent_id, state) VALUES (?, ?)",
+                (s["id"], json.dumps(s, ensure_ascii=False)),
+            )
+        self.conn.commit()
+
+    def load_agents_state(self) -> List[dict]:
+        """读档：恢复全部 Agent 状态（空表返回空列表）。"""
+        rows = self.conn.execute("SELECT agent_id, state FROM agent_states").fetchall()
+        return [json.loads(r["state"]) for r in rows]
+
     def save_agent_log(self, day: int, agent_id: str, agent_name: str, behaviors: list) -> None:
         self.conn.execute(
             "INSERT INTO agent_logs (day, agent_id, agent_name, behaviors) VALUES (?, ?, ?, ?)",
@@ -455,12 +480,15 @@ class Storage:
 
 
     def reset(self) -> None:
-        """清空全部受管表数据（保留 schema）。"""
+        """清空全部受管表数据（保留 schema 与 schema_version）。"""
         for table in _MANAGED_TABLES:
             try:
                 self.conn.execute(f"DELETE FROM {table}")
             except Exception:
                 pass
+        # 关键修复：reset 清空了 town_meta（含 schema_version），必须重写，
+        # 否则下次打开 _init_schema 检测不到版本 → 误判为首次建表 → 重建全部表（丢档）
+        self._set_schema_version(SCHEMA_VERSION)
         self.conn.commit()
 
     def close(self) -> None:

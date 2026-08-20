@@ -134,6 +134,10 @@ class TickEngine:
 
         self._load_history()
 
+        # 断点恢复：读档 Agent 完整状态（auto_reset 清库后为空，正常从初始状态开始）
+        if not auto_reset:
+            self._restore_agents()
+
     
 
     def _load_history(self):
@@ -153,6 +157,31 @@ class TickEngine:
         # 初始化当天的agent行为日志
 
         self.daily_agent_logs = {a.identity.id: [] for a in self.agents}
+
+    def _restore_agents(self):
+        """断点恢复：从 agent_states 表恢复 Agent 完整状态（情绪/习惯/性格/关系/技能/日记/金币）。"""
+        saved = self.db.load_agents_state()
+        if not saved:
+            return
+        saved_map = {s["id"]: s for s in saved}
+        for a in self.agents:
+            s = saved_map.get(a.identity.id)
+            if not s:
+                continue
+            st = a.state
+            st.energy = s.get("energy", st.energy)
+            st.gold = s.get("gold", st.gold)
+            st.food = s.get("food", st.food)
+            st.hunger = s.get("hunger", st.hunger)
+            st.location = s.get("location", st.location)
+            st.mood = Mood(s.get("mood", st.mood.value))
+            st.social_ties = s.get("social_ties", st.social_ties)
+            st.emotions = s.get("emotions", st.emotions)
+            st.habit_bias = s.get("habits", st.habit_bias)
+            a.identity.personality = s.get("personality", a.identity.personality)
+            a.identity.skills = s.get("skills", a.identity.skills)
+            a.diary = s.get("diary", a.diary) or []
+        print(f"[OK] 已恢复 {len(saved_map)} 位居民状态（断点恢复）")
 
 
 
@@ -199,13 +228,19 @@ class TickEngine:
 
     def _save_current_state(self):
 
-        """保存当前状态作为前一天的基准"""
+        """保存当前状态作为前一天的基准 + 存档 Agent 完整状态（断点恢复）"""
 
         self.prev_agent_states = [a.to_dict() for a in self.agents]
 
         self.prev_knowledge_count = len(self.knowledge.claims)
 
         self.prev_total_gold = sum(a.state.gold for a in self.agents)
+
+        # 存档：Agent 完整状态落库（含情绪/习惯/性格/关系/技能/日记）
+        try:
+            self.db.save_agents_state([a.to_dict() for a in self.agents])
+        except Exception as e:
+            print(f"[save] 存档失败（不致命）：{e}")
 
         # 初始化当天的agent行为日志
 
@@ -940,33 +975,39 @@ class TickEngine:
         ("秘密", "记忆", "这玉佩……你好像知道它属于谁。"),
     ]
 
-    # 身世之谜：记忆碎片收集（v4 §5.2）—— 触及真相关键词 → 碎片入账
-    # 集齐 5 片解锁"大缓变真相"线索
+    # 身世之谜：记忆碎片收集（v4 §5.2）—— 思考得线索 → 去对应地点调查 → 收集碎片
+    # 集齐 5 片解锁"大缓变真相"。思考只是线索，碎片必须亲身探索（更有游戏感）。
     LORE_FRAGMENTS = {
-        "遗迹": {"skill": "溯源", "fragment": "你仿佛看见了整座城市沉入大地——那是很久以前的事了。", "lore_key": "ruins"},
-        "废墟": {"skill": "溯源", "fragment": "你仿佛看见了整座城市沉入大地——那是很久以前的事了。", "lore_key": "ruins"},
-        "石碑": {"skill": "铭文识读", "fragment": "石碑上的纹路，你竟然认得几个字。", "lore_key": "stele"},
-        "纹路": {"skill": "铭文识读", "fragment": "石碑上的纹路，你竟然认得几个字。", "lore_key": "stele"},
-        "十三": {"skill": "十三时", "fragment": "你梦见自己数过十二个时辰，又数到了第十三。", "lore_key": "thirteen"},
-        "玉佩": {"skill": "溯源", "fragment": "这块玉佩……你好像知道它原本属于谁。", "lore_key": "jade"},
-        "黑夜": {"skill": "夜行者", "fragment": "你忽然记起，很久以前，黑夜没有这么长。", "lore_key": "night"},
-        "地球": {"skill": "溯源", "fragment": "你脱口而出「地球」二字，却不知这词从何而来。", "lore_key": "earth"},
-        "时间": {"skill": "观星", "fragment": "你意识到：时间本身，在很久以前出了一点差错。", "lore_key": "time"},
-        "转速": {"skill": "观星", "fragment": "你意识到：时间本身，在很久以前出了一点差错。", "lore_key": "time"},
-        "文明": {"skill": "溯源", "fragment": "你仿佛听见了整座城市的低语——那是很久以前的事了。", "lore_key": "civilization"},
-        "秘密": {"skill": "记忆", "fragment": "这玉佩……你好像知道它属于谁。", "lore_key": "secret"},
-        "大缓变": {"skill": "溯源", "fragment": "大缓变……那不是天灾，是有人按下的开关。", "lore_key": "great_slow"},
+        "遗迹": {"skill": "溯源", "fragment": "你仿佛看见了整座城市沉入大地——那是很久以前的事了。", "lore_key": "ruins", "location": "wilderness"},
+        "废墟": {"skill": "溯源", "fragment": "你仿佛看见了整座城市沉入大地——那是很久以前的事了。", "lore_key": "ruins", "location": "wilderness"},
+        "石碑": {"skill": "铭文识读", "fragment": "石碑上的纹路，你竟然认得几个字。", "lore_key": "stele", "location": "square"},
+        "纹路": {"skill": "铭文识读", "fragment": "石碑上的纹路，你竟然认得几个字。", "lore_key": "stele", "location": "square"},
+        "十三": {"skill": "十三时", "fragment": "你梦见自己数过十二个时辰，又数到了第十三。", "lore_key": "thirteen", "location": "school"},
+        "玉佩": {"skill": "溯源", "fragment": "这块玉佩……你好像知道它原本属于谁。", "lore_key": "jade", "location": "mine"},
+        "黑夜": {"skill": "夜行者", "fragment": "你忽然记起，很久以前，黑夜没有这么长。", "lore_key": "night", "location": "wilderness"},
+        "地球": {"skill": "溯源", "fragment": "你脱口而出「地球」二字，却不知这词从何而来。", "lore_key": "earth", "location": "school"},
+        "时间": {"skill": "观星", "fragment": "你意识到：时间本身，在很久以前出了一点差错。", "lore_key": "time", "location": "square"},
+        "转速": {"skill": "观星", "fragment": "你意识到：时间本身，在很久以前出了一点差错。", "lore_key": "time", "location": "square"},
+        "文明": {"skill": "溯源", "fragment": "你仿佛听见了整座城市的低语——那是很久以前的事了。", "lore_key": "civilization", "location": "workshop"},
+        "秘密": {"skill": "记忆", "fragment": "这玉佩……你好像知道它属于谁。", "lore_key": "secret", "location": "mine"},
+        "大缓变": {"skill": "溯源", "fragment": "大缓变……那不是天灾，是有人按下的开关。", "lore_key": "great_slow", "location": "workshop"},
     }
     # 碎片收集目标与解锁的线索
     LORE_TOTAL_FRAGMENTS = 5
+    # 地点中文名（线索提示用）
+    LORE_LOC_CN = {"square": "广场", "workshop": "工坊", "wilderness": "荒野", "school": "学校", "mine": "矿洞"}
 
     def _check_insight(self, agent, claim_text):
-        """每日领悟：若提交的思考触及遗迹真相，封印松动，领悟技能 + 想起记忆碎片 + 收集身世碎片。"""
+        """每日领悟：触及真相关键词 → 领悟技能 + 获得"碎片线索"（指向探索地点）。
+
+        碎片需要玩家亲身去对应地点调查收集（夜间探索必得，白天 50%）——悬念更持久。
+        """
         if not claim_text:
             return None
         # 初始化身世碎片记录
         if not hasattr(self, 'lore_fragments'):
             self.lore_fragments = set()
+            self.lore_clues = {}   # lore_key -> location（待探索的线索）
             self.lore_unlocked = []
         for kw, info in self.LORE_FRAGMENTS.items():
             if kw in claim_text:
@@ -974,6 +1015,7 @@ class TickEngine:
                 unlocked = skill not in agent.identity.skills
                 agent.identity.skills[skill] = agent.identity.skills.get(skill, 0) + 1
                 fragment = info["fragment"]
+                lore_key = info["lore_key"]
                 agent.diary.append(f"第{self.current_day}天·记忆碎片：{fragment}")
                 self.daily_agent_logs[agent.identity.id].append(f"✨ 你忽然想起了什么：{fragment}")
                 self.current_day_events.append(
@@ -981,17 +1023,42 @@ class TickEngine:
                 msg = f"✨ {fragment}"
                 if unlocked:
                     msg += f" 封印松动了一丝——你领悟了「{skill}」！"
-                # 身世碎片收集（v4 §5.2：集齐解锁大缓变线索）
-                lore_key = info["lore_key"]
+                # 线索引导：未收集的碎片 → 指向探索地点
                 if lore_key not in self.lore_fragments:
-                    self.lore_fragments.add(lore_key)
-                    collected = len(self.lore_fragments)
-                    msg += f"【身世碎片 {collected}/{self.LORE_TOTAL_FRAGMENTS}】"
-                    if collected >= self.LORE_TOTAL_FRAGMENTS:
-                        self.lore_unlocked.append("大缓变的真相：那不是天灾，而是旧世界留下的最后一道指令。")
-                        msg += " 你忽然明白了一切——大缓变不是天灾！"
+                    loc = info["location"]
+                    self.lore_clues[lore_key] = loc
+                    loc_cn = self.LORE_LOC_CN.get(loc, loc)
+                    msg += f" 你隐约感到，答案藏在{loc_cn}深处——去那里调查吧。"
                 return msg
         return None
+
+    def _collect_lore_fragment(self, agent, location, at_night: bool):
+        """在 investigate 动作中调用：若当前地点有未收集的身世碎片线索，收集之。
+
+        夜间（十三时）必得；白天 50% 概率。返回收集消息或 None。
+        """
+        if not hasattr(self, 'lore_fragments'):
+            return None
+        # 找一条指向当前地点的线索
+        target_key = None
+        for lore_key, loc in self.lore_clues.items():
+            if loc == location and lore_key not in self.lore_fragments:
+                target_key = lore_key
+                break
+        if not target_key:
+            return None
+        # 夜间必得，白天 50%
+        if not at_night and random.random() < 0.5:
+            return "你在这里寻找记忆的线索，但还差一点什么。"
+        self.lore_fragments.add(target_key)
+        del self.lore_clues[target_key]
+        collected = len(self.lore_fragments)
+        msg = f"✨ 你找到了身世碎片！【{collected}/{self.LORE_TOTAL_FRAGMENTS}】"
+        if collected >= self.LORE_TOTAL_FRAGMENTS:
+            self.lore_unlocked.append("大缓变的真相：那不是天灾，而是旧世界留下的最后一道指令。")
+            msg += " 你忽然明白了一切——大缓变不是天灾！"
+            self.daily_agent_logs[agent.identity.id].append(msg)
+        return msg
 
 
 
@@ -1904,6 +1971,12 @@ class TickEngine:
 
                 agent.state.gold += 5
 
+            elif role == "player":
+                # 玩家工作回报（按地点差异化，让"打工"有成就感）
+                loc_gold = {"wilderness": 6, "mine": 7, "workshop": 5, "square": 4, "school": 4}
+                agent.state.gold += loc_gold.get(agent.state.location, 4)
+                self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}打工挣了些金币")
+
             else:
 
                 agent.state.gold += 2
@@ -2030,6 +2103,13 @@ class TickEngine:
 
             agent.state.energy -= 3
 
+            # 身世碎片收集（v4 §5.2）：若当前地点有线索 → 收集碎片（夜间必得，白天 50%）
+            cur_hour_lore = tick % self.day_length
+            at_night_lore = not (self.wake_hour <= cur_hour_lore < self.wake_hour + self.waking_hours)
+            lore_msg = self._collect_lore_fragment(agent, agent.state.location, at_night_lore)
+            if lore_msg:
+                self.daily_agent_logs[agent.identity.id].append(lore_msg)
+
             # 调查：可能发现当前地点的线索/知识（末世遗迹伏笔的入口）
             # 拥有"夜视"技能则必定发现（十三时夜晚探索的回报）
             if random.random() < 0.4 or agent.identity.skills.get("夜视"):
@@ -2069,7 +2149,7 @@ class TickEngine:
         # 每日目标进度（仅玩家，薄层）—— 动作执行后追踪，完成即发奖励
         if agent.identity.role.value == 'player' and hasattr(self, 'quest_engine') and self.quest_engine:
             gold_earned = max(0, agent.state.gold - gold_before)
-            reward = self.quest_engine.update_progress(agent, action_type=t, gold_earned=gold_earned)
+            reward = self.quest_engine.update_progress(agent, action_type=t, gold_earned=gold_earned, location=agent.state.location)
             if reward:
                 self.daily_agent_logs[agent.identity.id].append(f"🎯 完成每日目标，获得{reward}金币奖励")
 

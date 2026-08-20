@@ -43,19 +43,29 @@ def build_engine():
 
 
 async def main():
-    print("=== 1. 身世之谜：碎片收集（每日思考触及关键词） ===\n")
+    print("=== 1. 身世之谜：思考得线索 → 调查收集碎片（游戏化流程） ===\n")
     engine, agents, storage = build_engine()
     player = next(a for a in agents if a.identity.role.value == 'player')
-    # 依次提交触及不同真相的思考
+    # 依次提交触及不同真相的思考 → 获得线索
     keywords = ["遗迹", "石碑", "十三", "玉佩", "大缓变"]
     for i, kw in enumerate(keywords):
         engine._insight_day = 0  # 重置每日限制
         msg = engine._check_insight(player, f"我今天在思考关于{kw}的事情")
-        print(f"  第{i+1}片: {msg}")
-    check("收集 5 片碎片", len(engine.lore_fragments) == 5)
+        print(f"  线索{i+1}: {msg}")
+    check("思考获得 5 条线索", len(engine.lore_clues) == 5)
+    check("线索指向具体地点", all(loc in ("square", "workshop", "wilderness", "school", "mine") for loc in engine.lore_clues.values()))
+    # 去对应地点调查（模拟夜间探索→必得）
+    for lore_key, loc in list(engine.lore_clues.items()):
+        player.state.location = loc
+        msg = engine._collect_lore_fragment(player, loc, at_night=True)
+        print(f"  收集[{lore_key}@{loc}]: {msg}")
+    check("调查收集 5 片碎片", len(engine.lore_fragments) == 5)
     check("解锁大缓变真相", "大缓变" in str(engine.lore_unlocked))
     check("碎片总数上限", engine.LORE_TOTAL_FRAGMENTS == 5)
-    check("重复关键词不重复收集", len(engine.lore_fragments) == 5)
+    # 重复思考同一关键词 → 已收集不再给线索
+    engine._insight_day = 0
+    engine._check_insight(player, "我今天在思考关于遗迹的事情")
+    check("已收集碎片不再重复给线索", "ruins" not in engine.lore_clues)
 
     print("\n=== 2. 重建弧线：小镇修缮进度 ===\n")
     engine._upgrades_done = 0
