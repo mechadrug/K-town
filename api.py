@@ -516,7 +516,13 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             if target and item and price > 0:
                 offer = TradeOffer(from_agent=aid, to_agent=target, item=item, price=price)
                 world.state.trade_offers.append(offer)
+                # NPC 当场响应（基于当前市价判断合理价，避免价格波动导致误判）
+                tick_engine._process_npc_trades()
                 result = f"向{target}发起了{item}的交易请求，价格{price}金币"
+                if offer.status == "accepted":
+                    result = f"{target}接受了你的{item}交易（{price}金币）"
+                elif offer.status == "rejected":
+                    result = f"{target}拒绝了你的{item}交易（出价不合理或对方买不起）"
             else:
                 result = "交易参数错误"
         elif t == "accept_trade":
@@ -618,6 +624,45 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             return tick_engine.quest_engine.to_dict()
 
         return {'active_quests': [], 'completed_quests': [], 'achievements': [], 'total_completed': 0, 'total_quests': 0}
+
+    @app.get("/api/crises")
+
+    async def get_crises():
+
+        """获取进行中的危机（v4 §4）"""
+
+        return [{
+            "id": i,
+            "type": c.crisis_type,
+            "desc": c.desc,
+            "progress": c.progress,
+            "target": c.target,
+            "days_remaining": c.days_remaining,
+            "active": c.active,
+            "outcome": c.outcome,
+            "interventions": c.interventions,
+        } for i, c in enumerate(tick_engine.crises) if c.active]
+
+    @app.post("/api/crisis/{crisis_id}/intervene")
+
+    async def intervene_crisis(crisis_id: int, body: dict = None):
+
+        """玩家干预危机（v4 §4）：帮忙/调查/澄清/旁观"""
+
+        body = body or {}
+        action_type = body.get("action", "watch")
+        if crisis_id < 0 or crisis_id >= len(tick_engine.crises):
+            return {"status": "error", "result": "危机不存在"}
+        crisis = tick_engine.crises[crisis_id]
+        if not crisis.active:
+            return {"status": "error", "result": "这场危机已经结束了"}
+        player = next((a for a in agents if a.identity.role.value == 'player'), None)
+        if not player:
+            return {"status": "error", "result": "找不到玩家"}
+        result = crisis.intervene(player, action_type)
+        tick_engine.daily_agent_logs.setdefault(player.identity.id, []).append(result)
+        logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=f"crisis_{action_type}", payload=body, result=result))
+        return {"status": "ok" if "行动力不足" not in result else "error", "result": result}
 
 
 

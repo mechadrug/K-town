@@ -24,6 +24,8 @@ from factions import FactionSystem
 
 from emotions import (apply_event_emotion, spread_emotion, solidify_habits, learn_habit)
 
+from crisis import roll_crisis
+
 
 
 
@@ -118,6 +120,9 @@ class TickEngine:
         self._upgrades_done = 0  # 小镇修缮次数（世界观：末世重建）
 
         self._insight_day = 0  # 每日领悟：记录最近一次提交思考的天数（每日限一次）
+
+        # 危机系统（v4 §4）：进行中的危机列表
+        self.crises: List[Any] = []
 
         # 自动重置
 
@@ -388,12 +393,42 @@ class TickEngine:
             # 每日金币回收（防通胀）
             self._apply_gold_sinks()
 
+            # NPC 响应玩家交易（经济修复：交易不再是单方面空转）
+            self._process_npc_trades()
+
             # 食物经济闭环：按当天饥饿程度记录需求（供>需价跌、需>供价涨）
             hungry = sum(1 for a in self.agents if a.state.hunger > 20)
             self.world.record_demand('food', max(1, hungry))
 
             # 小镇重建（世界观：末世后居民合力修缮破旧建筑）
             self._town_upgrade_check()
+
+            # === 危机系统（v4 §4）：每日推进 ===
+            # 1. 现有危机：性格化反应 + 倒计时结算
+            for crisis in list(self.crises):
+                if not crisis.active:
+                    continue
+                # NPC 性格化反应（每个非玩家 Agent 每天反应一次）
+                for a in self.agents:
+                    if a.identity.role.value != 'player':
+                        reaction = crisis.react(a)
+                        self.daily_agent_logs[a.identity.id].append(reaction)
+                outcome = crisis.advance_day(self.agents)
+                if outcome:
+                    result_desc = crisis.apply_outcome(self.agents)
+                    self.current_day_events.append({"tick": tick, "agent": "", "action": result_desc, "location": ""})
+                    self.daily_agent_logs.setdefault("", []).append(result_desc)
+                    # 危机期间玩家有干预 → 关系已在 intervene 时提升；恶化时降低
+                    if outcome == "worsened" and crisis.interventions:
+                        for a in self.agents:
+                            if a.identity.id != "agent_player":
+                                a.state.social_ties["agent_player"] = a.state.social_ties.get("agent_player", 0) - 3
+            # 2. 尝试触发新危机
+            new_crisis = roll_crisis(self.current_day, self)
+            if new_crisis:
+                self.crises.append(new_crisis)
+                self.current_day_events.append({"tick": tick, "agent": "", "action": f"⚠️ 危机来袭：{new_crisis.desc}", "location": ""})
+                self.daily_agent_logs.setdefault("", []).append(f"⚠️ 危机来袭：{new_crisis.desc}（持续{new_crisis.duration_days}天，可帮忙/调查/澄清）")
 
             # 新的一天：生成玩家每日目标
             if hasattr(self, 'quest_engine') and self.quest_engine:
@@ -795,6 +830,43 @@ class TickEngine:
                 agent.state.gold -= fee
 
 
+
+    def _process_npc_trades(self):
+        """NPC 响应玩家的交易请求（v4 §2.4 经济修复：NPC 不再无视交易）。
+
+        依据：NPC 是否有足够金币 + 是否真的需要该物品 + 价格是否合理。
+        接受 → 双方金币/物品转移；拒绝 → 关系微降（玩家被扫了面子）。
+        """
+        if not self.world.state.trade_offers:
+            return
+        still_pending = []
+        for offer in self.world.state.trade_offers:
+            if offer.status != "pending":
+                continue
+            # 定位买家 NPC
+            buyer = next((a for a in self.agents if a.identity.id == offer.to_agent), None)
+            if not buyer:
+                still_pending.append(offer)
+                continue
+            # 价格合理性：物品当前价 vs 出价（出价 <= 市价×1.5 视为合理——容忍市价波动）
+            item_price = self.world.get_price(offer.item) if offer.item in self.world.base_prices else 5
+            reasonable = offer.price <= item_price * 1.5
+            # 需求判断：食物/工具是刚需
+            needed = offer.item in ("food", "tools", "medicine", "ore", "materials")
+            if buyer.state.gold >= offer.price and reasonable and needed:
+                buyer.state.gold -= offer.price
+                buyer.state.inventory.append(offer.item)
+                offer.status = "accepted"
+                # 买家愉悦↑（买到需要的东西）
+                apply_event_emotion(buyer, "work_success")
+                self.daily_agent_logs.setdefault(buyer.identity.id, []).append(f"接受了{offer.from_agent}的{offer.item}交易（{offer.price}金）")
+            else:
+                # 拒绝：价格离谱或买不起
+                offer.status = "rejected"
+                buyer.state.social_ties[offer.from_agent] = buyer.state.social_ties.get(offer.from_agent, 0) - 2
+                self.daily_agent_logs.setdefault(buyer.identity.id, []).append(f"拒绝了{offer.from_agent}的{offer.item}交易")
+            still_pending.append(offer)
+        self.world.state.trade_offers = still_pending
 
     def _town_upgrade_check(self):
         """小镇重建（世界观：几十万年后末世，居民合力修缮破旧建筑）"""
