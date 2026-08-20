@@ -22,6 +22,8 @@ from storage import Storage
 
 from factions import FactionSystem
 
+from emotions import (apply_event_emotion, spread_emotion, solidify_habits, learn_habit)
+
 
 
 
@@ -325,41 +327,13 @@ class TickEngine:
 
             agent.think(hour)
 
-            # 情绪传染：周围Agent的心情影响自己
+            # 情绪传染（v4 §3.5）：沿关系网（好友 > 陌生人），稳定高者抗传染
 
-            nearby_moods = []
+            nearby = [o for o in self.agents if o.identity.id != agent.identity.id and o.state.location == agent.state.location]
 
-            for other in self.agents:
+            if nearby:
 
-                if other.identity.id != agent.identity.id and other.state.location == agent.state.location:
-
-                    nearby_moods.append(other.state.mood)
-
-            if nearby_moods:
-
-                happy_count = sum(1 for m in nearby_moods if m == Mood.HAPPY)
-
-                sad_count = sum(1 for m in nearby_moods if m in (Mood.SAD, Mood.ANGRY))
-
-                stability = agent.identity.personality.get('stability', 0.5)
-
-                # 稳定性低→更容易被传染
-
-                contagion_resist = stability * 0.5
-
-                if happy_count > len(nearby_moods) / 2 and random.random() < (0.3 - contagion_resist):
-
-                    agent.state.mood = Mood.HAPPY
-
-                elif sad_count > len(nearby_moods) / 2 and random.random() < (0.25 - contagion_resist):
-
-                    if agent.state.mood == Mood.HAPPY:
-
-                        agent.state.mood = Mood.NEUTRAL
-
-                    elif agent.state.mood == Mood.NEUTRAL:
-
-                        agent.state.mood = Mood.ANXIOUS
+                spread_emotion(agent, nearby)
 
             # 玩家由用户操作驱动（经 api 走 _handle_action），不参与 NPC 自主决策
             if agent.identity.role.value == 'player':
@@ -488,6 +462,22 @@ class TickEngine:
                     elif tie < 0:
 
                         agent.state.social_ties[other_id] = min(0, tie + decay)
+
+            # 习惯固化 → 性格演化（v4 §3.4：同情境同行为累计达阈值，性格维度微调）
+
+            for agent in self.agents:
+
+                if agent.identity.role.value == 'player':
+
+                    continue
+
+                changes = solidify_habits(agent)
+
+                for c in changes:
+
+                    self.daily_agent_logs[agent.identity.id].append(c)
+
+                    self.current_day_events.append({"tick": tick, "agent": agent.identity.name, "action": c, "location": agent.state.location})
 
             aids = [a.identity.id for a in self.agents]
 
@@ -1485,15 +1475,19 @@ class TickEngine:
 
             aid = event.payload.get("agent_id", "")
 
-            if aid: self.knowledge.observe(aid, "resource", f"在{event.location}发现了{r}", event.location)
+            if aid:
+                self.knowledge.observe(aid, "resource", f"在{event.location}发现了{r}", event.location)
+                a = next((x for x in self.agents if x.identity.id == aid), None)
+                if a: apply_event_emotion(a, "resource_found")
 
         elif event.type == EventType.SOCIAL_ENCOUNTER:
 
             aids = event.payload.get("agents", [])
 
             for aid in aids:
-
                 self.knowledge.observe(aid, "social", f"在{event.location}遇到了其他人", event.location)
+                a = next((x for x in self.agents if x.identity.id == aid), None)
+                if a: apply_event_emotion(a, "social_encounter")
 
             if len(aids) >= 2:
 
@@ -1511,7 +1505,10 @@ class TickEngine:
 
             aid = event.payload.get("agent_id", "")
 
-            if aid: self.knowledge.observe(aid, "craft", f"制作了{item}", event.location)
+            if aid:
+                self.knowledge.observe(aid, "craft", f"制作了{item}", event.location)
+                a = next((x for x in self.agents if x.identity.id == aid), None)
+                if a: apply_event_emotion(a, "item_crafted")
 
         elif event.type == EventType.WEATHER_IMPACT:
 
@@ -1524,6 +1521,8 @@ class TickEngine:
                     # 天气影响工作效率：降低体力消耗
 
                     a.state.energy = max(0, a.state.energy + impact * 10)
+
+                    apply_event_emotion(a, "weather_impact")
 
         elif event.type == EventType.SOCIAL_RELATION_CHANGE:
 
@@ -1543,38 +1542,32 @@ class TickEngine:
 
                     a.state.social_ties[agent1] = a.state.social_ties.get(agent1, 0) + change
 
+            # 关系变化是情绪事件（v4 §3.2）
+
+            if change > 0:
+
+                for aid in (agent1, agent2):
+                    a = next((x for x in self.agents if x.identity.id == aid), None)
+                    if a: apply_event_emotion(a, "social_relation_change")
+
 
 
 
         elif event.type == EventType.FESTIVAL:
 
-            # 节日：所有人心情变好（外向的人更开心，内向的人反应平淡）
+            # 节日：所有人愉悦↑（外向者更开心，内向者平淡）—— 情绪系统 v4 §3.2
 
             for a in self.agents:
 
+                apply_event_emotion(a, "festival")
+
                 extraversion = a.identity.personality.get('extraversion', 0.5)
 
-                agreeableness = a.identity.personality.get('agreeableness', 0.5)
-
-                # 外向+宜人性高→非常开心
-
-                if extraversion > 0.6 and agreeableness > 0.5:
-
-                    a.state.mood = Mood.HAPPY
-
-                    a.state.energy = min(100, a.state.energy + 15)
-
-                else:
-
-                    a.state.mood = Mood.NEUTRAL if a.state.mood != Mood.HAPPY else Mood.HAPPY
-
-                    a.state.energy = min(100, a.state.energy + 5)
-
-                a.state.energy = min(100, a.state.energy + 10)
+                a.state.energy = min(100, a.state.energy + (15 if extraversion > 0.6 else 8))
 
         elif event.type == EventType.DISASTER:
 
-            # 灾害：根据人格不同反应不同
+            # 灾害：根据人格不同反应不同（敏感者冲击大—— v4 §3.2 核心示例）
 
             disaster_type = event.payload.get('type', 'unknown')
 
@@ -1594,15 +1587,9 @@ class TickEngine:
 
                 a.state.gold = max(0, a.state.gold - gold_loss)
 
-                # 稳定性低→更容易变焦虑/悲伤
+                # 情绪偏移：敏感者焦虑×2.0，稳定高者×0.7（emotions.py 调制系数）
 
-                if stability < 0.4:
-
-                    a.state.mood = Mood.ANXIOUS
-
-                elif stability > 0.7:
-
-                    a.state.mood = Mood.NEUTRAL
+                apply_event_emotion(a, "disaster")
 
             # 减少受灾地点资源
 
@@ -1634,7 +1621,7 @@ class TickEngine:
 
                 if a.state.location == 'square':
 
-                    a.state.mood = Mood.HAPPY
+                    apply_event_emotion(a, "merchant_arrival")
 
                     a.state.gold += random.randint(3, 8)
 
@@ -1676,7 +1663,7 @@ class TickEngine:
 
                     a.state.energy = max(0, a.state.energy - 20)
 
-                    a.state.mood = Mood.ANXIOUS
+                    apply_event_emotion(a, "animal_attack")
 
         elif event.type == EventType.GOLDEN_DISCOVERY:
 
@@ -1687,6 +1674,8 @@ class TickEngine:
                 if a.identity.id == aid:
 
                     a.state.gold += random.randint(20, 50)
+
+                    apply_event_emotion(a, "golden_discovery")
 
                     break
 
@@ -1738,6 +1727,8 @@ class TickEngine:
             self.world.add_agent_to_location(agent.identity.id, tgt)
 
             agent.state.energy -= 5
+
+            apply_event_emotion(agent, "move")
 
             self.daily_agent_logs[agent.identity.id].append(f"移动到了{self._get_location_cn(tgt)}")
 
@@ -1819,17 +1810,27 @@ class TickEngine:
                 self.daily_agent_logs[agent.identity.id].append(
                     f"{agent.get_role_cn(role)}技能提升到{skill + 1}级，手艺更精进了")
 
+            # 情绪反馈（v4 §3.4）：工作有产出 → 愉悦↑，强化"工作"习惯
+            apply_event_emotion(agent, "work_success")
+            learn_habit(agent, "work", "work", 1.0)
+
             self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}工作")
 
         elif t == "rest":
 
             agent.state.energy = min(100, agent.state.energy + 10)
 
+            apply_event_emotion(agent, "rest")
+
+            learn_habit(agent, "tired", "rest", 1.0)
+
             self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}休息恢复体力")
 
         elif t == "sleep":
 
             agent.state.energy = min(100, agent.state.energy + 20)
+
+            apply_event_emotion(agent, "sleep")
 
             self.daily_agent_logs[agent.identity.id].append("睡觉休息")
 
@@ -1883,6 +1884,10 @@ class TickEngine:
 
                     other.state.social_ties[agent.identity.id] = other_tie + tie_change * 0.7
 
+            # 情绪反馈：社交→愉悦↑、焦虑↓；强化"社交"习惯（外向者更受益）
+            apply_event_emotion(agent, "talk")
+            learn_habit(agent, "socialize", "talk", 1.0)
+
             self.daily_agent_logs[agent.identity.id].append(f'和{loc_cn}的人聊天')
 
         elif t == "trade":
@@ -1896,6 +1901,23 @@ class TickEngine:
                 agent.state.gold += 2
 
             self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}进行交易")
+
+        elif t == "conflict":
+
+            # 冲突（v4 §3.3：高愤怒者可能爆发）—— 双方关系受损，双方愤怒↑/愉悦↓
+            agent.state.energy -= 5
+            target_id = tgt
+            target = next((a for a in self.agents if a.identity.id == target_id), None)
+            if target:
+                agent.state.social_ties[target_id] = agent.state.social_ties.get(target_id, 0) - 5
+                target.state.social_ties[agent.identity.id] = target.state.social_ties.get(agent.identity.id, 0) - 4
+                apply_event_emotion(agent, "conflict")
+                apply_event_emotion(target, "conflict")
+                self.daily_agent_logs[agent.identity.id].append(f"与{target.identity.name}发生了冲突")
+                self.daily_agent_logs[target.identity.id].append(f"与{agent.identity.name}发生了冲突")
+            else:
+                apply_event_emotion(agent, "conflict")
+                self.daily_agent_logs[agent.identity.id].append("感到愤怒，独自生闷气")
 
         elif t == "investigate":
 
@@ -1920,9 +1942,13 @@ class TickEngine:
                         action_target=agent.state.location, emotional_valence=0.5)
                 else:
                     self.knowledge.observe(agent.identity.id, "investigate", claim, agent.state.location, confidence=0.7)
+                # 探索成功 → 愉悦↑，强化"探索"习惯（开放型探索者受益）
+                apply_event_emotion(agent, "work_success")
+                learn_habit(agent, "explore", "investigate", 1.0)
                 self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查，发现了线索：「{claim}」")
             else:
                 self.knowledge.observe(agent.identity.id, "investigate", f"在{loc_cn}仔细调查了一遍", agent.state.location, confidence=0.5)
+                apply_event_emotion(agent, "investigate")
                 self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查了周围的环境，暂时没有特别发现")
 
         elif t == "observe":

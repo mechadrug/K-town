@@ -2,6 +2,7 @@
 import random,time,uuid
 from typing import List,Optional,Dict,Any
 from models import AgentIdentity,AgentState,Goal,Mood,Role
+from emotions import dominant_emotion, emotion_drift, emotion_to_decision_bias
 
 class Agent:
     def __init__(self, identity:AgentIdentity, location="square"):
@@ -15,35 +16,33 @@ class Agent:
         pass
 
     def think(self, hour):
-
-        # 人格影响心情稳定性
+        # 情绪系统 v2（gameplay-design-v4 §3）：生理状态映射到 4 维情绪，再驱动 Mood
         stability = self.identity.personality.get("stability", 0.5)
-        
-        if self.state.energy<20: 
-            self.state.mood=Mood.SAD
-        elif self.state.energy<50:
-            if stability > 0.7:
-                self.state.mood=Mood.NEUTRAL
-            else:
-                self.state.mood=Mood.ANXIOUS
-        elif self.state.energy>80:
-            self.state.mood=Mood.HAPPY
-        
-        # 情绪稳定性低 -> 体力下降时更容易心情差
-        if stability < 0.3 and self.state.energy < 40:
-            if random.random() < 0.3:
-                self.state.mood = Mood.ANGRY if random.random() < 0.5 else Mood.SAD
-        
+        emo = self.state.emotions
+        is_player = self.identity.role == Role.PLAYER
+
+        # 生理 → 情绪偏移（体力低→悲伤/愤怒；饥饿→焦虑/悲伤）
+        # 玩家情绪只由自身行动反馈驱动（_handle_action），不被 NPC 生理逻辑拖拽
+        if not is_player:
+            if self.state.energy < 20:
+                emo["sadness"] = min(100, emo.get("sadness", 50) + 6)
+            elif self.state.energy < 50:
+                if stability > 0.7:
+                    emo["anxiety"] = min(100, emo.get("anxiety", 50) + 2)
+                else:
+                    emo["anxiety"] = min(100, emo.get("anxiety", 50) + 5)
+            elif self.state.energy > 80:
+                emo["joy"] = min(100, emo.get("joy", 50) + 3)
+
+            if self.state.hunger > 60:
+                emo["anxiety"] = min(100, emo.get("anxiety", 50) + 6)
+                emo["sadness"] = min(100, emo.get("sadness", 50) + 5)
+            elif self.state.hunger > 30:
+                emo["anxiety"] = min(100, emo.get("anxiety", 50) + 2)
+
         self.state.energy = max(0, self.state.energy-1)
         if hour>=17 or hour<5:
             self.state.energy = min(100, self.state.energy+15)
-
-        # 饥饿检查
-        if self.state.hunger > 60:
-            self.state.mood = Mood.SAD
-        elif self.state.hunger > 30:
-            if self.state.mood == Mood.HAPPY:
-                self.state.mood = Mood.NEUTRAL
 
         # 食物消耗（晚上结算）
         if hour == 19:
@@ -51,24 +50,29 @@ class Agent:
             if self.state.food >= food_need:
                 self.state.food -= food_need
                 self.state.hunger = max(0, self.state.hunger - 30)
+                emo["joy"] = min(100, emo.get("joy", 50) + 2)  # 吃饱了→愉悦
             else:
                 # 食物不足 -> 饥饿度上升，体力和心情下降
                 self.state.hunger = min(100, self.state.hunger + 40)
                 self.state.energy = max(0, self.state.energy - 10)
-                if self.state.hunger > 60:
-                    self.state.mood = Mood.SAD
+                emo["anxiety"] = min(100, emo.get("anxiety", 50) + 8)
+                emo["sadness"] = min(100, emo.get("sadness", 50) + 6)
 
-        # 食物购买（金币回收机制）
+        # 食物购买（金币回收机制）—— 价格响应：食物越贵买越少
         if hour == 0 and self.state.hunger > 30 and self.state.food < 3 and self.state.gold > 10:
-            # 价格响应：食物越贵买越少
             base_cost = 5
             max_buy = min(3, self.state.gold // base_cost)
             if max_buy > 0:
-                # 高价格时减少购买
                 if base_cost > 8 and max_buy > 1:
                     max_buy = max(1, max_buy - 1)
                 self.state.gold -= max_buy * base_cost
                 self.state.food += max_buy
+
+        # 情绪向基线回归（稳定高者情绪更平稳）
+        emotion_drift(self)
+
+        # 由 4 维情绪的主导者同步 Mood（UI 表情/光环层）
+        self.state.mood = dominant_emotion(self.state.emotions)
 
     def decide(self, hour, agents_here, events, knowledge_engine=None, world=None):
         """
@@ -81,18 +85,32 @@ class Agent:
         """
         n = self.identity.name
         p = self.identity.personality
-        
+        emo = self.state.emotions
+
+        # 情绪 → 决策渗透（gameplay-design-v4 §3.3）：焦虑→避险、愉悦→社交、愤怒→冲突/效率、悲伤→独处
+        emo_bias = emotion_to_decision_bias(self)
+        anxiety = emo.get("anxiety", 50)
+        joy = emo.get("joy", 50)
+        anger = emo.get("anger", 50)
+        sadness = emo.get("sadness", 50)
+
         # === Layer 1: 生理需求（最高优先级）===
         conscientiousness = p.get("conscientiousness", 0.5)
         rest_threshold = 20 - int(conscientiousness * 10)
-        
+        # 悲伤→更早休息（行动力下降）；愤怒→勉强支撑
+        if sadness >= 60:
+            rest_threshold = min(40, rest_threshold + 15)
+        elif anger >= 60:
+            rest_threshold = max(10, rest_threshold - 5)
+
         if self.state.energy < rest_threshold:
             return {"type":"rest","desc": f"{n}体力不支，正在休息","target":""}
         
-        # 夜晚睡觉
+        # 夜晚睡觉（情绪调制：愉悦+开放→夜游；焦虑→更早入睡）
         openness = p.get("openness", 0.5)
         if hour>=17 or hour<5:
-            if openness > 0.7 and hour < 19 and self.state.energy > 40:
+            night_curiosity = openness + (joy - 50) / 100 * 0.3
+            if night_curiosity > 0.7 and hour < 19 and self.state.energy > 40:
                 return {"type":"investigate","desc": f"{n}趁着夜色外出探索","target":""}
             return {"type":"sleep","desc": f"{n}正在睡觉","target":""}
 
@@ -155,35 +173,44 @@ class Agent:
                 goal_action["desc"] = f"{n}为了「{top_goal.description}」{goal_action['desc']}"
                 return goal_action
         
-        # === Layer 4: 社交驱动（关系后果化：好友聚集、宿敌回避）===
+        # === Layer 4: 社交驱动（关系后果化：好友聚集、宿敌回避 + 情绪调制）===
         extraversion = p.get("extraversion", 0.5)
         agreeableness = p.get("agreeableness", 0.5)
         stability = p.get("stability", 0.5)
 
-        # 外向性高 + 宜人性高 -> 更可能社交
+        # 外向性高 + 宜人性高 -> 更可能社交；愉悦高→更想社交，悲伤高→独处
         social_prob = 0.3 + extraversion * 0.3 + agreeableness * 0.2
+        social_prob += emo_bias.get("talk", 0)
+        if sadness >= 60:
+            social_prob -= 0.25
 
         if agents_here and len(agents_here) > 1:
             others = [o for o in agents_here if o.identity.id != self.identity.id]
-            # 宿敌在场：情绪不稳定者倾向离开回避
+            # 宿敌在场：情绪不稳定者或愤怒者倾向离开回避
             rivals = [o for o in others if self.state.social_ties.get(o.identity.id, 0) < -15]
-            if rivals and stability < 0.5 and random.random() < 0.4:
+            if rivals and (stability < 0.5 or anger >= 60) and random.random() < 0.4:
                 safe = [l for l in ("square", "workshop", "wilderness", "school", "mine") if l != self.state.location]
                 return {"type": "move", "desc": f"{n}看到讨厌的人在场，转身离开了", "target": random.choice(safe)}
-            # 好友在场：优先与关系最好的人交谈
+            # 好友在场：优先与关系最好的人交谈（悲伤者可能反而避开）
             friends = [o for o in others if self.state.social_ties.get(o.identity.id, 0) > 10]
-            if friends and random.random() < 0.6:
+            if friends and sadness < 60 and random.random() < 0.6:
                 target = max(friends, key=lambda o: self.state.social_ties.get(o.identity.id, 0))
                 return {"type": "talk", "desc": f"{n}主动去找{target.identity.name}聊天", "target": target.identity.id}
-            # 随机社交
+            # 随机社交（愤怒者更可能冲突而非闲聊）
             if random.random() < social_prob * 0.5:
                 other = random.choice(others)
+                if anger >= 60 and random.random() < 0.3:
+                    return {"type": "conflict", "desc": f"{n}因愤怒与{other.identity.name}发生争执", "target": other.identity.id}
                 return {"type": "talk", "desc": f"{n}和{other.identity.name}闲聊几句", "target": other.identity.id}
         
         # === Layer 5: 默认行为（工作地点）===
         work_slot = self._get_work_slot(hour)
         if work_slot and self.state.location == work_slot['loc']:
             work_prob = 0.6 + conscientiousness * 0.3
+            # 愤怒→更拼命工作（效率↑）；悲伤→无心工作（效率↓）
+            work_prob += emo_bias.get("work", 0)
+            if sadness >= 60:
+                work_prob -= 0.2
             # 食物经济闭环：食物贵 → 采集/农耕更卖力（供给回升 → 价格回落）
             if work_slot['role'] in ('forager', 'farmer') and world:
                 food_price = world.get_price('food')
@@ -293,6 +320,8 @@ class Agent:
             "location_cn": self.get_location_cn(self.state.location),
             "energy": self.state.energy,
             "mood": self.state.mood.value,
+            "emotions": self.state.emotions,
+            "habits": {k: dict(v) for k, v in self.state.habit_bias.items()},
             "gold": self.state.gold,
             "food": self.state.food,
             "hunger": self.state.hunger,
