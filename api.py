@@ -66,7 +66,22 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "player": player,
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers],
             "factions": tick_engine.faction_system.factions,
-            "location_levels": world.state.location_levels
+            "location_levels": world.state.location_levels,
+            # 长期目标线（v4 §5）：重建进度 + 身世之谜进度
+            "progress": {
+                "rebuild": {
+                    "upgrades_done": tick_engine._upgrades_done,
+                    "levels": world.state.location_levels,
+                    "next_threshold": 100 * (tick_engine._upgrades_done + 1) ** 2,
+                    "total_gold": sum(a.state.gold for a in agents),
+                },
+                "lore": {
+                    "fragments": sorted(getattr(tick_engine, 'lore_fragments', set())),
+                    "collected": len(getattr(tick_engine, 'lore_fragments', set())),
+                    "total": tick_engine.LORE_TOTAL_FRAGMENTS,
+                    "unlocked": getattr(tick_engine, 'lore_unlocked', []),
+                },
+            }
         }
 
     def _dialogue_context(target) -> dict:
@@ -624,6 +639,29 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             return tick_engine.quest_engine.to_dict()
 
         return {'active_quests': [], 'completed_quests': [], 'achievements': [], 'total_completed': 0, 'total_quests': 0}
+
+    @app.get("/api/progress")
+
+    async def get_progress():
+
+        """长期目标线进度（v4 §5）：小镇重建 + 身世之谜"""
+
+        return {
+            "rebuild": {
+                "upgrades_done": tick_engine._upgrades_done,
+                "levels": world.state.location_levels,
+                "next_threshold": 100 * (tick_engine._upgrades_done + 1) ** 2,
+                "total_gold": sum(a.state.gold for a in agents),
+                "desc": f"修缮 {tick_engine._upgrades_done}/15 处（目标：5 地点全部 Lv5）",
+            },
+            "lore": {
+                "fragments": sorted(getattr(tick_engine, 'lore_fragments', set())),
+                "collected": len(getattr(tick_engine, 'lore_fragments', set())),
+                "total": tick_engine.LORE_TOTAL_FRAGMENTS,
+                "unlocked": getattr(tick_engine, 'lore_unlocked', []),
+                "desc": f"身世碎片 {len(getattr(tick_engine, 'lore_fragments', set()))}/{tick_engine.LORE_TOTAL_FRAGMENTS} 片（通过每日思考触及真相关键词收集）",
+            },
+        }
 
     @app.get("/api/crises")
 

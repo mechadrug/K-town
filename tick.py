@@ -940,14 +940,40 @@ class TickEngine:
         ("秘密", "记忆", "这玉佩……你好像知道它属于谁。"),
     ]
 
+    # 身世之谜：记忆碎片收集（v4 §5.2）—— 触及真相关键词 → 碎片入账
+    # 集齐 5 片解锁"大缓变真相"线索
+    LORE_FRAGMENTS = {
+        "遗迹": {"skill": "溯源", "fragment": "你仿佛看见了整座城市沉入大地——那是很久以前的事了。", "lore_key": "ruins"},
+        "废墟": {"skill": "溯源", "fragment": "你仿佛看见了整座城市沉入大地——那是很久以前的事了。", "lore_key": "ruins"},
+        "石碑": {"skill": "铭文识读", "fragment": "石碑上的纹路，你竟然认得几个字。", "lore_key": "stele"},
+        "纹路": {"skill": "铭文识读", "fragment": "石碑上的纹路，你竟然认得几个字。", "lore_key": "stele"},
+        "十三": {"skill": "十三时", "fragment": "你梦见自己数过十二个时辰，又数到了第十三。", "lore_key": "thirteen"},
+        "玉佩": {"skill": "溯源", "fragment": "这块玉佩……你好像知道它原本属于谁。", "lore_key": "jade"},
+        "黑夜": {"skill": "夜行者", "fragment": "你忽然记起，很久以前，黑夜没有这么长。", "lore_key": "night"},
+        "地球": {"skill": "溯源", "fragment": "你脱口而出「地球」二字，却不知这词从何而来。", "lore_key": "earth"},
+        "时间": {"skill": "观星", "fragment": "你意识到：时间本身，在很久以前出了一点差错。", "lore_key": "time"},
+        "转速": {"skill": "观星", "fragment": "你意识到：时间本身，在很久以前出了一点差错。", "lore_key": "time"},
+        "文明": {"skill": "溯源", "fragment": "你仿佛听见了整座城市的低语——那是很久以前的事了。", "lore_key": "civilization"},
+        "秘密": {"skill": "记忆", "fragment": "这玉佩……你好像知道它属于谁。", "lore_key": "secret"},
+        "大缓变": {"skill": "溯源", "fragment": "大缓变……那不是天灾，是有人按下的开关。", "lore_key": "great_slow"},
+    }
+    # 碎片收集目标与解锁的线索
+    LORE_TOTAL_FRAGMENTS = 5
+
     def _check_insight(self, agent, claim_text):
-        """每日领悟：若提交的思考触及遗迹真相，封印松动，领悟技能 + 想起记忆碎片。"""
+        """每日领悟：若提交的思考触及遗迹真相，封印松动，领悟技能 + 想起记忆碎片 + 收集身世碎片。"""
         if not claim_text:
             return None
-        for kw, skill, fragment in self.INSIGHT_TOPICS:
+        # 初始化身世碎片记录
+        if not hasattr(self, 'lore_fragments'):
+            self.lore_fragments = set()
+            self.lore_unlocked = []
+        for kw, info in self.LORE_FRAGMENTS.items():
             if kw in claim_text:
+                skill = info["skill"]
                 unlocked = skill not in agent.identity.skills
                 agent.identity.skills[skill] = agent.identity.skills.get(skill, 0) + 1
+                fragment = info["fragment"]
                 agent.diary.append(f"第{self.current_day}天·记忆碎片：{fragment}")
                 self.daily_agent_logs[agent.identity.id].append(f"✨ 你忽然想起了什么：{fragment}")
                 self.current_day_events.append(
@@ -955,6 +981,15 @@ class TickEngine:
                 msg = f"✨ {fragment}"
                 if unlocked:
                     msg += f" 封印松动了一丝——你领悟了「{skill}」！"
+                # 身世碎片收集（v4 §5.2：集齐解锁大缓变线索）
+                lore_key = info["lore_key"]
+                if lore_key not in self.lore_fragments:
+                    self.lore_fragments.add(lore_key)
+                    collected = len(self.lore_fragments)
+                    msg += f"【身世碎片 {collected}/{self.LORE_TOTAL_FRAGMENTS}】"
+                    if collected >= self.LORE_TOTAL_FRAGMENTS:
+                        self.lore_unlocked.append("大缓变的真相：那不是天灾，而是旧世界留下的最后一道指令。")
+                        msg += " 你忽然明白了一切——大缓变不是天灾！"
                 return msg
         return None
 
