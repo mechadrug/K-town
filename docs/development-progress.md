@@ -1,7 +1,32 @@
 # K-town 开发进度
 
-> 当前路线图：`docs/design-master-plan-2026-08-04.md`（修正版主计划，Phase 0–4）
-> 版本口径：v0.4（可玩的观察型小镇 + 回合制 + 二十时世界观，2026-08-04）
+> **当前产品路线（2026-08-23）**：`docs/product/gameplay-design-v5.md` + `docs/product/world-view-v3.md` + `docs/product/art-direction-v2.md`。
+> **当前实施计划**：`docs/plans/2026-08-23-rebuild-plan.md`。本文件下方的 v0.3-v0.5 内容是已实现能力和历史记录，不代表下一步继续补 Phase 9。
+
+## v5 设计与 Phase 0-1 实施（2026-08-23 晚）
+
+### 本次完成：路线重构文档 + 动作单一结算 + dry-wood 切片
+
+- [x] 明确产品核心：玩家作为暂住七天的新居民，在有限时段内选择帮助谁、相信什么，小镇在次日用居民行为、关系和场景变化回应。
+- [x] 首个可玩目标收敛为 7 天纵切片：托林、莉娜、梅奶奶；广场、工坊、河谷野径；暴雨预告、旧矿道传闻和工坊屋顶三阶段。
+- [x] 冻结失忆/玉佩/十三时、随机危机池、复杂生产链、世界自生成、日常 LLM 与多玩家，直到纵切片可玩。
+- [x] 设定绘本水彩舞台的美术规范：先做雨天工坊关键场景，再扩展全镇。
+- [x] **Phase 0 数据安全**：`server.db_path` / `server.reset_on_start` 显式配置（默认继续游戏）；`test_smoke.py`/`test_actions.py` 用临时库；玩家首屏移除 reset 按钮。
+- [x] **Phase 1 动作单一结算**：`actions.py` ActionResolver 统一校验/扣费/推进/日志；修复 move 双扣 AP、advance(0) 免费推进、NPC 动作与 run() 互相喂食导致的世界无限推进；crisis 同日限次干预；dialogue 同地点校验；删除 trigger_event 玩家入口。
+- [x] **bring_dry_wood 纵切片**：`requests.py` 莉娜缺干木料（荒野收集 2AP/2h → 工坊交付 1AP/1h）；`/api/requests` + state payload；前端「🙋 请求」tab 渲染与回应；实服验证交付后请求 completed、莉娜关系 +6。
+
+### 代码状态
+
+- [x] `ActionResolver` 已建立并接管所有玩家/NPC 动作；任何新动作/按钮先声明成本再接入。
+- [ ] `Agent.perceive()`、事件快照和”观察 → 原因 → 行动 → 后果”日志尚未形成 v5 所需闭环（Phase 2）。
+- [ ] 现有每日目标、危机、身世与进度面板尚未按”具体请求 / 今日三条线”重新组织（Phase 4）。
+- [ ] 完整 Agent 存档未解决；”继续游戏”为部分恢复（Phase 6）。
+
+### 下一次开发只做
+
+1. Phase 2：`Agent.perceive()` + step 事件快照 + 决策日志”因为 X 所以 Y”日报叙述；剧本测试（雨天×人格、知识传播×路线）。
+2. Phase 3：扩展托林工坊屋顶、梅奶奶镇志两条请求线，补请求状态机与次日后果。
+3. 每个请求选项都要有对象、成本、即时反馈和次日观察，再接前端按钮。
 
 ## v0.2.1 → v0.3 基底重构（2026-08-04）
 
@@ -23,14 +48,14 @@
       （move→target）、对话接线真实 `/api/dialogue/*`、档案目标/日记真实渲染；
       `animations-v2.css` 未闭合注释修复、`style-v2.css` 补 `--bg-card`。
 - [x] **清理**：删除 client/（Godot）、server/（Go）、v1 前端六件套、9 个孤儿/一次性模块、
-      一次性文档脚本、NUL 损坏的 .gitignore（重写）、修复 run_server.ps1（python main.py）、
+      一次性文档脚本、NUL 损坏的 .gitignore（重写）、修复 run_server.ps1（固定解释器启动 main.py）、
       k_town.db 移出 git 跟踪。
 - [x] **冒烟测试** `test_smoke.py`：60 tick 全通过（Agent 移动、体力消耗、跨 2 天、
       日报内存+落库、知识产生、无异常）。
 
 ### 验证结果（2026-08-04）
-- ✅ `python test_smoke.py` → ALL PASS OK
-- ✅ `python main.py` 启动 8090；GET / 200；/api/state、/api/history/1、/api/logs/agents/1 全 200
+- ✅ 使用项目解释器运行 `test_smoke.py` → ALL PASS OK
+- ✅ 使用项目解释器运行 `main.py` 启动 8090；GET / 200；/api/state、/api/history/1、/api/logs/agents/1 全 200
 - ✅ 服务器存活 ≥15 tick 无异常；5 地点均有居民；派系生成；知识 100+ 条
 
 ### 已知问题 / 下一步（详见设计主计划 Phase 1–4）
@@ -39,9 +64,9 @@
 
 ---
 
-## v0.4 体验落地（2026-08-04，承接 `docs/plans/2026-08-04-gameplay-plan.md`）
+## v0.4 体验落地（历史记录，2026-08-04，承接 `docs/plans/2026-08-04-gameplay-plan.md`）
 
-> 玩法设计：`docs/product/gameplay-design-v3.md`（游戏大师视角权威设计）
+> 历史玩法设计：`docs/product/gameplay-design-v3.md`。当前玩法基线见 `docs/product/gameplay-design-v5.md`。
 
 ### 板块 1–4（P0，提交 74bc46c / d7bc8aa / 1564f8d / 624d3bc）
 - [x] **F0.1 图标系统统一**：新增 `static/icons.js` 单一 emoji 来源，清空全部 `?` 占位符（含 town-map 注释乱码与 JS BOM）
@@ -65,7 +90,7 @@
 - [ ] **F2.3 tick.py 拆分**：后置（详见设计主计划 P2）
 
 ### v0.4 验证
-- ✅ `python test_smoke.py` → ALL PASS OK（60 tick，Agent 移动、跨天、日报落库、知识产生、无异常）
+- ✅ 使用项目解释器运行 `test_smoke.py` → ALL PASS OK（60 tick，Agent 移动、跨天、日报落库、知识产生、无异常）
 - ✅ 实服 8090：GET / 200；/api/state（factions/无 era 残留）、/api/quests、/api/knowledge、/api/dialogue/options 全 200 无错误日志
 
 ### 世界观与回合制改造（板块 6-7，提交 feb1cc4 / c196f2e）
@@ -110,11 +135,13 @@
       世界观五篇入库；知识固化阈值统一 0.85（knowledge-system 原 0.9 修正）。
 - [x] **CLAUDE.md 同步**：仓库布局更新（v4/art-direction/世界观/archive）、仓库卫生规则（一次性脚本不入库）。
 
+> 说明：当前分支里，Phase 9 已经开始落地：`static/town-map-v2.js` 里已加手绘土路与像素小人，`templates/index-v2.html` 里已加危机横幅和目标 Tab；剩余仍是纹理、天气/粒子接入、建筑窗光和死 CSS 清理。
+
 ### 待办（下一步实施，见主计划 Phase 6-9）
-- Phase 6 情绪闭环（4 维情绪 + 习惯概率表 + 性格演化）——初心灵魂，优先级最高
-- Phase 7 危机事件 + 玩家干预 + 经济修复（NPC 交易/物品用途/价格入决策）
-- Phase 8 长期目标线（重建 + 身世碎片）
-- Phase 9 UI/美术重构（按 art-direction-v1）
+- [x] Phase 6 情绪闭环（4 维情绪 + 习惯概率表 + 性格演化）
+- [x] Phase 7 危机事件 + 玩家干预 + 经济修复
+- [x] Phase 8 长期目标线（重建 + 身世碎片）
+- [ ] Phase 9 UI/美术重构（道路/像素小人/目标页签已落地；待补动效、噪点、数据展示和清理）
 
 ---
 
@@ -145,7 +172,34 @@
 - [x] 身世之谜：每日思考触及真相关键词 → 收集记忆碎片（5 片：遗迹/石碑/十三/玉佩/大缓变），集齐解锁"大缓变不是天灾"真相
 - [x] 重建弧线：/api/progress 暴露修缮进度（已修缮/阈值/金币/等级）
 - [x] state payload 新增 progress 字段（rebuild + lore）
-- 验证：test_progress.py 8/8
+- 验证：test_progress.py 10/10
 
 ### 待办
-- Phase 9 UI/美术重构（art-direction-v1.md）：地图道路/像素小人/动效接入/死 CSS 清理
+- [ ] Phase 9 UI/美术重构（art-direction-v1.md）：补齐四维情绪/危机/身世进度展示、动效接入和死 CSS 清理
+
+---
+
+## 2026-08-23 运行与交接补充
+
+### 正确启动
+
+```powershell
+.\run_server.ps1
+```
+
+启动脚本固定使用 Conda `python_class`，自动结束占用 8090 的上一实例，并等待 `GET /api/state` 返回 200。不要用裸 `python`；本机裸命令会命中损坏的 base 解释器并触发 `0xc0000022`。
+
+### 已验证
+
+- `test_crisis.py`：20/20
+- `test_emotions.py`：16/16
+- `test_progress.py`：10/10（Windows 控制台需 UTF-8 输出）
+- Python `compileall`、`static/town-map-v2.js` 语法检查通过
+- 首页、静态资源、`/api/state`、`/api/crises`、`/api/progress` 返回 200
+
+### 当前改进优先级
+
+1. 持久化：将 `auto_reset=True` 改为显式配置，恢复 world snapshot 与完整 Agent 状态。
+2. 测试：让 `test_smoke.py` 接受独立数据库路径，避免覆盖运行中的 `k_town.db`。
+3. UI：展示四维情绪、危机细节和 lore/rebuild 进度，完成天气/粒子、夜间窗光、纸面纹理与死 CSS 清理。
+4. 架构与平衡：稳定行为后拆分 `tick.py`，再做长期模拟和情绪/危机/修缮参数调优。
