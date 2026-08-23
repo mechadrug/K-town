@@ -78,11 +78,16 @@
         <div class="pulse-me" id="pulse-me">🧳 你在 广场</div>
       </div>
 
-      <!-- Tab 切换：动态 / 任务 / 知识 -->
+      <!-- 危机横幅（v4 §4：进行中的危机，点击展开干预） -->
+      <div class="crisis-banner" id="crisis-banner" style="display:none"></div>
+
+      <!-- Tab 切换：动态 / 任务 / 知识 / 目标 -->
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="events" onclick="switchTab('events')">📰 动态</button>
+        <button class="tab-btn" data-tab="requests" onclick="switchTab('requests')">🙋 请求</button>
         <button class="tab-btn" data-tab="quests" onclick="switchTab('quests')">🎯 任务</button>
         <button class="tab-btn" data-tab="knowledge" onclick="switchTab('knowledge')">📚 知识</button>
+        <button class="tab-btn" data-tab="progress" onclick="switchTab('progress')">🌟 目标</button>
       </div>
 
       <!-- 今日动态 Tab -->
@@ -90,6 +95,15 @@
         <div class="panel-body">
           <div class="event-list" id="event-list">
             <div class="placeholder-text">欢迎来到K-town边境小镇！</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 请求 Tab（v5 纵切片：具体请求，玩家可回应） -->
+      <div class="panel fade-in tab-panel" id="tab-requests">
+        <div class="panel-body">
+          <div class="request-list" id="request-list">
+            <div class="placeholder-text">加载中...</div>
           </div>
         </div>
       </div>
@@ -143,10 +157,6 @@
       </button>
       <button class="action-btn" onclick="addKnowledge()" id="addKnowledgeBtn" title="每日一次：写下你的想法。若触及遗迹真相，会有领悟（不耗行动力）">
         <span class="btn-icon">📝</span> 知识
-      </button>
-      <div class="action-divider"></div>
-      <button class="action-btn" onclick="resetSimulation()" style="color:var(--negative)" title="清空并重启小镇模拟">
-        <span class="btn-icon">🔄</span> 重置
       </button>
     </nav>
   </div>

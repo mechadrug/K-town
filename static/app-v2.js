@@ -37,10 +37,13 @@
     // 初始即加载任务与知识数据（不依赖切换 Tab）
     loadQuests();
     loadKnowledge();
+    loadRequests();
     // 首次进入显示新手引导
     var guided = false;
     try { guided = localStorage.getItem('ktown_guided') === '1'; } catch (e) {}
     if (!guided) showGuide();
+    // 初始化粒子层（夜间萤火 / 风中落叶）
+    try { initParticleLayer(); } catch (e) { console.warn('initParticleLayer failed', e); }
   });
 
   // ===== WebSocket =====
@@ -156,6 +159,7 @@
     }
     TownMapV2.update(data.agents || [], data.weather, hour);
     setTimeTheme(hour);
+    try { updateParticles(hour, data.weather); } catch (e) { console.warn('updateParticles failed', e); }
     var hereCount = (data.agents || []).filter(function(a) { return a.location === player.location; }).length;
     setText('map-loc-count', '在场 ' + hereCount + ' 人');
 
@@ -171,6 +175,9 @@
 
     // 小镇脉搏（第一屏信息）
     updatePulse(data);
+
+    // 请求列表（随状态推送保持最新：完成/截止变化即时可见）
+    renderRequests(data.requests);
   }
 
   // ===== 小镇脉搏 =====
@@ -234,6 +241,60 @@
     else if (hour >= 17 || hour < 5) body.classList.add('theme-night');
   }
 
+  // ===== 粒子层 (fireflies / leaves) =====
+  function initParticleLayer() {
+    var pc = document.getElementById('particle-canvas');
+    if (!pc) {
+      pc = document.createElement('div');
+      pc.id = 'particle-canvas';
+      document.body.insertBefore(pc, document.body.firstChild);
+    }
+    pc.style.pointerEvents = 'none';
+    pc.style.position = 'absolute';
+    pc.style.top = '0';
+    pc.style.left = '0';
+    pc.style.width = '100%';
+    pc.style.height = '100%';
+    pc.style.zIndex = '10';
+  }
+
+  function updateParticles(hour, weather) {
+    var pc = document.getElementById('particle-canvas');
+    if (!pc) return;
+    pc.innerHTML = '';
+    var bodyClass = document.body.classList;
+    // 夜晚萤火虫
+    if (bodyClass.contains('theme-night')) {
+      for (var i = 0; i < 12; i++) {
+        var f = document.createElement('div');
+        f.className = 'firefly';
+        f.style.position = 'absolute';
+        f.style.left = (Math.random() * 100) + '%';
+        f.style.top = (Math.random() * 100) + '%';
+        f.style.width = '6px';
+        f.style.height = '6px';
+        f.style.borderRadius = '50%';
+        f.style.background = 'rgba(255,244,200,0.95)';
+        f.style.zIndex = '11';
+        pc.appendChild(f);
+      }
+    } else if (weather === 'windy') {
+      // 风中落叶
+      for (var j = 0; j < 6; j++) {
+        var lp = document.createElement('div');
+        lp.className = 'leaf-particle';
+        lp.style.position = 'absolute';
+        lp.style.left = (Math.random() * 100) + '%';
+        lp.style.top = (-10 + Math.random() * 30) + '%';
+        lp.style.width = '10px';
+        lp.style.height = '10px';
+        lp.style.background = 'rgba(180,130,80,0.95)';
+        lp.style.zIndex = '11';
+        pc.appendChild(lp);
+      }
+    }
+  }
+
   // ===== Tab 切换 =====
   function switchTab(tabName) {
     
@@ -260,6 +321,7 @@
     // 加载对应数据
     if (tabName === 'quests') loadQuests();
     if (tabName === 'knowledge') loadKnowledge();
+    if (tabName === 'requests') loadRequests();
 
     playSound('click');
   }
@@ -289,6 +351,64 @@
     while (list.children.length > 8) {
       list.removeChild(list.lastChild);
     }
+  }
+
+  // ===== 请求系统（v5 纵切片）=====
+  function loadRequests() {
+    var requests = (currentState && currentState.requests) || [];
+    renderRequests(requests);
+    // 状态推送可能早于首次加载：保证 tab 打开时有数据
+    if (!currentState) {
+      fetch('/api/requests').then(function(r) { return r.json(); }).then(renderRequests).catch(function() {});
+    }
+  }
+
+  function renderRequests(requests) {
+    var container = document.getElementById('request-list');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!requests || requests.length === 0) {
+      container.innerHTML = '<div class="placeholder-text">暂时没有居民请求</div>';
+      return;
+    }
+    requests.forEach(function(q) {
+      var item = document.createElement('div');
+      item.className = 'quest-item ' + (q.status === 'completed' ? 'completed' : '');
+      var meta = '';
+      if (q.status === 'completed') {
+        meta = '<div class="quest-meta"><span class="quest-reward">✅ 已完成（第' + (q.completed_day || '?') + '天）</span></div>';
+      } else {
+        var dayNow = currentState ? (Math.floor(currentState.tick / 20) + 1) : 1;
+        var left = Math.max(0, q.deadline - dayNow);
+        meta = '<div class="quest-meta"><span>截止：第' + q.deadline + '天（还剩' + left + '天）</span></div>';
+      }
+      var optsHtml = '';
+      (q.options || []).forEach(function(o) {
+        var disabled = q.status !== 'active';
+        optsHtml += '<button class="request-option-btn" ' + (disabled ? 'disabled' : '') +
+          ' onclick="respondRequest(\'' + q.id + '\',\'' + o.id + '\')" title="' +
+          esc(o.requires_cn + ' · 消耗 ' + o.cost_ap + ' 行动力 / ' + o.cost_hours + ' 小时') + '">' +
+          esc(o.label) + '<span class="request-cost">' + o.cost_ap + 'AP</span></button>';
+      });
+      item.innerHTML =
+        '<div class="quest-title">' + (q.status === 'completed' ? '✅ ' : '🙋 ') + esc(q.title) + '</div>' +
+        '<div class="quest-desc">' + esc(q.situation) + '</div>' +
+        (q.status === 'active' ? '<div class="request-options">' + optsHtml + '</div>' : '') +
+        meta;
+      container.appendChild(item);
+    });
+  }
+
+  function respondRequest(requestId, optionId) {
+    if (!canSendAction()) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showToast('连接已断开，请刷新页面', 'error');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'player_action',
+      action: { type: 'request_respond', request_id: requestId, option: optionId }
+    }));
   }
 
   // ===== 任务系统 =====
@@ -725,18 +845,6 @@
     btn.title = knowledgeSubmittedToday ? '今日已提交，明日再悟' : '每日一次：写下你的想法。若触及遗迹真相，会有领悟';
   }
 
-  function resetSimulation() {
-    if (!confirm('确定要重置小镇模拟吗？所有进度将丢失。')) return;
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      showToast('连接已断开', 'error');
-      return;
-    }
-    ws.send(JSON.stringify({
-      type: 'player_action',
-      action: { type: 'reset' }
-    }));
-  }
-
   // ===== 键盘快捷键 =====
   function setupEventListeners() {
     document.addEventListener('keydown', function(e) {
@@ -896,7 +1004,6 @@
   window.doRest = doRest;
   window.doInvestigate = doInvestigate;
   window.addKnowledge = addKnowledge;
-  window.resetSimulation = resetSimulation;
   window.toggleSound = toggleSound;
   window.showGuide = showGuide;
   window.closeGuide = closeGuide;
@@ -905,6 +1012,7 @@
   window.closeDialogue = closeDialogue;
   window.startDialogueFromProfile = startDialogueFromProfile;
   window.switchTab = switchTab;
+  window.respondRequest = respondRequest;
 
   // 5秒轮询（WebSocket 备用）
   setInterval(function() {

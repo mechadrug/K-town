@@ -26,6 +26,10 @@ from emotions import (apply_event_emotion, spread_emotion, solidify_habits, lear
 
 from crisis import roll_crisis
 
+from actions import ActionResolver, Action
+
+from requests import seed_initial_requests
+
 
 
 
@@ -124,6 +128,12 @@ class TickEngine:
         # 危机系统（v4 §4）：进行中的危机列表
         self.crises: List[Any] = []
 
+        # 统一动作结算（v5 §2.1）：所有玩家/NPC 动作唯一入口
+        self.resolver = ActionResolver(self)
+
+        # 小镇请求（v5 纵切片）：首批只有莉娜「缺干木料」
+        self.requests = seed_initial_requests()
+
         # 自动重置
 
         if auto_reset:
@@ -214,8 +224,10 @@ class TickEngine:
             self._flush_db_writes()
 
     def advance(self, hours: int = 1) -> None:
-        """玩家行动驱动世界推进：消耗 1 AP 度过 1 小时（回合制）"""
-        self._pending_advance += max(1, hours)
+        """玩家行动驱动世界推进：消耗 1 AP 度过 1 小时（回合制）。
+        修复：0 小时动作（observe 等）不得推进时间——只有 hours > 0 才排队。"""
+        if hours > 0:
+            self._pending_advance += hours
 
     async def wait_caught_up(self, timeout: float = 5.0) -> None:
         """等待回合制推进全部落地（run 循环处理完待推进小时），避免竞态"""
@@ -1857,301 +1869,19 @@ class TickEngine:
 
 
     async def _handle_action(self, agent, action, tick):
-
-        """执行单个动作，真实改变世界状态。玩家与 NPC 共用同一动作管线。"""
-
-        t = action.get("type", "")
-
-        # 归一化：craft/gather 类动作视为劳作（work 分支按职业产出金币/资源/知识）
-        # 修复：此前这些动作无分支，铁匠/木匠/采集者/农民/矿工的劳作是静默空操作
-        if t in ("craft_tool", "craft_furniture", "gather_food", "gather_material"):
-            t = "work"
-
-        tgt = action.get("target", "")
-
-        loc_cn = agent.get_location_cn(agent.state.location)
-
-        # 记录"正在做的事"（档案/对话语境显示；休息/观察时清空）
-        if t in ("work", "move", "talk", "investigate", "trade"):
-            agent.state.current_task = AgentTask(description=f"在{loc_cn}忙活着", location=agent.state.location)
-        elif t in ("rest", "sleep", "observe"):
-            agent.state.current_task = None
-
-        # 玩家行动消耗AP（不足则拦截；夜晚走十三时夜间行动力，不扣常规AP）
-        cur_hour = tick % self.day_length
-        at_night = not (self.wake_hour <= cur_hour < self.wake_hour + self.waking_hours)
-        if agent.identity.role.value == 'player' and t in ('move', 'work', 'talk', 'rest', 'investigate'):
-            if not at_night:
-                ap_cost = 2 if t == 'investigate' else 1
-                if agent.state.ap < ap_cost:
-                    self.daily_agent_logs[agent.identity.id].append('AP不足，无法行动')
-                    return
-                agent.state.ap -= ap_cost
-
-        # 记录动作前金币（用于每日目标"赚取金币"进度）
-
-        gold_before = agent.state.gold
-
-        if t == "move" and tgt:
-
-            self.world.remove_agent_from_location(agent.identity.id, agent.state.location)
-
-            agent.state.location = tgt
-
-            self.world.add_agent_to_location(agent.identity.id, tgt)
-
-            agent.state.energy -= 5
-
-            apply_event_emotion(agent, "move")
-
-            self.daily_agent_logs[agent.identity.id].append(f"移动到了{self._get_location_cn(tgt)}")
-
-        elif t == "work":
-
-            agent.state.energy -= 8
-
-            role = agent.identity.role.value
-
-            work_knowledge = {
-
-                "blacksmith": ("锻造", f"在工坊锻造了优质的工具"),
-
-                "carpenter": ("木工", f"在工坊制作了精美的木家具"),
-
-                "forager": ("采集", f"在森林里采集了新鲜的食材和草药"),
-
-                "farmer": ("农耕", f"在田地里辛勤耕种，期待丰收"),
-
-                "scout": ("探索", f"探索了荒野的未知区域，绘制了新地图"),
-
-                "healer": ("医疗", f"在学校救治了病人，配制药剂"),
-
-                "miner": ("采矿", f"在矿洞深处挖掘出珍贵的矿石"),
-
-                "merchant": ("商业", f"在广场打理生意，了解市场行情"),
-
-                "elder": ("知识", f"给年轻人们讲述了古老的传说和智慧"),
-
-                "teacher": ("教育", f"教导孩子们读书写字，传播知识"),
-
-                "storyteller": ("故事", f"给大家讲述精彩的冒险故事"),
-
-            }
-
-            if role in work_knowledge:
-
-                subject, desc = work_knowledge[role]
-
-                self.knowledge.observe(agent.identity.id, subject, desc, agent.state.location)
-
-            if role in ["blacksmith", "carpenter"]:
-
-                agent.state.gold += 5
-
-                agent.state.inventory.append("tool")
-
-            elif role in ["forager", "farmer"]:
-
-                agent.state.gold += 3
-
-                agent.state.inventory.append("food")
-
-                # 食物经济闭环：采集行为计入供给
-                self.world.record_supply('food', 3)
-
-            elif role == "scout":
-
-                agent.state.gold += 4
-
-            elif role == "healer":
-
-                agent.state.gold += 4
-
-            elif role == "miner":
-
-                agent.state.gold += 5
-
-            elif role == "player":
-                # 玩家工作回报（按地点差异化，让"打工"有成就感）
-                loc_gold = {"wilderness": 6, "mine": 7, "workshop": 5, "square": 4, "school": 4}
-                agent.state.gold += loc_gold.get(agent.state.location, 4)
-                self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}打工挣了些金币")
-
-            else:
-
-                agent.state.gold += 2
-
-            # 知识驱动发展：劳作中精进技能（技能等级提升产出）
-            skill = agent.identity.skills.get(role, 0)
-            if skill > 0:
-                agent.state.gold += min(3, skill)
-            if random.random() < 0.12:
-                agent.identity.skills[role] = skill + 1
-                self.daily_agent_logs[agent.identity.id].append(
-                    f"{agent.get_role_cn(role)}技能提升到{skill + 1}级，手艺更精进了")
-
-            # 情绪反馈（v4 §3.4）：工作有产出 → 愉悦↑，强化"工作"习惯
-            apply_event_emotion(agent, "work_success")
-            learn_habit(agent, "work", "work", 1.0)
-
-            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}工作")
-
-        elif t == "rest":
-
-            agent.state.energy = min(100, agent.state.energy + 10)
-
-            apply_event_emotion(agent, "rest")
-
-            learn_habit(agent, "tired", "rest", 1.0)
-
-            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}休息恢复体力")
-
-        elif t == "sleep":
-
-            agent.state.energy = min(100, agent.state.energy + 20)
-
-            apply_event_emotion(agent, "sleep")
-
-            self.daily_agent_logs[agent.identity.id].append("睡觉休息")
-
-        elif t == "talk":
-
-            agent.state.energy -= 2
-
-            agent.state.gold += 1
-
-            # 社交时传播知识给同地点所有 Agent（信任度高者更易传）
-
-            claims = self.knowledge.agent_knowledge(agent.identity.id)
-
-            if claims and len(claims) > 0:
-
-                top = max(claims, key=lambda c: c.confidence)
-
-                if top.confidence > 0.5:
-
-                    for other in self.agents:
-
-                        if other.identity.id != agent.identity.id and other.state.location == agent.state.location:
-
-                            self.knowledge.propagate(top.id, agent.identity.id, other.identity.id, 0.7)
-
-            # 社交时增加与在场Agent的好感度
-
-            for other in self.agents:
-
-                if other.identity.id == agent.identity.id:
-
-                    continue
-
-                if other.state.location == agent.state.location:
-
-                    # 宜人性高→更容易增加好感
-
-                    agreeableness = agent.identity.personality.get('agreeableness', 0.5)
-
-                    extraversion = agent.identity.personality.get('extraversion', 0.5)
-
-                    tie_change = 0.5 + agreeableness * 0.5 + extraversion * 0.3
-
-                    current_tie = agent.state.social_ties.get(other.identity.id, 0)
-
-                    agent.state.social_ties[other.identity.id] = current_tie + tie_change
-
-                    # 双向关系也增加（但少一些）
-
-                    other_tie = other.state.social_ties.get(agent.identity.id, 0)
-
-                    other.state.social_ties[agent.identity.id] = other_tie + tie_change * 0.7
-
-            # 情绪反馈：社交→愉悦↑、焦虑↓；强化"社交"习惯（外向者更受益）
-            apply_event_emotion(agent, "talk")
-            learn_habit(agent, "socialize", "talk", 1.0)
-
-            self.daily_agent_logs[agent.identity.id].append(f'和{loc_cn}的人聊天')
-
-        elif t == "trade":
-
-            if agent.identity.role.value == "merchant":
-
-                agent.state.gold += 8
-
-            else:
-
-                agent.state.gold += 2
-
-            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}进行交易")
-
-        elif t == "conflict":
-
-            # 冲突（v4 §3.3：高愤怒者可能爆发）—— 双方关系受损，双方愤怒↑/愉悦↓
-            agent.state.energy -= 5
-            target_id = tgt
-            target = next((a for a in self.agents if a.identity.id == target_id), None)
-            if target:
-                agent.state.social_ties[target_id] = agent.state.social_ties.get(target_id, 0) - 5
-                target.state.social_ties[agent.identity.id] = target.state.social_ties.get(agent.identity.id, 0) - 4
-                apply_event_emotion(agent, "conflict")
-                apply_event_emotion(target, "conflict")
-                self.daily_agent_logs[agent.identity.id].append(f"与{target.identity.name}发生了冲突")
-                self.daily_agent_logs[target.identity.id].append(f"与{agent.identity.name}发生了冲突")
-            else:
-                apply_event_emotion(agent, "conflict")
-                self.daily_agent_logs[agent.identity.id].append("感到愤怒，独自生闷气")
-
-        elif t == "investigate":
-
-            agent.state.energy -= 3
-
-            # 身世碎片收集（v4 §5.2）：若当前地点有线索 → 收集碎片（夜间必得，白天 50%）
-            cur_hour_lore = tick % self.day_length
-            at_night_lore = not (self.wake_hour <= cur_hour_lore < self.wake_hour + self.waking_hours)
-            lore_msg = self._collect_lore_fragment(agent, agent.state.location, at_night_lore)
-            if lore_msg:
-                self.daily_agent_logs[agent.identity.id].append(lore_msg)
-
-            # 调查：可能发现当前地点的线索/知识（末世遗迹伏笔的入口）
-            # 拥有"夜视"技能则必定发现（十三时夜晚探索的回报）
-            if random.random() < 0.4 or agent.identity.skills.get("夜视"):
-                discoveries = {
-                    "wilderness": "荒野的草丛里似乎有被踩踏的痕迹",
-                    "mine": "矿洞深处的岩壁上刻着古老的符号",
-                    "square": "广场石碑上刻着看不懂的纹路",
-                    "workshop": "工坊旧炉子里藏着半张发黄的图纸",
-                    "school": "学校书架里夹着一本没见过的旧书",
-                }
-                claim = discoveries.get(agent.state.location, f"在{loc_cn}发现了不寻常的痕迹")
-                # 资源富集地点的线索记为"可行动知识"（seek_resource）→ 驱动其他 Agent 前来采集
-                if agent.state.location in ("wilderness", "mine"):
-                    self.knowledge.observe_with_action(
-                        agent.identity.id, "investigate", claim, agent.state.location,
-                        confidence=0.7, action_type="seek_resource",
-                        action_target=agent.state.location, emotional_valence=0.5)
-                else:
-                    self.knowledge.observe(agent.identity.id, "investigate", claim, agent.state.location, confidence=0.7)
-                # 探索成功 → 愉悦↑，强化"探索"习惯（开放型探索者受益）
-                apply_event_emotion(agent, "work_success")
-                learn_habit(agent, "explore", "investigate", 1.0)
-                self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查，发现了线索：「{claim}」")
-            else:
-                self.knowledge.observe(agent.identity.id, "investigate", f"在{loc_cn}仔细调查了一遍", agent.state.location, confidence=0.5)
-                apply_event_emotion(agent, "investigate")
-                self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}调查了周围的环境，暂时没有特别发现")
-
-        elif t == "observe":
-
-            agent.state.energy -= 1
-
-            self.daily_agent_logs[agent.identity.id].append(f"在{loc_cn}观察四周")
-
-        agent.state.energy = max(0, min(100, agent.state.energy))
-
-        # 每日目标进度（仅玩家，薄层）—— 动作执行后追踪，完成即发奖励
-        if agent.identity.role.value == 'player' and hasattr(self, 'quest_engine') and self.quest_engine:
-            gold_earned = max(0, agent.state.gold - gold_before)
-            reward = self.quest_engine.update_progress(agent, action_type=t, gold_earned=gold_earned, location=agent.state.location)
-            if reward:
-                self.daily_agent_logs[agent.identity.id].append(f"🎯 完成每日目标，获得{reward}金币奖励")
+        """执行单个动作，真实改变世界状态。玩家与 NPC 共用同一动作管线。
+
+        v5 重构：结算逻辑已收敛到 ActionResolver（校验/扣费/推进/日志单一入口），
+        本方法保持原签名，作为 NPC 决策管线与旧调用方的薄封装。
+        """
+        act = Action(
+            actor_id=agent.identity.id,
+            kind=action.get("type", ""),
+            target_id=action.get("target", "") or action.get("target_id", ""),
+            target_location=action.get("target_location", "") or action.get("target", ""),
+            payload=action.get("payload", {}),
+        )
+        return self.resolver.resolve(agent, act)
 
 
 

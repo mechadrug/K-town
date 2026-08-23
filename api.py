@@ -22,6 +22,8 @@ from agent import populate_agents
 
 from models import Event, EventType, PlayerAction, TradeOffer, Mood
 
+from actions import Action
+
 
 
 
@@ -67,6 +69,17 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers],
             "factions": tick_engine.faction_system.factions,
             "location_levels": world.state.location_levels,
+            # 小镇请求（v5 纵切片）：玩家可见的具体请求与选项
+            "requests": [{
+                "id": q.id, "requester_id": q.requester_id, "location": q.location,
+                "title": q.title, "situation": q.situation, "deadline": q.deadline,
+                "status": q.status, "completed_day": q.completed_day,
+                "options": [{
+                    "id": o.id, "label": o.label, "requires": o.requires,
+                    "requires_cn": o.requires_cn, "cost_ap": o.cost_ap,
+                    "cost_hours": o.cost_hours, "result_desc": o.result_desc,
+                } for o in q.options],
+            } for q in getattr(tick_engine, 'requests', [])],
             # 长期目标线（v4 §5）：重建进度 + 身世之谜进度
             "progress": {
                 "rebuild": {
@@ -480,55 +493,39 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
             return {"status": "ok", "result": result}
 
-        # === 回合制：1 AP = 1 小时。非休息动作须在清醒时段，且推进世界时钟 ===
-        hour = tick_engine.world.state.tick % tick_engine.day_length
-        ws, wl = tick_engine.wake_hour, tick_engine.waking_hours
-        is_night = not (ws <= hour < ws + wl)
-        ap_cost = {"move": 1, "work": 1, "talk": 1, "investigate": 2, "trade": 1,
-                   "observe": 0, "sleep": 0, "trade_offer": 1, "accept_trade": 0,
-                   "add_claim": 1, "trigger_event": 1}.get(t, 1)
-
-        if t == "rest":
-            # 休息 = 结束今天：推进到次日清晨，跨过午夜日结（AP 自动重置）
-            to_next_wake = (ws - hour) % tick_engine.day_length or tick_engine.day_length
-            tick_engine.advance(to_next_wake)
-            await tick_engine.wait_caught_up()
-            result = "你睡了一觉，迎来了新的一天"
-            logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
-            return {"status": "ok", "result": result}
-        if is_night:
-            # 十三时：夜晚只能用独立的夜间行动力（night_ap），不扣常规 AP
-            if actor.state.night_ap <= 0:
-                return {"status": "error", "result": "夜深了，镇上的人都睡了。你虽有古玉佩护佑，却也困倦难当——点「休息」吧。"}
-            actor.state.night_ap -= 1
-        if not is_night and actor.identity.role.value == 'player' and t in ("move", "work", "talk", "investigate") and actor.state.ap < ap_cost:
-            return {"status": "error", "result": f"行动力不足（剩余{actor.state.ap}点，需要{ap_cost}点）"}
-        if ap_cost > 0:
-            tick_engine.advance(ap_cost)
-
-        result = ""
-
-        if t == "trigger_event":
-            event_type = action.get("event_type", "weather_change")
-            location = action.get("location", "square")
-            payload = action.get("payload", {})
-            event = Event(tick=tick_engine.world.state.tick, type=EventType(event_type), location=location, payload=payload)
-            bus.publish(event)
-            result = f"触发了{event_type}事件"
-        elif t == "reset":
+        # === v5 统一结算：所有常规动作经 ActionResolver（校验/扣费/推进单一入口）===
+        if t == "reset":
+            # 仅开发用：玩家首屏已无入口，保留 API 供调试
             return await reset_simulation()
         elif t in ("work", "rest", "investigate", "move", "talk", "trade", "observe", "sleep"):
-            # 常规动作：走与 NPC 相同的执行管线（_handle_action 内部处理玩家 AP 消耗）
-            act = {"type": t, "target": tgt}
-            before = len(tick_engine.daily_agent_logs.get(aid, []))
-            await tick_engine._handle_action(actor, act, tick_engine.world.state.tick)
-            logs = tick_engine.daily_agent_logs.get(aid, [])
-            result = logs[-1] if len(logs) > before else f"{actor.identity.name}执行了{t}"
+            # 常规动作：统一走 ActionResolver（校验/扣费/推进单一入口）
+            ar = tick_engine.resolver.resolve(actor, Action(
+                actor_id=aid, kind=t,
+                target_id=tgt if t in ("talk", "trade", "conflict") else "",
+                target_location=tgt if t == "move" else "",
+                payload={},
+            ))
+            await tick_engine.wait_caught_up()
+            return {"status": "ok" if ar.accepted else "error", "result": ar.result}
+        elif t == "request_respond":
+            ar = tick_engine.resolver.resolve(actor, Action(
+                actor_id=aid, kind="request_respond",
+                payload={"request_id": action.get("request_id", ""), "option": action.get("option", "")},
+            ))
+            await tick_engine.wait_caught_up()
+            return {"status": "ok" if ar.accepted else "error", "result": ar.result}
         elif t == "trade_offer":
             item = action.get("item", "")
             price = action.get("price", 0)
             target = tgt
             if target and item and price > 0:
+                ar = tick_engine.resolver.resolve(actor, Action(
+                    actor_id=aid, kind="trade",
+                    target_id=target, payload={},
+                ))
+                await tick_engine.wait_caught_up()
+                if not ar.accepted:
+                    return {"status": "error", "result": ar.result}
                 offer = TradeOffer(from_agent=aid, to_agent=target, item=item, price=price)
                 world.state.trade_offers.append(offer)
                 # NPC 当场响应（基于当前市价判断合理价，避免价格波动导致误判）
@@ -541,6 +538,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             else:
                 result = "交易参数错误"
         elif t == "accept_trade":
+            # 免费动作（0 AP / 0 小时）：不推进时间，无作弊空间
             offer_id = action.get("offer_id", -1)
             if 0 <= offer_id < len(world.state.trade_offers):
                 offer = world.state.trade_offers[offer_id]
@@ -559,18 +557,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         else:
             result = f"未知操作：{t}"
 
-        # 十三时：夜晚行动可能撞见遗迹残响（末世伏笔）
-        if is_night and t in ("move", "work", "investigate", "talk", "observe"):
-            mystery = tick_engine._night_mystery(actor)
-            if mystery:
-                result = mystery + "\n" + result
-
         # 记录玩家操作
         player_action = PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result)
         logger.log_player_action(player_action)
-
-        # 等待回合制推进落地（1 AP = 1 小时），让前端看到时间流逝与结果
-        await tick_engine.wait_caught_up()
 
         return {"status": "error" if "AP不足" in result else "ok", "result": result}
 
@@ -640,6 +629,23 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         return {'active_quests': [], 'completed_quests': [], 'achievements': [], 'total_completed': 0, 'total_quests': 0}
 
+    @app.get("/api/requests")
+
+    async def get_requests():
+
+        """小镇请求（v5 纵切片）：具体请求与选项（成本/前置），玩家可见可回应"""
+
+        return [{
+            "id": q.id, "requester_id": q.requester_id, "location": q.location,
+            "title": q.title, "situation": q.situation, "deadline": q.deadline,
+            "status": q.status, "completed_day": q.completed_day,
+            "options": [{
+                "id": o.id, "label": o.label, "requires": o.requires,
+                "requires_cn": o.requires_cn, "cost_ap": o.cost_ap,
+                "cost_hours": o.cost_hours, "result_desc": o.result_desc,
+            } for o in q.options],
+        } for q in getattr(tick_engine, 'requests', [])]
+
     @app.get("/api/progress")
 
     async def get_progress():
@@ -698,9 +704,14 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         if not player:
             return {"status": "error", "result": "找不到玩家"}
         result = crisis.intervene(player, action_type)
+        # v5 统一结算：干预消耗时间（帮忙3h/调查2h/澄清1h/旁观0h），经 advance 推进
+        if "行动力不足" not in result and "已经帮过忙" not in result:
+            cost_hours = {"help": 3, "investigate": 2, "clarify": 1, "watch": 0}.get(action_type, 0)
+            tick_engine.advance(cost_hours)
+            await tick_engine.wait_caught_up()
         tick_engine.daily_agent_logs.setdefault(player.identity.id, []).append(result)
         logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=f"crisis_{action_type}", payload=body, result=result))
-        return {"status": "ok" if "行动力不足" not in result else "error", "result": result}
+        return {"status": "ok" if "行动力不足" not in result and "已经帮过忙" not in result else "error", "result": result}
 
 
 
@@ -793,7 +804,13 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
             return {"success": False, "message": "找不到对话对象"}
 
-        
+        # v5 校验：对话必须同地点（禁止跨地点免费社交）
+
+        if player.state.location != target.state.location:
+
+            return {"success": False, "message": f"{target.identity.name}不在这里，去{target.identity.name}所在的地点才能交谈"}
+
+
 
         # 获取选项（语境化）
 

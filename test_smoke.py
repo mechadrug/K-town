@@ -6,10 +6,14 @@
 3. 知识引擎产生并传播知识。
 4. 全程无未捕获异常。
 
-运行：python test_smoke.py
+运行：`& "E:\\anaconda\\envs\\python_class\\python.exe" test_smoke.py`
+
+注意：该测试使用临时目录数据库，不触碰运行中的默认 `k_town.db`。
 """
 
 import asyncio
+import os
+import tempfile
 
 from config import load_config
 from world import World
@@ -25,7 +29,9 @@ def build_engine():
     cfg = load_config("config.yaml")
     world = World()
     bus = EventBus()
-    storage = Storage()
+    # 临时数据库：测试绝不触碰运行中的默认 k_town.db
+    tmp_db = os.path.join(tempfile.mkdtemp(prefix="ktown_test_"), "test.db")
+    storage = Storage(tmp_db)
     knowledge = KnowledgeEngine()
     # 空 key → LLM 走 mock 路径，保证测试确定性与速度
     llm = LLMClient(cfg.llm.base_url, "", cfg.llm.model, cfg.llm.provider)
@@ -42,6 +48,15 @@ async def run():
     initial_locs = {a.identity.id: a.state.location for a in agents}
     errors = []
     moved = set()
+    try:
+        await _run_ticks(engine, agents, initial_locs, errors, moved)
+    finally:
+        engine.db.close()
+        import shutil
+        shutil.rmtree(os.path.dirname(engine.db.db_path), ignore_errors=True)
+
+
+async def _run_ticks(engine, agents, initial_locs, errors, moved):
 
     for tick in range(1, 61):  # 跑 60 tick（跨 2 天以上）
         try:

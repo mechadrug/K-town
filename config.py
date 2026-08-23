@@ -8,6 +8,8 @@ from typing import Optional
 @dataclass
 class ServerConfig:
     http_port: int = 8090
+    db_path: str = "k_town.db"  # SQLite 数据库路径（测试用临时库，禁止指向运行中的默认库）
+    reset_on_start: bool = False  # 启动即清空数据库（新游戏）；False = 继续游戏（部分恢复）
 
 
 @dataclass

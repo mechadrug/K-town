@@ -37,7 +37,7 @@ def init_system():
     world = World()
     bus = EventBus()
     # 唯一数据访问层：main/tick/api 共享同一实例
-    storage = Storage()
+    storage = Storage(cfg.server.db_path)
     knowledge = KnowledgeEngine()
     llm = LLMClient(cfg.llm.base_url, cfg.llm.api_key, cfg.llm.model, cfg.llm.provider)
 
@@ -48,7 +48,12 @@ def init_system():
     print(f"Spawned {len(agents)} agents")
 
     engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.day_length,
-                        db=storage, wake_hour=cfg.tick.wake_hour, waking_hours=cfg.tick.waking_hours)
+                        db=storage, wake_hour=cfg.tick.wake_hour, waking_hours=cfg.tick.waking_hours,
+                        auto_reset=cfg.server.reset_on_start)
+    if cfg.server.reset_on_start:
+        print("[新游戏] reset_on_start=True：已清空数据库，从第 1 天开始")
+    else:
+        print("[继续游戏] reset_on_start=False：加载历史存档（部分恢复，完整存档未实现）")
 
     # 知识持久化：新知识写穿到 knowledge_pool；并尝试断点恢复（关闭自动重置时生效）
     knowledge.persistence = storage

@@ -3,6 +3,48 @@
    粒子效果 + 高级视觉
    ======================================== */
 
+/* === 请求面板（v5 纵切片） === */
+.request-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.request-option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line, rgba(0,0,0,0.12));
+  border-radius: 8px;
+  background: var(--bg-card, #fff);
+  font-size: 0.85em;
+  color: var(--text, #333);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.request-option-btn:hover:not(:disabled) {
+  background: var(--warm-50, rgba(255,167,38,0.08));
+}
+
+.request-option-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.request-cost {
+  flex-shrink: 0;
+  font-size: 0.75em;
+  color: var(--warm-500, #E65100);
+  font-weight: 600;
+  background: rgba(255,167,38,0.12);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
 /* === 粒子画布 === */
 #particle-canvas {
   position: absolute;
@@ -246,6 +288,11 @@ body.low-performance .agent-body {
 }
 
 body.low-performance #weather-overlay {
+  display: none;
+}
+
+/* 低性能模式同时隐藏粒子层 */
+body.low-performance #particle-canvas {
   display: none;
 }
 

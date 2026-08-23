@@ -84,6 +84,8 @@ class Crisis:
         self.progress = 0.0
         # 玩家干预记录
         self.interventions: List[Dict] = []
+        # 同一危机每天只能干预一次（v5 验收：无法无限干预）
+        self.last_intervene_day: int = -1
         # 结果：None / "resolved" / "worsened"
         self.outcome: Optional[str] = None
         self.town = town
@@ -131,6 +133,8 @@ class Crisis:
         """玩家干预。返回结果描述。"""
         if not self.active:
             return "这场危机已经结束了"
+        if self.last_intervene_day == self.town.current_day:
+            return "你今天已经帮过忙了，明天再来看看"
         inter = INTERVENTIONS.get(action_type)
         if not inter:
             return "无效的干预方式"
@@ -144,6 +148,9 @@ class Crisis:
 
         if action_type == "watch":
             return "你选择袖手旁观，看着小镇自己面对这场危机"
+
+        # 记录干预日期（同日限一次）
+        self.last_intervene_day = self.town.current_day
 
         # 干预效果（澄清对谣言特别有效；帮忙对灾害/疫病有效）
         gain = inter["progress"]
