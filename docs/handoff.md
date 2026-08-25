@@ -1,13 +1,23 @@
 # K-town 开发交接记录
 
-> 交接给下一位开发者。先读 `docs/product/gameplay-design-v5.md`、`docs/product/world-view-v3.md`、`docs/product/art-direction-v2.md` 和 `docs/plans/2026-08-23-rebuild-plan.md`，再阅读本文件的现有实现记录。
-> `docs/design-master-plan-2026-08-04.md`、v4 玩法、v1 美术和下方 v0.5 机制说明均为历史参考，不能覆盖 v5 的七天纵切片边界。
+> 交接给下一位开发者。先读 `docs/product/gameplay-design-v6.md`、`docs/product/gameplay-design-v5.md`、`docs/product/world-view-v3.md`、`docs/product/art-direction-v2.md`、`docs/plans/2026-08-25-multiweek-demo-plan.md` 和 `docs/architecture/frontend-v2.md`，再阅读本文件的现有实现记录。
+> `docs/design-master-plan-2026-08-04.md`、v4 玩法、v1 美术和下方 v0.5 机制说明均为历史参考，不能覆盖当前四周 Demo 边界。
 
-## 当前状态（2026-08-23 晚，Phase 0-1 完成，dry-wood 切片跑通）
+## 当前状态（2026-08-25，四周 Demo）
+
+- **产品目标**：让玩家作为普通新居民，在四周篇章中通过有限时间选择帮助谁、相信什么、把后果留给谁；小镇和居民会自主回应。
+- **四周章节**：第 1 周雨前的七天；第 2 周河水改道；第 3 周灯火与账本；第 4 周归灯集；第 29 天结算最终结局。
+- **内容架构**：`campaign.py` 负责章节解锁、请求注册、分支效果、旗标、评分和结局；`ActionResolver` 仍是唯一动作校验、扣 AP、推进时间和写日志入口。
+- **存档架构**：`game_state.py` 保存/恢复章节、请求、世界标记、居民、知识、事件队列、日志和 RNG。
+- **前端架构**：`state-contract-v2.js` 归一化状态，`api-client-v2.js` 集中网络边界，`campaign-view-v2.js` 独立渲染章节卡，`app-v2.js` 通过 `data-app-action` 事件委托编排动作。
+- **交付状态**：代码、文档、隔离测试、存档/回放和浏览器验收均已完成；本轮变更按仓库规范提交并推送后即可交接。
+
+## v5 历史基线（已完成，当前由上方 v6 状态继承）
 - **产品目标**：让玩家作为暂住七天的新居民，通过具体请求与有限时段，看到居民自主生活和次日后果。
 - **首个纵切片**：托林、莉娜、梅奶奶；广场、工坊、河谷野径；暴雨预告、旧矿道传闻、工坊屋顶三阶段和归灯集回顾。
-- **代码状态**：`ActionResolver`（actions.py）已建立并接管所有玩家/NPC 动作；`bring_dry_wood` 请求端到端跑通（收集→交付→莉娜关系+6）。情绪、危机、进度等 v0.5 能力保留并有专项测试。
-- **下一步范围**：Phase 2 居民感知与因果链（`Agent.perceive()` + 事件快照 + 决策日志"因为 X 所以 Y"）；随后 Phase 3 扩展托林屋顶、梅奶奶镇志两条请求线。
+- **代码状态**：`ActionResolver`（actions.py）统一结算玩家/NPC、请求、对话和危机；三条居民请求、暴雨/矿道传闻、屋顶三阶段、次日观察、版本化存档和确定性回放均已接线。
+- **前端状态**：首屏今日三条线、当前地点行动栏、居民因果档案、请求/危机入口已接线；日报和行动结果会显示 story beats 与 next observation；地图支持稳定道路、天气层和屋顶三阶段视觉反馈。
+- **完成状态**：核心代码、真实浏览器验收、固定 seed 七天回放和保存后刷新均已完成。后续只做长期平衡调优与 `tick.py` 拆分评估，不再把它们作为 v5 纵切片完成门槛。
 - **技术栈**：Python 3.11 + FastAPI + SQLite + HTML/JS(WebSocket)。**无** Go/Godot/PostgreSQL（已废弃并删除）。
 
 ## 运行方式
@@ -22,18 +32,18 @@ cd <本仓库根目录>
 .\scripts\ensure-start-server.ps1
 ```
 
-**数据安全（Phase 0 已落地）**：`test_smoke.py` / `test_actions.py` 均使用临时数据库，不再触碰默认 `k_town.db`。启动模式由 `config.yaml` 的 `server.reset_on_start` 控制（默认 `false` = 继续游戏，部分恢复）；玩家首屏已无 reset 按钮（`/api/reset` 保留为开发入口）。测试或开发需要干净世界时，临时把 `reset_on_start` 改为 `true` 再启动。
+**数据安全（Phase 0 已落地）**：核心测试均使用隔离临时数据库，不再触碰默认 `k_town.db`。启动模式由 `config.yaml` 的 `server.reset_on_start` 控制（默认 `false` = 继续游戏，完整存档优先恢复）；玩家首屏已无 reset 按钮（`/api/reset` 保留为开发入口）。测试或开发需要干净世界时，临时把 `reset_on_start` 改为 `true` 再启动。
 
 ## 当前玩法一句话
 
-K-town 是一座会自己生活的小镇。玩家以普通新居民身份暂住七天，在有限时间里决定帮助谁、相信什么、把时间留给哪里；第二天，小镇会用居民行为、关系和场景变化回应这个选择。
+K-town 是一座会自己生活的小镇。v5 首先用七天纵切片验证了“玩家帮助谁、相信什么、把时间留给哪里；第二天看到小镇回应”的核心循环，v6 在此基础上扩展为四周篇章。
 
 当前代码仍保留 20 小时/AP、十三时和失忆相关机制，但它们只是待适配的历史能力，不能成为首周教学、请求或 UI 的前置门槛。
 
 ## 当前代码的遗留机制（修改前先审计）
 - **时间/AP**：`tick.advance(hours)` 已修复（hours>0 才排队）；`ActionResolver` 是唯一扣费/推进点。NPC 动作不推进时间（否则与 `run()` 循环互相喂食——已修复的回归，见 test_actions 第 10 项）。
 - **动作入口**：玩家 API（`/api/player/action`）、NPC 决策、请求选项、危机干预、交易统一经 `actions.py` 的 resolver；对话仍独立在 api.py（已有同地点校验 + AP 扣减 + advance）。`trigger_event` 玩家入口已删除。
-- **地图**：5 个地点与现有分层地图保留为实现资产；v5 默认应显示全镇活动或多地点摘要，不再把单地点放大视图当作唯一首屏。
+- **地图**：5 个地点与分层地图保留为实现资产；当前主舞台仍一次放大一个地点，但侧栏三条线提供全镇活动/压力摘要，后续可再做多地点同屏。
 
 ## 模块地图（每个都有实际用途）
 ```
@@ -78,20 +88,28 @@ static/ + templates/index-v2.html  唯一前端（图标系统 icons.js、分层
 - **Phase 7 危机干预**（crisis.py）：4 危机 + 性格化反应矩阵 + 玩家四干预 + 结局分支 + NPC 自救 + NPC 交易响应。验证：test_crisis.py 20/20
 - **Phase 8 长期目标线**：身世碎片收集（5 片解锁大缓变真相）+ 重建弧线进度（/api/progress）。验证：test_progress.py 10/10
 
-## 已知问题 / 剩余工作
-- **因果链不完整（下一阶段主攻）**：`Agent.perceive()`、事件快照、短期记忆和决策原因尚未组成稳定闭环；情绪和知识不能只作为后端数值。
-- **存档不完整**：Agent、AP、关系、情绪、习惯、请求、天气和时钟还不能作为一个 versioned `GameState` 可靠恢复；”继续游戏”模式是部分恢复（resolver 的 `self.requests` 每次启动重新种子，deadline 到期自动 expired）。
-- **前端是旧信息架构**：目标、危机和进度入口不能代替”今日三条线”和当前地点的具体回应；四维情绪和危机详情必须转成可理解的因果信息。
-- **视觉应后置于行为闭环**：已有道路、像素小人和 CSS 是可复用资产；先完成雨天工坊关键场景，不要继续堆独立粒子或页面。
+## 已知限制 / 后续可选工作
+- **v5 验收已完成**：真实 Chromium 已覆盖完整莉娜请求流程（移动→收集→返回→交付）、活动危机横幅/帮忙/状态同步、390px 移动端危机可读性、三条线收起、reduced-motion，以及保存后重启刷新。前端危机干预补充了 REST 后的 `/api/state` 同步，确保 AP、横幅和三条线一致。
+- **地图信息架构**：当前舞台一次显示一个地点；若继续打磨，应将全镇居民活动摘要更明确地放入地图层，而不是重拆地图渲染系统。
+- **长期系统边界**：失忆/玉佩/十三时、随机危机池和每日目标是历史兼容能力；不要让它们重新成为 v5 首周主线。
 - **`tick.py` 仍是单体**：在 v5 闭环稳定前不要大拆；`ActionResolver` 已是明确内部边界，之后再抽模块。
 - **运行环境**：`run_server.ps1`/`scripts/ensure-start-server.ps1` 固定使用 Conda `python_class`；禁止用裸 `python`。`api.py` 的 `logger` 参数实际是 Storage 实例，修改时注意命名历史。调试时注意：旧服务器实例不随新实例自动退出（确保脚本杀干净再起，否则会出现 tick 漂移）。
 
-## 最近验证（2026-08-23 晚，Phase 0-1）
-- `test_actions.py`：23/23 通过（新：ActionResolver 契约 + dry-wood 流程 + NPC 不推进时间回归）
-- `test_smoke.py`：60 tick ALL PASS（临时库）
-- `test_crisis.py`：20/20、`test_emotions.py`：16/16、`test_progress.py`：10/10（后两者 Windows 控制台需 UTF-8）
-- 实服验证：移动 AP 12→11 只扣一次、tick 5→6 只推进 1h；收集干木料 -2AP/+2h；异地交付拒绝零消耗；交付后请求 completed、莉娜关系 +6；前端请求卡显示 ✅ 已完成（第1天）；首屏无 reset 按钮
-- `/api/state`、`/api/requests`、`/api/quests` 均返回 200
+## 最近验证（2026-08-25）
+- `test_actions.py`：23/23；`test_phase2.py`、`test_phase3.py`：通过（Phase 3 含三条请求、三条线/档案 API 合约）。
+- `test_smoke.py`：60 tick、跨 4 天、临时数据库 ALL PASS。
+- `test_save_restore.py`：世界、居民、知识、请求、危机、事件队列、日志、RNG round-trip PASS。
+- `test_replay.py`：checkpoint 恢复后 3 次确定性回放 PASS。
+- `test_crisis.py`：20/20；`test_emotions.py`：16/16；`test_progress.py`：10/10。
+- Python `compileall`、全部 7 个前端脚本的 `node --check` 均通过。
+- API 合约：`/api/state`、`/api/today-threads` 均返回 3 条同源线程；居民详情含 profile.responses。
+- 浏览器验收：1440px、1024px 均保持三条线程和四个上下文行动可见；390×844 移动仿真下 `html/body.scrollWidth = 390`，地图、顶栏和行动栏均不横溢；四个上下文行动以两列完整可见，休息/写想法按钮完整可见；今日三条线可滚动，收起按钮已验证真正隐藏列表；三条请求入口均能切换到请求详情 Tab；活动危机横幅在移动端也完整落在可视区域。
+- reduced-motion：Chromium `prefers-reduced-motion: reduce` 仿真命中，动画/过渡被压缩到一次性短时长。
+- 固定 seed `4242` 七天回放运行两次结果完全一致：第七天前完成莉娜/托林/梅奶奶三条请求，屋顶 `repaired`，天气 `rainy`，矿道传闻 `marked`，无异常。
+- 真实浏览器请求验收：AP 按移动 1、收集 2、返回 1、交付 1 单次扣除，莉娜请求显示“已完成”，动态流显示行动结果。
+- 真实浏览器危机验收：暴风雨 `0/60` 横幅可见，帮忙后 AP `12→9`、进度 `0→30`，Toast 与横幅同步。
+- 真实浏览器保存后刷新：独立数据库重启后保留 tick `6`、玩家工坊位置、AP `11` 和 3 条请求。
+- 回归总览：`test_actions` 23/23、`test_phase2`/`test_phase3`、`test_smoke`、`test_save_restore`、`test_replay`、`test_crisis` 20/20、`test_emotions` 16/16、`test_progress` 10/10；Python compileall、全部前端 Node 语法检查和 `git diff --check` 均通过。根目录遗留 `test_progress.db` 已移入系统临时目录，默认 `k_town.db` 未触碰。
 
 ## 路线图（读这些文档）
 - `docs/product/gameplay-design-v5.md` — ★当前玩法基线：七天请求、因果回信、居民自主回应

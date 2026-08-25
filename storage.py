@@ -13,6 +13,7 @@
 import sqlite3
 import json
 import time
+import threading
 from typing import Any, Dict, List, Optional
 
 DB_PATH = "k_town.db"
@@ -29,26 +30,34 @@ _MANAGED_TABLES = [
     "knowledge_pool",
     "knowledge_distribution",
     "agent_states",
+    "game_states",
     "town_meta",
 ]
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 
 
 class Storage:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._conn: Optional[sqlite3.Connection] = None
+        # FastAPI's test client and the websocket server may call the shared
+        # storage object from different threads.  SQLite still serializes the
+        # short critical sections below through this re-entrant lock.
+        self._lock = threading.RLock()
 
     @property
     def conn(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path, timeout=10)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA busy_timeout=5000")
-            self._init_schema()
-        return self._conn
+        with self._lock:
+            if self._conn is None:
+                self._conn = sqlite3.connect(
+                    self.db_path, timeout=10, check_same_thread=False
+                )
+                self._conn.row_factory = sqlite3.Row
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.execute("PRAGMA busy_timeout=5000")
+                self._init_schema()
+            return self._conn
 
     # ------------------------------------------------------------------ schema
 
@@ -56,6 +65,20 @@ class Storage:
         """初始化/重建权威表结构。schema 版本不符时重建（丢弃旧占位数据）。"""
         version = self._get_schema_version()
         if version is not None and version == SCHEMA_VERSION:
+            self._create_indexes()
+            return
+        # v4 只有决策表缺少 Phase 2 因果字段，做原地迁移，保留已有回放数据。
+        if version == 4:
+            self._migrate_v4_to_v5()
+            self._migrate_v5_to_v6()
+            self._set_schema_version(SCHEMA_VERSION)
+            self._create_indexes()
+            return
+        # v6 adds a single versioned game-state slot.  Keep v5 logs and saves
+        # intact instead of rebuilding the managed tables during an upgrade.
+        if version == 5:
+            self._migrate_v5_to_v6()
+            self._set_schema_version(SCHEMA_VERSION)
             self._create_indexes()
             return
         # 首次建表或版本升级：重建全部受管表
@@ -71,6 +94,34 @@ class Storage:
             self._conn.execute("VACUUM")
         except Exception:
             pass
+
+    def _migrate_v4_to_v5(self) -> None:
+        """为决策日志增加感知/原因/变化字段，不丢弃已有存档。"""
+        columns = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(agent_decisions)").fetchall()
+        }
+        additions = {
+            "observations": "JSON",
+            "reason": "TEXT",
+            "changes": "JSON",
+            "next_observation": "TEXT",
+        }
+        for name, ddl in additions.items():
+            if name not in columns:
+                self._conn.execute(f"ALTER TABLE agent_decisions ADD COLUMN {name} {ddl}")
+        self._conn.commit()
+
+    def _migrate_v5_to_v6(self) -> None:
+        """Add the versioned full-state save slot without dropping v5 history."""
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS game_states (
+                slot TEXT PRIMARY KEY,
+                schema_version INTEGER NOT NULL,
+                state JSON NOT NULL,
+                updated_at REAL NOT NULL
+            )
+        """)
+        self._conn.commit()
 
     def _get_schema_version(self) -> Optional[int]:
         try:
@@ -121,6 +172,10 @@ class Storage:
                 goal TEXT NOT NULL,
                 confidence FLOAT NOT NULL,
                 source TEXT NOT NULL,
+                observations JSON,
+                reason TEXT,
+                changes JSON,
+                next_observation TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -183,6 +238,14 @@ class Storage:
                 agent_id TEXT PRIMARY KEY,
                 state JSON,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE game_states (
+                slot TEXT PRIMARY KEY,
+                schema_version INTEGER NOT NULL,
+                state JSON NOT NULL,
+                updated_at REAL NOT NULL
             )
         """)
 
@@ -276,19 +339,29 @@ class Storage:
     # ------------------------------------------------------------------ 决策/知识/玩家日志
 
     def log_decision(self, tick: int, agent_id: str, action_desc: str, action_type: str,
-                     goal: str, confidence: float, source: str) -> None:
+                     goal: str, confidence: float, source: str,
+                     observations: Optional[list] = None, reason: str = "",
+                     changes: Optional[list] = None,
+                     next_observation: Optional[str] = None) -> None:
         self.conn.execute(
-            "INSERT INTO agent_decisions (tick, agent_id, action_desc, action_type, goal, confidence, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (tick, agent_id, action_desc, action_type, goal, confidence, source),
+            "INSERT INTO agent_decisions (tick, agent_id, action_desc, action_type, goal, confidence, source, observations, reason, changes, next_observation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (tick, agent_id, action_desc, action_type, goal, confidence, source,
+             json.dumps(observations or [], ensure_ascii=False), reason,
+             json.dumps(changes or [], ensure_ascii=False), next_observation),
         )
         self.conn.commit()
 
     def query_decisions(self, limit: int = 50) -> List[dict]:
         rows = self.conn.execute(
-            "SELECT tick, agent_id, action_desc, action_type, goal, confidence, source, created_at FROM agent_decisions ORDER BY tick DESC LIMIT ?",
+            "SELECT tick, agent_id, action_desc, action_type, goal, confidence, source, observations, reason, changes, next_observation, created_at FROM agent_decisions ORDER BY tick DESC LIMIT ?",
             (limit,),
         ).fetchall()
-        out = [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            item = dict(r)
+            item["observations"] = json.loads(item["observations"]) if item.get("observations") else []
+            item["changes"] = json.loads(item["changes"]) if item.get("changes") else []
+            out.append(item)
         out.reverse()
         return out
 
@@ -328,7 +401,10 @@ class Storage:
             "INSERT OR REPLACE INTO day_summaries (day, weather, overall_summary, stats, agents) VALUES (?, ?, ?, ?, ?)",
             (summary["day"], summary["weather"], summary["overall_summary"],
              json.dumps(summary["stats"], ensure_ascii=False),
-             json.dumps(summary["agents"], ensure_ascii=False)),
+             json.dumps({
+                 "agents": summary["agents"],
+                 "causal_beats": summary.get("causal_beats", []),
+             }, ensure_ascii=False)),
         )
         self.conn.commit()
 
@@ -340,11 +416,20 @@ class Storage:
             ).fetchall()
         except Exception:
             return []
-        out = [{
-            "day": r["day"], "weather": r["weather"], "overall_summary": r["overall_summary"],
-            "stats": json.loads(r["stats"]) if r["stats"] else {},
-            "agents": json.loads(r["agents"]) if r["agents"] else [],
-        } for r in rows]
+        out = []
+        for r in rows:
+            agent_blob = json.loads(r["agents"]) if r["agents"] else []
+            if isinstance(agent_blob, dict):
+                agents = agent_blob.get("agents", [])
+                causal_beats = agent_blob.get("causal_beats", [])
+            else:
+                agents = agent_blob
+                causal_beats = []
+            out.append({
+                "day": r["day"], "weather": r["weather"], "overall_summary": r["overall_summary"],
+                "stats": json.loads(r["stats"]) if r["stats"] else {},
+                "agents": agents, "causal_beats": causal_beats,
+            })
         out.reverse()
         return out
 
@@ -368,6 +453,34 @@ class Storage:
         return json.loads(row["state"]) if row else None
 
     get_snapshot = get_world_snapshot
+
+    # ------------------------------------------------------------------ Versioned game state
+
+    def save_game_state(self, state: Dict[str, Any], slot: str = "current") -> None:
+        """Atomically replace the current full simulation snapshot."""
+        schema_version = int(state.get("schema_version", 1))
+        payload = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+        with self._lock:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO game_states (slot, schema_version, state, updated_at) VALUES (?, ?, ?, ?)",
+                (slot, schema_version, payload, time.time()),
+            )
+            self.conn.commit()
+
+    def load_game_state(self, slot: str = "current") -> Optional[Dict[str, Any]]:
+        """Return a complete save snapshot, or ``None`` when no v6 save exists."""
+        try:
+            row = self.conn.execute(
+                "SELECT state FROM game_states WHERE slot = ?", (slot,)
+            ).fetchone()
+        except Exception:
+            return None
+        if not row:
+            return None
+        try:
+            return json.loads(row["state"])
+        except (TypeError, json.JSONDecodeError):
+            return None
 
     # ------------------------------------------------------------------ Agent 行为日志
 

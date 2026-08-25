@@ -1,6 +1,6 @@
 """危机系统专项验证（Phase 7）—— "小镇会出事，你能伸手"
 
-运行：python test_crisis.py
+运行：`& "E:\\anaconda\\envs\\python_class\\python.exe" test_crisis.py`
 """
 import sys
 sys.path.insert(0, '.')

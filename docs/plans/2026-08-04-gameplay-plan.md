@@ -1,6 +1,7 @@
 # K-town v0.4 功能与实现安排
 
-> **配套**：玩法设计见 `docs/product/gameplay-design-v3.md`；总路线图见 `docs/design-master-plan-2026-08-04.md`
+> **状态（2026-08-23）**：历史 v0.4 实施记录；当前实施计划为 `docs/plans/2026-08-23-rebuild-plan.md`。
+> **配套**：历史玩法设计见 `docs/product/gameplay-design-v3.md`；历史总路线图见 `docs/design-master-plan-2026-08-04.md`
 > **日期**：2026-08-04
 > **目标**：把 v0.3（能跑）推进到 v0.4 —— **"可玩的观察型小镇"**：四类前端问题清零，核心系统真实可感
 

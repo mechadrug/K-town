@@ -23,6 +23,116 @@ from agent import populate_agents
 from models import Event, EventType, PlayerAction, TradeOffer, Mood
 
 from actions import Action
+from requests import seed_initial_requests
+
+_LOCATION_CN = {"square": "广场", "workshop": "工坊", "wilderness": "荒野", "school": "学校", "mine": "矿洞"}
+_MOOD_CN = {"happy": "轻松", "neutral": "平静", "anxious": "焦虑", "angry": "恼火", "sad": "低落"}
+
+
+def _request_payload(request, agents):
+    return {
+        "id": request.id, "requester_id": request.requester_id,
+        "requester_name": next((a.identity.name for a in agents if a.identity.id == request.requester_id), request.requester_id),
+        "location": request.location, "location_name": _LOCATION_CN.get(request.location, request.location),
+        "title": request.title, "situation": request.situation, "deadline": request.deadline,
+        "status": request.status, "completed_day": request.completed_day,
+        "chapter_id": getattr(request, "chapter_id", "week_1_rain"),
+        "progress": request.progress, "max_progress": request.max_progress,
+        "used_options": list(request.used_options), "visible_risks": list(request.visible_risks),
+        "next_day_observations": list(request.next_day_observations),
+        "observed_next_day_observations": list(request.observed_next_day_observations),
+        "options": [{
+            "id": option.id, "label": option.label, "requires": option.requires,
+            "requires_cn": option.requires_cn, "cost_ap": option.cost_ap,
+            "cost_hours": option.cost_hours, "result_desc": option.result_desc,
+            "next_observation": option.next_observation, "effect": option.effect,
+            "progress_delta": option.progress_delta, "closes_request": option.closes_request,
+            "visible_risk": option.visible_risk, "next_day_observation": option.next_day_observation,
+        } for option in request.options],
+    }
+
+
+def _agent_profile_payload(agent, world, requests):
+    state = agent.state
+    emotions = state.emotions or {}
+    request = next((item for item in requests if item["requester_id"] == agent.identity.id and item["status"] == "active"), None)
+    if request:
+        reason = f"{request['title']}：{request['situation']}"
+    elif world.state.weather == "rainy" and state.location == "workshop":
+        reason = "暴雨让工坊的屋檐和炉台都更难照看。"
+    elif state.current_task:
+        reason = f"正在处理“{state.current_task.description}”。"
+    elif emotions.get("anxiety", 50) >= 65:
+        reason = "最近听到的消息还没有得到确认。"
+    elif emotions.get("sadness", 50) >= 65:
+        reason = "连续几天的疲惫让他暂时不想和人打交道。"
+    else:
+        reason = "眼下没有新的压力，按自己的节奏生活。"
+    dominant = max(emotions, key=emotions.get) if emotions else "neutral"
+    tendency = {"anxiety": "先确认风险，再决定是否答应别人。", "anger": "倾向把手头的事做完，不喜欢被打断。", "sadness": "更愿意独自待着，只有熟人来才会松口。", "joy": "愿意找人商量，也更容易接受临时的帮助。"}.get(dominant, "按自己的目标稳稳推进。")
+    responses = []
+    if request:
+        responses = [{"request_id": request["id"], "request_title": request["title"], "location": request["location"], "option_id": option["id"], "label": option["label"], "cost_ap": option["cost_ap"], "cost_hours": option["cost_hours"], "available_here": state.location == request["location"]} for option in request["options"]]
+    return {
+        "current_task": state.current_task.description if state.current_task else f"在{_LOCATION_CN.get(state.location, state.location)}按自己的节奏生活",
+        "feeling": _MOOD_CN.get(state.mood.value, "平静"), "mood": state.mood.value,
+        "reason": reason, "tendency": tendency, "responses": responses,
+        "emotion_detail": {key: round(emotions.get(key, 50), 1) for key in ("joy", "anxiety", "anger", "sadness")},
+    }
+
+
+def _today_threads(requests_payload, world, crisis_items=None, campaign=None):
+    active_count = sum(1 for item in requests_payload if item["status"] == "active")
+    request_items = [{
+        "id": item["id"], "title": item["title"], "requester": item["requester_name"],
+        "location": item["location"], "location_name": item["location_name"],
+        "detail": item["situation"], "status": item["status"], "deadline": item["deadline"],
+        "options_count": len(item["options"]),
+        "action": {
+            "kind": "request", "request_id": item["id"],
+            "label": "打开请求详情" if item["status"] == "active" else "查看请求结果",
+        },
+    } for item in requests_payload]
+    roof = world.workshop_roof_status()
+    forecast_day = world.state.rain_forecast_day or 3
+    pressure = {"id": "rain_pressure", "title": f"暴雨预告：第{forecast_day}天", "detail": f"工坊屋顶现在是“{roof['label']}”。{roof['description']}", "location": "workshop", "location_name": "工坊", "status": "urgent" if world.state.weather == "rainy" else "watch", "action": {"kind": "move", "target": "workshop", "label": "去工坊看看"}, "next_observation": "临时遮雨会保住当天炉火，但次日仍可能滴漏。" if roof["stage"] == 1 else "把时间留给正式修缮，明天会看见屋顶是否稳住。"}
+    rumor_text = {"unconfirmed": "旧矿道可能有塌方，暂时还没人能证明真假。", "circulating": "旧矿道的消息正在广场传开，罗文建议谨慎通行。", "needs_verification": "不同居民说法不一，传闻已被标成“待核实”。", "marked": "旧矿道路口已经挂上“待确认，谨慎通行”的路标。"}.get(world.state.mine_rumor_status, "旧矿道的消息还没有定论。")
+    clue = {"id": "mine_rumor", "title": "旧矿道传闻", "detail": rumor_text, "location": "mine", "location_name": "矿洞", "status": world.state.mine_rumor_status, "confidence": round(world.state.mine_rumor_confidence * 100), "action": {"kind": "move", "target": "mine", "label": "去矿洞核实"}, "next_observation": "有人相信它之后，居民会改变自己的路线。"}
+    pressure_items = [pressure]
+    if campaign:
+        pressure_items.insert(0, {
+            "id": "campaign_pressure",
+            "title": f"第{campaign['week']}周 · {campaign['title']}",
+            "detail": f"{campaign['pressure']} 当前目标：{campaign['objective']}",
+            "status": "chapter",
+            "next_observation": campaign.get("next_chapter", {}).get("title") if campaign.get("next_chapter") else "这一章正在走向结算。",
+            "action": {"kind": "campaign", "label": "查看本周章程"},
+        })
+    for crisis in crisis_items or []:
+        pressure_items.append({
+            "id": f"crisis_{crisis['id']}",
+            "title": "正在发生的危机",
+            "detail": crisis["desc"],
+            "status": "urgent",
+            "progress": crisis["progress"],
+            "target": crisis["target"],
+            "days_remaining": crisis["days_remaining"],
+            "action": {
+                "kind": "crisis", "crisis_id": crisis["id"],
+                "label": "今天帮忙（3 AP）",
+            },
+        })
+    return [
+        {"id": "resident_requests", "kind": "requests", "title": "居民请求", "detail": f"今天有{active_count}位居民在等回应；每一条都会占用不同的时间。", "items": request_items},
+        {"id": "town_pressure", "kind": "pressure", "title": "镇上压力", "detail": "天气会把选择变成明天的场景。", "items": pressure_items},
+        {"id": "follow_up_clue", "kind": "clue", "title": "可跟进线索", "detail": "你可以相信、转述，也可以亲自去确认。", "items": [clue]},
+    ]
+
+
+def _public_agent(agent, world, requests):
+    payload = agent.to_dict()
+    payload["profile"] = _agent_profile_payload(agent, world, requests)
+    return payload
 
 
 
@@ -31,6 +141,31 @@ from actions import Action
 def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[WebSocket],dialogue_sys=None):
 
     app=FastAPI(title="K-town",version="0.2.0")
+
+    def _action_payload(ar) -> dict:
+        """将统一 resolver 结果转换成 REST/WS 共用的可读契约。"""
+        return {
+            "status": "ok" if ar.accepted else "error",
+            "result": ar.result,
+            "accepted": ar.accepted,
+            "cost": ar.cost,
+            "hours": ar.hours,
+            "action_id": ar.action_id,
+            "changes": [c.__dict__ for c in ar.changes],
+            "story_beats": list(ar.story_beats),
+            "next_observation": ar.next_observation,
+            "error_code": ar.error_code,
+            "request_id": ar.request_id,
+            "details": dict(getattr(ar, "details", {}) or {}),
+        }
+
+    def _active_crisis_payloads() -> list[dict]:
+        return [{
+            "id": index, "type": crisis.crisis_type, "desc": crisis.desc,
+            "progress": crisis.progress, "target": crisis.target,
+            "days_remaining": crisis.days_remaining, "active": crisis.active,
+            "outcome": crisis.outcome, "interventions": crisis.interventions,
+        } for index, crisis in enumerate(tick_engine.crises) if crisis.active]
 
     base=os.path.dirname(os.path.abspath(__file__))
 
@@ -44,17 +179,15 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
     def _build_state_payload() -> dict:
         """构建前端全量状态载荷：/api/state 与 WS 共用同一来源，避免字段漂移"""
-        player = None
-        for a in agents:
-            if a.identity.role.value == "player":
-                player = a.to_dict()
-                break
+        requests_payload = [_request_payload(request, agents) for request in getattr(tick_engine, "requests", [])]
+        public_agents = [_public_agent(agent, world, requests_payload) for agent in agents]
+        player = next((payload for payload in public_agents if payload["role"] == "player"), None)
         return {
             "tick": world.state.tick,
             "weather": world.state.weather,
             "weather_name": world.get_weather_name(),
             "locations": world.to_dict()["locations"],
-            "agents": [a.to_dict() for a in agents],
+            "agents": public_agents,
             "knowledge_claims": [
                 {"id": c.id, "subject": c.subject, "claim": c.claim, "source": c.source.value,
                  "confidence": c.confidence, "created_by": c.created_by, "location": c.location,
@@ -69,17 +202,23 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
             "trade_offers": [{"from": t.from_agent, "to": t.to_agent, "item": t.item, "price": t.price, "status": t.status} for t in world.state.trade_offers],
             "factions": tick_engine.faction_system.factions,
             "location_levels": world.state.location_levels,
-            # 小镇请求（v5 纵切片）：玩家可见的具体请求与选项
-            "requests": [{
-                "id": q.id, "requester_id": q.requester_id, "location": q.location,
-                "title": q.title, "situation": q.situation, "deadline": q.deadline,
-                "status": q.status, "completed_day": q.completed_day,
-                "options": [{
-                    "id": o.id, "label": o.label, "requires": o.requires,
-                    "requires_cn": o.requires_cn, "cost_ap": o.cost_ap,
-                    "cost_hours": o.cost_hours, "result_desc": o.result_desc,
-                } for o in q.options],
-            } for q in getattr(tick_engine, 'requests', [])],
+            "workshop_roof": world.workshop_roof_status(),
+            "rain_forecast": {"day": world.state.rain_forecast_day,
+                               "announced": world.state.rain_forecast_announced,
+                               "weather": "rainy"},
+            "mine_rumor": {"status": world.state.mine_rumor_status,
+                           "confidence": world.state.mine_rumor_confidence},
+            "lantern_fair_preparedness": world.state.lantern_fair_preparedness,
+            "campaign_markers": dict(getattr(world.state, "campaign_markers", {})),
+            "campaign": tick_engine.campaign.payload(tick_engine.current_day),
+            "crises": _active_crisis_payloads(),
+            # 今日三条线：请求、镇上压力、可跟进线索。原始请求仍在 requests
+            # 中供详情使用；这个摘要让首屏不必先打开任务 Tab。
+            "requests": requests_payload,
+            "today_threads": _today_threads(
+                requests_payload, world, _active_crisis_payloads(),
+                tick_engine.campaign.payload(tick_engine.current_day),
+            ),
             # 长期目标线（v4 §5）：重建进度 + 身世之谜进度
             "progress": {
                 "rebuild": {
@@ -262,7 +401,8 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
             if a.identity.id==agent_id:
 
-                r=a.to_dict()
+                request_payload = [_request_payload(request, agents) for request in getattr(tick_engine, "requests", [])]
+                r=_public_agent(a, world, request_payload)
 
                 r["knowledge"]=[{"id":k.id,"subject":k.subject,"claim":k.claim,"confidence":k.confidence} for k in knowledge.agent_knowledge(agent_id)]
 
@@ -457,6 +597,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         """玩家行动：与 NPC 共用同一动作执行管线（tick_engine._handle_action）。"""
         t = action.get("type", "")
         aid = action.get("agent_id", "agent_player")
+        # 客户端只能代表玩家；NPC 的自主动作由 tick 决策循环触发。
+        if aid != "agent_player":
+            return {"status": "error", "result": "只能由玩家身份发起行动", "error_code": "actor_forbidden"}
         tgt = action.get("target", action.get("destination", ""))
 
         # 归一化动作名（兼容旧前端叫法）
@@ -482,16 +625,21 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 return {"status": "error", "result": "今日的思考已经交出去了。明日再悟吧。"}
             else:
                 tick_engine._insight_day = tick_engine.current_day
-                knowledge.observe(aid, "思考", claim_text, actor.state.location)
+                knowledge.observe("agent_player", "思考", claim_text, actor.state.location)
                 result = f"你把一段想法写进了小镇的记忆：{claim_text}"
                 insight = tick_engine._check_insight(actor, claim_text)
                 if insight:
                     result = insight
                 # 每日目标：提交思考推进"传播知识"目标
-                if tick_engine.quest_engine:
+                if getattr(tick_engine, "quest_engine", None):
                     tick_engine.quest_engine.update_progress(actor, action_type="add_claim")
             logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result))
-            return {"status": "ok", "result": result}
+            tick_engine.persist_game_state()
+            return {"status": "ok", "result": result, "accepted": True, "cost": 0,
+                    "hours": 0, "action_id": f"insight_{tick_engine.current_day}",
+                    "changes": [], "story_beats": [result],
+                    "next_observation": "明天，镇上的人可能会回应这段想法。",
+                    "error_code": None}
 
         # === v5 统一结算：所有常规动作经 ActionResolver（校验/扣费/推进单一入口）===
         if t == "reset":
@@ -506,14 +654,14 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 payload={},
             ))
             await tick_engine.wait_caught_up()
-            return {"status": "ok" if ar.accepted else "error", "result": ar.result}
+            return _action_payload(ar)
         elif t == "request_respond":
             ar = tick_engine.resolver.resolve(actor, Action(
                 actor_id=aid, kind="request_respond",
                 payload={"request_id": action.get("request_id", ""), "option": action.get("option", "")},
             ))
             await tick_engine.wait_caught_up()
-            return {"status": "ok" if ar.accepted else "error", "result": ar.result}
+            return _action_payload(ar)
         elif t == "trade_offer":
             item = action.get("item", "")
             price = action.get("price", 0)
@@ -530,6 +678,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 world.state.trade_offers.append(offer)
                 # NPC 当场响应（基于当前市价判断合理价，避免价格波动导致误判）
                 tick_engine._process_npc_trades()
+                tick_engine.persist_game_state()
                 result = f"向{target}发起了{item}的交易请求，价格{price}金币"
                 if offer.status == "accepted":
                     result = f"{target}接受了你的{item}交易（{price}金币）"
@@ -560,6 +709,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         # 记录玩家操作
         player_action = PlayerAction(tick=tick_engine.world.state.tick, action_type=t, payload=action, result=result)
         logger.log_player_action(player_action)
+        tick_engine.persist_game_state()
 
         return {"status": "error" if "AP不足" in result else "ok", "result": result}
 
@@ -582,6 +732,27 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         tick_engine.current_day = 1
 
         tick_engine.current_day_events = []
+        tick_engine.current_day_decisions = []
+        tick_engine.daily_agent_logs = {}
+        tick_engine.crises = []
+        tick_engine._pending_advance = 0
+        tick_engine._is_stepping = False
+        tick_engine._pending_snapshots = []
+        tick_engine._tick_since_last_db_write = 0
+        tick_engine._insight_day = 0
+        tick_engine._upgrades_done = 0
+        tick_engine._llm_calls_today = 0
+        tick_engine._llm_cache = {}
+        tick_engine.prev_agent_states = []
+        tick_engine.prev_knowledge_count = 0
+        tick_engine.prev_total_gold = 0
+        tick_engine.restored_from_save = False
+        tick_engine.faction_system.factions = {}
+        tick_engine.faction_system.next_faction_id = 1
+        tick_engine.lore_fragments = set()
+        tick_engine.lore_clues = {}
+        tick_engine.lore_unlocked = []
+        tick_engine.campaign.ensure_new_game()
 
         # 重新初始化所有模块
 
@@ -591,9 +762,7 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         knowledge.__init__()
 
-        knowledge.persistence = logger  # 重设持久化钩子（__init__ 会清掉它）
-
-        logger.__init__()
+        knowledge.persistence = logger
 
         agents.clear()
 
@@ -605,15 +774,28 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
             world.add_agent_to_location(a.identity.id, a.state.location)
 
+        # 请求状态和 resolver 的序列号也属于新游戏状态。
+        tick_engine.requests = seed_initial_requests()
+        tick_engine.resolver.agents = agents
+        tick_engine.resolver.world = world
+        tick_engine.resolver.knowledge = knowledge
+        tick_engine.resolver._action_sequence = 0
+        tick_engine.daily_agent_logs = {a.identity.id: [] for a in agents}
+
         # 重新生成第一天事件
 
         agent_ids = [a.identity.id for a in agents]
 
         tick_engine.scheduler.generate_daily_schedule(1, agent_ids, world)
+        world.state.tick = tick_engine.wake_hour
 
         # 重新生成每日目标
 
-        tick_engine.quest_engine.generate_daily_goals(1)
+        if getattr(tick_engine, "quest_engine", None):
+            tick_engine.quest_engine.generate_daily_goals(1)
+
+        tick_engine._save_current_state()
+        tick_engine.persist_game_state()
 
         return {"status":"ok", "result": "模拟已重置"}
 
@@ -635,16 +817,16 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
         """小镇请求（v5 纵切片）：具体请求与选项（成本/前置），玩家可见可回应"""
 
-        return [{
-            "id": q.id, "requester_id": q.requester_id, "location": q.location,
-            "title": q.title, "situation": q.situation, "deadline": q.deadline,
-            "status": q.status, "completed_day": q.completed_day,
-            "options": [{
-                "id": o.id, "label": o.label, "requires": o.requires,
-                "requires_cn": o.requires_cn, "cost_ap": o.cost_ap,
-                "cost_hours": o.cost_hours, "result_desc": o.result_desc,
-            } for o in q.options],
-        } for q in getattr(tick_engine, 'requests', [])]
+        return [_request_payload(request, agents) for request in getattr(tick_engine, "requests", [])]
+
+    @app.get("/api/today-threads")
+    async def get_today_threads():
+        """首屏三条线的只读接口，与 /api/state 使用同一份数据结构。"""
+        requests_payload = [_request_payload(request, agents) for request in getattr(tick_engine, "requests", [])]
+        return _today_threads(
+            requests_payload, world, _active_crisis_payloads(),
+            tick_engine.campaign.payload(tick_engine.current_day),
+        )
 
     @app.get("/api/progress")
 
@@ -668,6 +850,11 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
                 "desc": f"身世碎片 {len(getattr(tick_engine, 'lore_fragments', set()))}/{tick_engine.LORE_TOTAL_FRAGMENTS} 片（通过每日思考触及真相关键词收集）",
             },
         }
+
+    @app.get("/api/campaign")
+    async def get_campaign():
+        """Current multi-week chapter and its observable consequences."""
+        return tick_engine.campaign.payload(tick_engine.current_day)
 
     @app.get("/api/crises")
 
@@ -703,15 +890,13 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         player = next((a for a in agents if a.identity.role.value == 'player'), None)
         if not player:
             return {"status": "error", "result": "找不到玩家"}
-        result = crisis.intervene(player, action_type)
-        # v5 统一结算：干预消耗时间（帮忙3h/调查2h/澄清1h/旁观0h），经 advance 推进
-        if "行动力不足" not in result and "已经帮过忙" not in result:
-            cost_hours = {"help": 3, "investigate": 2, "clarify": 1, "watch": 0}.get(action_type, 0)
-            tick_engine.advance(cost_hours)
-            await tick_engine.wait_caught_up()
-        tick_engine.daily_agent_logs.setdefault(player.identity.id, []).append(result)
-        logger.log_player_action(PlayerAction(tick=tick_engine.world.state.tick, action_type=f"crisis_{action_type}", payload=body, result=result))
-        return {"status": "ok" if "行动力不足" not in result and "已经帮过忙" not in result else "error", "result": result}
+        ar = tick_engine.resolver.resolve(player, Action(
+            actor_id=player.identity.id,
+            kind="crisis_intervene",
+            payload={"crisis_id": crisis_id, "action_type": action_type},
+        ))
+        await tick_engine.wait_caught_up()
+        return _action_payload(ar)
 
 
 
@@ -746,6 +931,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         if not player or not target:
 
             return {"options": [], "tie": 0, "level": "未知"}
+
+        if target.identity.role.value == "player":
+            return {"options": [], "tie": 0, "level": "未知", "error_code": "self_target"}
 
         tie = target.state.social_ties.get(player.identity.id, 0)
 
@@ -804,6 +992,9 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
             return {"success": False, "message": "找不到对话对象"}
 
+        if target.identity.role.value == "player":
+            return {"success": False, "message": "不能和自己对话", "error_code": "self_target"}
+
         # v5 校验：对话必须同地点（禁止跨地点免费社交）
 
         if player.state.location != target.state.location:
@@ -812,98 +1003,24 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
 
 
 
-        # 获取选项（语境化）
-
-        ctx = _dialogue_context(target)
-
-        options = dialogue_sys.generate_options(player, target, ctx)
-
-        option = None
-
-        for opt in options:
-
-            if opt["id"] == option_id:
-
-                option = opt
-
-                break
-
-        if not option:
-
-            return {"success": False, "message": "无效的对话选项"}
-
-        # 回合制：夜晚需十三时夜间行动力才能对话；对话消耗 1 小时
-        dl_hour = tick_engine.world.state.tick % tick_engine.day_length
-        dl_night = not (tick_engine.wake_hour <= dl_hour < tick_engine.wake_hour + tick_engine.waking_hours)
-        if dl_night:
-            if player.state.night_ap <= 0:
-                return {"success": False, "message": "夜深了，大家都睡了。只有十三时的夜间行动力才能让你撑着聊下去。"}
-            player.state.night_ap -= 1
-
-        # 检查AP（白天扣常规 AP；夜晚已走夜间行动力）
-
-        ap_cost = 2 if option.get("energy_cost") else 1
-
-        if not dl_night:
-            if player.state.ap < ap_cost:
-                return {"success": False, "message": f"AP不足（需要{ap_cost}点）"}
-            player.state.ap -= ap_cost
-
-        tick_engine.advance(ap_cost)
-
-        # 执行对话
-
-        result = dialogue_sys.execute_dialogue(player, target, option, ctx)
-
-        # 回合制推进落地（对话 = 1 小时）
-
-        # 应用关系变化（双向）
-
-        tie_change = result["tie_change"]
-
-        current_tie = target.state.social_ties.get(player.identity.id, 0)
-
-        target.state.social_ties[player.identity.id] = current_tie + tie_change
-
-        player.state.social_ties[target.identity.id] = \
-            player.state.social_ties.get(target.identity.id, 0) + tie_change * 0.7
-
-        # 应用心情变化（对话有情绪后果）
-
-        if result.get("mood_effect", 0) != 0:
-            _shift_mood(target, result["mood_effect"])
-
-        # 知识交换：成功的"闲聊/请教/分享"——对方的知识传给你；你的知识也传给在场者
-        if result["success"] and option.get("give_knowledge"):
-            top = max(knowledge.agent_knowledge(target.identity.id),
-                      key=lambda c: c.confidence, default=None)
-            if top and top.confidence > 0.4:
-                knowledge.observe(player.identity.id, top.subject, top.claim,
-                                  target.state.location, confidence=min(0.9, top.confidence * 0.8))
-                if result.get("knowledge_gained"):
-                    result["knowledge_gained"] = f"{result['knowledge_gained']}，还听说了「{top.claim}」"
-            p_top = max(knowledge.agent_knowledge(player.identity.id),
-                        key=lambda c: c.confidence, default=None)
-            if p_top and p_top.confidence > 0.5:
-                for a in agents:
-                    if a.identity.id != player.identity.id and a.state.location == player.state.location:
-                        knowledge.propagate(p_top.id, player.identity.id, a.identity.id, 0.6)
-
-        # 记录日志（进入日报，让对话可见可回溯）
-
-        tick_engine.daily_agent_logs[player.identity.id].append(
-            f"与{target.identity.name}对话：{result['message']}"
-        )
-
-        return {
-            "success": result["success"],
-            "message": result["message"],
-            "tie_change": tie_change,
-            "new_tie": round(current_tie + tie_change, 1),
-            "knowledge_gained": result.get("knowledge_gained"),
-            "mood_effect": result.get("mood_effect", 0),
-            "ap_remaining": player.state.ap
-        }
+        ar = tick_engine.resolver.resolve(player, Action(
+            actor_id=player.identity.id,
+            kind="dialogue",
+            target_id=target.identity.id,
+            payload={"option_id": option_id},
+        ))
+        await tick_engine.wait_caught_up()
+        payload = _action_payload(ar)
+        payload.update({
+            "success": bool(payload["details"].get("success")) if ar.accepted else False,
+            "message": ar.result,
+            "tie_change": payload["details"].get("tie_change", 0),
+            "knowledge_gained": payload["details"].get("knowledge_gained"),
+            "mood_effect": payload["details"].get("mood_effect", 0),
+            "ap_remaining": player.state.ap,
+            "night_ap_remaining": player.state.night_ap,
+        })
+        return payload
 
 
 
@@ -918,16 +1035,10 @@ def create_app(world,agents,bus,logger,knowledge,llm,tick_engine,ws_clients:Set[
         try:
 
             # 获取玩家状态
-
-            player = None
-
-            for a in agents:
-
-                if a.identity.role.value == "player":
-
-                    player = a.to_dict()
-
-                    break
+            player = next(
+                (payload for payload in _build_state_payload()["agents"] if payload["role"] == "player"),
+                None,
+            )
 
             # 发送当前状态和历史摘要
 

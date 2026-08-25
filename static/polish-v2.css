@@ -26,6 +26,42 @@
   transition: background 0.15s;
 }
 
+.request-progress {
+  color: var(--text-muted);
+  font-size: 0.72em;
+  margin: 5px 0;
+}
+
+.event-causal-beats {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--warm-300);
+  color: var(--text-secondary);
+  font-size: 0.8em;
+  line-height: 1.5;
+}
+
+body.theme-night .campaign-card {
+  background: rgba(33, 33, 33, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-card { transition: none; }
+}
+
+.crisis-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  border-left: 3px solid var(--negative);
+  background: rgba(229, 115, 115, 0.09);
+  color: var(--text-primary);
+  font-size: 0.78em;
+}
+.crisis-banner span { color: var(--text-muted); }
+.crisis-banner button { align-self: flex-start; border: 1px solid var(--negative); border-radius: 6px; padding: 5px 8px; background: transparent; color: var(--text-primary); cursor: pointer; font-size: 0.9em; }
+
 .request-option-btn:hover:not(:disabled) {
   background: var(--warm-50, rgba(255,167,38,0.08));
 }

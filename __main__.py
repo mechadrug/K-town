@@ -1,4 +1,4 @@
-"""K-town server 入口。运行方式：python main.py（或 python .）"""
+"""K-town server entry point. Prefer run_server.ps1 to use python_class on port 8090."""
 from main import main
 import asyncio
 

@@ -1,11 +1,32 @@
 # K-town 开发进度
 
-> **当前产品路线（2026-08-23）**：`docs/product/gameplay-design-v5.md` + `docs/product/world-view-v3.md` + `docs/product/art-direction-v2.md`。
-> **当前实施计划**：`docs/plans/2026-08-23-rebuild-plan.md`。本文件下方的 v0.3-v0.5 内容是已实现能力和历史记录，不代表下一步继续补 Phase 9。
+> **当前产品路线（2026-08-25）**：`docs/product/gameplay-design-v6.md` + `docs/product/gameplay-design-v5.md` + `docs/product/world-view-v3.md` + `docs/product/art-direction-v2.md`。
+> **当前实施计划**：`docs/plans/2026-08-25-multiweek-demo-plan.md`。本文件下方的 v5/v0.3-v0.5 内容是已实现基线和历史记录，不代表下一步继续补旧 Phase 9。
 
-## v5 设计与 Phase 0-1 实施（2026-08-23 晚）
+## v6 四周 Demo 与前端扩展边界（2026-08-25）
 
-### 本次完成：路线重构文档 + 动作单一结算 + dry-wood 切片
+### 已完成
+
+- [x] **四周章节导演**：第 1 周“雨前的七天”、第 2 周“河水改道”、第 3 周“灯火与账本”、第 4 周“归灯集”；第 29 天生成最终篇章结局。
+- [x] **章节请求注册**：请求通过 `chapter_id` 解锁，选项通过结构化 effect 接入，不把章节分支硬编码进 tick 主循环。
+- [x] **可见后果**：章节选择写入 campaign flags/scores、`WorldState.campaign_markers`、知识、关系和准备度，并进入 ActionResult 的 changes/story beats/next observation。
+- [x] **版本化存档**：campaign 状态随世界、居民、请求、知识、事件队列、日志和 RNG 一起保存/恢复。
+- [x] **前端契约**：`state-contract-v2.js`、`api-client-v2.js`、`campaign-view-v2.js` 建立状态/网络/章节视图边界。
+- [x] **事件委托迁移**：请求选项、危机、居民回应、对话选项和上下文行动使用 `data-app-action`，主应用集中处理 click router。
+
+### 当前验收
+
+- [x] 后端跨周、分支差异、结局和存档测试已通过。
+- [x] 以当前前端接线复跑桌面/390px/reduced-motion 浏览器验收：篇章卡、三条线、上下文行动、请求选项事件委托、收起行为、390px 无实际内容溢出、reduced-motion 均通过。
+- [x] 完整回归测试、临时数据库清理、`git diff --check` 和 API/WS 状态一致性检查通过；剩余仅提交推送。
+
+### 下一阶段规则
+
+新增章节先读 `docs/product/gameplay-design-v6.md`、`docs/plans/2026-08-25-multiweek-demo-plan.md` 和 `docs/architecture/frontend-v2.md`；优先添加内容数据和隔离测试，不复制 API、扣费逻辑或前端 inline handler。
+
+## v5 设计与 Phase 0-6 实施（2026-08-25，验收完成）
+
+### 本次完成：七天纵切片、因果闭环、前端生活舞台与存档回放
 
 - [x] 明确产品核心：玩家作为暂住七天的新居民，在有限时段内选择帮助谁、相信什么，小镇在次日用居民行为、关系和场景变化回应。
 - [x] 首个可玩目标收敛为 7 天纵切片：托林、莉娜、梅奶奶；广场、工坊、河谷野径；暴雨预告、旧矿道传闻和工坊屋顶三阶段。
@@ -14,19 +35,26 @@
 - [x] **Phase 0 数据安全**：`server.db_path` / `server.reset_on_start` 显式配置（默认继续游戏）；`test_smoke.py`/`test_actions.py` 用临时库；玩家首屏移除 reset 按钮。
 - [x] **Phase 1 动作单一结算**：`actions.py` ActionResolver 统一校验/扣费/推进/日志；修复 move 双扣 AP、advance(0) 免费推进、NPC 动作与 run() 互相喂食导致的世界无限推进；crisis 同日限次干预；dialogue 同地点校验；删除 trigger_event 玩家入口。
 - [x] **bring_dry_wood 纵切片**：`requests.py` 莉娜缺干木料（荒野收集 2AP/2h → 工坊交付 1AP/1h）；`/api/requests` + state payload；前端「🙋 请求」tab 渲染与回应；实服验证交付后请求 completed、莉娜关系 +6。
+- [x] **Phase 2 居民感知与因果链**：事件快照进入短期记忆；不同人格对同一场雨采取不同动作；知识传播改变路线；决策日志保存 observations/reason/changes/next_observation；日报最多三条“因为 X，所以 Y”。
+- [x] **Phase 3 七天请求纵切片**：托林屋顶、莉娜干木料、梅奶奶镇志三条请求均有多分支成本；暴雨、旧矿道传闻、临时遮雨/正式修缮和次日观察进入状态、事件与日报。
+- [x] **Phase 4 前端生活舞台**：首屏今日三条线、当前地点上下文行动、居民档案“正在做什么→为什么→感受→倾向→可回应”；`/api/today-threads` 与 state 同源；危机和请求可从首屏进入。
+- [x] **Phase 5 视觉最小闭环**：稳定道路几何、像素居民、天气层、夜间窗光；工坊屋顶漏雨/临时遮雨/正式修好有稳定视觉差异；天气切换清理滴漏残留。
+- [x] **Phase 6 存档与回放**：versioned `GameState` 保存/恢复世界、居民、知识、请求、危机、事件队列、日志与 RNG；隔离数据库 round-trip 和三次确定性回放通过。
+- [x] **移动端浏览器收尾**：修复 390px 下单列行动按钮撑宽布局造成的横向溢出与行动栏裁切；改为两列上下文行动、压缩顶栏、为底部 sheet 留出空间，并修复“今日三条线”收起按钮未真正隐藏列表的问题。
+- [x] **最终运行时验收**：真实 Chromium 完成完整请求、活动危机、390px 危机横幅/reduced-motion、保存后刷新；固定 seed `4242` 七天回放两次结果一致。
 
 ### 代码状态
 
 - [x] `ActionResolver` 已建立并接管所有玩家/NPC 动作；任何新动作/按钮先声明成本再接入。
-- [ ] `Agent.perceive()`、事件快照和”观察 → 原因 → 行动 → 后果”日志尚未形成 v5 所需闭环（Phase 2）。
-- [ ] 现有每日目标、危机、身世与进度面板尚未按”具体请求 / 今日三条线”重新组织（Phase 4）。
-- [ ] 完整 Agent 存档未解决；”继续游戏”为部分恢复（Phase 6）。
+- [x] `Agent.perceive()`、事件快照和“观察 → 原因 → 行动 → 后果”日志形成闭环。
+- [x] 请求、危机、情绪和长期进度已通过今日三条线/档案/详情入口可见。
+- [x] 完整 Agent 存档、请求状态、事件队列与 RNG 已纳入 versioned `GameState`。
 
-### 下一次开发只做
+### 当前状态与后续工作
 
-1. Phase 2：`Agent.perceive()` + step 事件快照 + 决策日志”因为 X 所以 Y”日报叙述；剧本测试（雨天×人格、知识传播×路线）。
-2. Phase 3：扩展托林工坊屋顶、梅奶奶镇志两条请求线，补请求状态机与次日后果。
-3. 每个请求选项都要有对象、成本、即时反馈和次日观察，再接前端按钮。
+1. v6 四周 Demo 已达到交付定义：四章解锁、分支请求、章节评分/标记、最终结局、存档恢复、确定性回放和前端契约均有证据。
+2. 后续可选工作是长期平衡调优；任何参数变更都必须附固定 seed 回放结果。
+3. `tick.py` 拆分仍后置，只在继续扩展系统前评估，不作为当前完成门槛。
 
 ## v0.2.1 → v0.3 基底重构（2026-08-04）
 

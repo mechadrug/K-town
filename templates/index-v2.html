@@ -42,8 +42,8 @@
           <span class="stat-icon">🎯</span>
           <span class="stat-value"><span id="stat-ap">12</span>/<span id="stat-ap-max">12</span></span>
         </div>
-        <button class="sound-toggle-btn" onclick="toggleSound()" id="soundBtn" title="音效开关">🔊</button>
-        <button class="sound-toggle-btn" onclick="showGuide()" title="新手引导">❓</button>
+        <button class="sound-toggle-btn" data-app-action="toggle-sound" id="soundBtn" title="音效开关">🔊</button>
+        <button class="sound-toggle-btn" data-app-action="show-guide" title="新手引导">❓</button>
       </div>
     </header>
 
@@ -75,19 +75,37 @@
           <div class="pulse-label">正在流传</div>
           <div id="pulse-knowledge">...</div>
         </div>
-        <div class="pulse-me" id="pulse-me">🧳 你在 广场</div>
+      <div class="pulse-me" id="pulse-me">🧳 你在 广场</div>
       </div>
+
+      <!-- 多周章程：内容由 /api/state 的 campaign 契约驱动 -->
+      <section class="campaign-card" id="campaign-card" aria-label="当前篇章">
+        <div class="placeholder-text">正在翻开本周的镇志...</div>
+      </section>
+
+      <!-- 今日三条线：请求、压力、线索始终可见；移动端变为底部 sheet -->
+      <section class="today-threads" id="today-threads" aria-label="今日三条线">
+        <div class="today-threads-head">
+          <div>
+            <div class="eyebrow">今天先看这里</div>
+            <h2>今日三条线</h2>
+          </div>
+          <button class="thread-toggle" id="thread-toggle" type="button" aria-expanded="true" data-app-action="toggle-threads">收起</button>
+        </div>
+        <div class="thread-list" id="thread-list">
+          <div class="placeholder-text">正在听小镇今天的消息...</div>
+        </div>
+      </section>
 
       <!-- 危机横幅（v4 §4：进行中的危机，点击展开干预） -->
       <div class="crisis-banner" id="crisis-banner" style="display:none"></div>
 
-      <!-- Tab 切换：动态 / 任务 / 知识 / 目标 -->
+      <!-- Tab 切换：动态 / 详情 / 知识；请求主入口在今日三条线 -->
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="events" onclick="switchTab('events')">📰 动态</button>
-        <button class="tab-btn" data-tab="requests" onclick="switchTab('requests')">🙋 请求</button>
-        <button class="tab-btn" data-tab="quests" onclick="switchTab('quests')">🎯 任务</button>
-        <button class="tab-btn" data-tab="knowledge" onclick="switchTab('knowledge')">📚 知识</button>
-        <button class="tab-btn" data-tab="progress" onclick="switchTab('progress')">🌟 目标</button>
+        <button class="tab-btn active" data-tab="events" data-app-action="switch-tab">📰 动态</button>
+        <button class="tab-btn" data-tab="requests" data-app-action="switch-tab">🙋 请求详情</button>
+        <button class="tab-btn" data-tab="quests" data-app-action="switch-tab">🎯 旧日目标</button>
+        <button class="tab-btn" data-tab="knowledge" data-app-action="switch-tab">📚 知识</button>
       </div>
 
       <!-- 今日动态 Tab -->
@@ -128,36 +146,14 @@
 
     </aside>
 
-    <!-- ===== 底部行动栏 ===== -->
+    <!-- ===== 当前地点行动栏：按钮由上下文动态生成 ===== -->
     <nav class="actionbar" id="actionbar">
-      <button class="action-btn" onclick="movePlayer('square')" title="移动到广场（消耗 1 行动力）">
-        <span class="btn-icon">🏛️</span> 广场
-      </button>
-      <button class="action-btn" onclick="movePlayer('workshop')" title="移动到工坊（消耗 1 行动力）">
-        <span class="btn-icon">🔨</span> 工坊
-      </button>
-      <button class="action-btn" onclick="movePlayer('wilderness')" title="移动到荒野，采集食物（消耗 1 行动力）">
-        <span class="btn-icon">🌲</span> 荒野
-      </button>
-      <button class="action-btn" onclick="movePlayer('school')" title="移动到学校（消耗 1 行动力）">
-        <span class="btn-icon">🏫</span> 学校
-      </button>
-      <button class="action-btn" onclick="movePlayer('mine')" title="移动到矿洞（消耗 1 行动力）">
-        <span class="btn-icon">⛏️</span> 矿洞
-      </button>
-      <div class="action-divider"></div>
-      <button class="action-btn primary" onclick="doWork('work')" title="在当前地点工作，赚取金币（消耗 1 行动力）">
-        <span class="btn-icon">🛠️</span> 工作
-      </button>
-      <button class="action-btn" onclick="doInvestigate()" title="调查当前地点（消耗 2 行动力），可能发现线索或知识">
-        <span class="btn-icon">🔍</span> 调查
-      </button>
-      <button class="action-btn" onclick="doRest()" title="睡觉，结束今天（进入新的一天，行动力重置）">
-        <span class="btn-icon">🛏️</span> 休息
-      </button>
-      <button class="action-btn" onclick="addKnowledge()" id="addKnowledgeBtn" title="每日一次：写下你的想法。若触及遗迹真相，会有领悟（不耗行动力）">
-        <span class="btn-icon">📝</span> 知识
-      </button>
+      <div class="context-actions-head"><span>你现在可以</span><span id="context-actions-note">先看看谁在这里</span></div>
+      <div class="context-action-list" id="context-action-list"></div>
+      <div class="context-actions-escape">
+        <button class="action-btn quiet" data-app-action="rest" title="休息会结束今天，推进到次日清晨">🛏️ 休息到明天</button>
+        <button class="action-btn quiet" data-app-action="add-knowledge" id="addKnowledgeBtn" title="每日一次：写下你的想法">📝 写下想法</button>
+      </div>
     </nav>
   </div>
 
@@ -172,7 +168,7 @@
             <div class="dialogue-relation" id="dlg-relation">陌生人</div>
           </div>
         </div>
-        <button class="dialogue-close" onclick="closeDialogue()">✕</button>
+        <button class="dialogue-close" data-app-action="close-dialogue">✕</button>
       </div>
       <div class="dialogue-messages" id="dlg-messages"></div>
       <div class="dialogue-options" id="dlg-options"></div>
@@ -189,14 +185,14 @@
           <div class="profile-role" id="prof-role">职业</div>
           <div class="profile-mood" id="prof-mood">心情：平静</div>
         </div>
-        <button class="profile-close" onclick="closeProfile()">✕</button>
+        <button class="profile-close" data-app-action="close-profile">✕</button>
       </div>
       <div class="profile-stats" id="prof-stats"></div>
       <div class="profile-relations" id="prof-relations"></div>
       <div class="profile-goals" id="prof-goals" style="display:none"></div>
       <div class="profile-diary" id="prof-diary" style="display:none"></div>
       <div class="profile-actions">
-        <button class="action-btn primary" onclick="startDialogueFromProfile()">💬 对话</button>
+        <button class="action-btn primary" data-app-action="start-dialogue">💬 对话</button>
       </div>
     </div>
   </div>
@@ -213,7 +209,7 @@
         <div class="guide-step"><span class="step-num">4</span> 开始生活：底部动作栏移动/工作/调查/休息，每次消耗行动力（AP，每天 12 点，顶栏 🎯 显示剩余）。调查会发现线索</div>
         <div class="guide-step"><span class="step-num">5</span> 镇上铁律是「天黑别出门」。但每过 13 天，你会多 1 点行动力——那是你的「十三时」。夜深人静时用它出门，能看到别人看不到的东西</div>
       </div>
-      <button class="guide-btn" onclick="closeGuide()">开始体验</button>
+      <button class="guide-btn" data-app-action="close-guide">开始体验</button>
     </div>
   </div>
 
@@ -224,6 +220,9 @@
   <script src="/static/icons.js"></script>
   <script src="/static/town-map-v2.js"></script>
   <script src="/static/sound-v2.js"></script>
+  <script src="/static/state-contract-v2.js"></script>
+  <script src="/static/api-client-v2.js"></script>
+  <script src="/static/campaign-view-v2.js"></script>
   <script src="/static/app-v2.js"></script>
 </body>
 </html>

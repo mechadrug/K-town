@@ -1,5 +1,4 @@
 """知识引擎模块 v2.0"""
-import random,time,uuid
 from typing import Dict,List,Optional,Any
 from models import KnowledgeClaim,ClaimSource,ClaimScope
 
@@ -17,13 +16,36 @@ def claim_to_dict(c: KnowledgeClaim) -> Dict[str, Any]:
 
 
 class KnowledgeEngine:
-    def __init__(self, persistence: Any = None):
+    def __init__(self, persistence: Any = None, clock=None):
         self.claims = {}  # 知识ID -> 知识对象
         self.agent_claims = {}  # Agent ID -> 知识ID列表
         self.subject_index = {}  # 主题 -> 知识ID列表
         self.location_index = {}  # 位置 -> 知识ID列表
         # 可选的持久化钩子（传入 storage.Storage 后，新知识写穿到 knowledge_pool）
         self.persistence = persistence
+        # UUID/time based claim metadata makes a replay diverge even when the
+        # simulation random seed is restored. Keep a small logical sequence
+        # instead; TickEngine supplies the world tick as the clock source.
+        self._claim_sequence = 0
+        self._clock = clock
+
+    def set_clock(self, clock) -> None:
+        self._clock = clock
+
+    def _next_claim_id(self) -> str:
+        while True:
+            self._claim_sequence += 1
+            claim_id = f"claim_{self._claim_sequence:08d}"
+            if claim_id not in self.claims:
+                return claim_id
+
+    def _claim_created_at(self) -> float:
+        try:
+            tick = float(self._clock()) if self._clock is not None else 0.0
+        except Exception:
+            tick = 0.0
+        # The sequence preserves ordering for multiple observations in one tick.
+        return tick + self._claim_sequence / 1_000_000
 
     def _persist(self, claim: KnowledgeClaim) -> None:
         """将新知识写穿到知识池（持久化钩子；失败不影响内存态）"""
@@ -68,20 +90,21 @@ class KnowledgeEngine:
         """观察创建新知识，自动检测冲突。同主题+同文本去重：共享给新观察者，多人证实置信度微升。"""
         existing = self._find_identical(subject, claim_text)
         if existing is not None:
-            if agent_id not in self.agent_claims.get(existing.id, []):
+            if existing.id not in self.agent_claims.get(agent_id, []):
                 self.agent_claims.setdefault(agent_id, []).append(existing.id)
                 existing.confidence = min(0.95, existing.confidence + 0.03)
             return existing
         conflicting = self._find_conflicting_claims(subject, claim_text)
         c = KnowledgeClaim(
-            id=f"claim_{uuid.uuid4().hex[:8]}",
+            id=self._next_claim_id(),
             subject=subject,
             claim=claim_text,
             source=ClaimSource.OBSERVATION,
             confidence=confidence,
             scope=ClaimScope.PRIVATE,
             created_by=agent_id,
-            location=location
+            location=location,
+            created_at=self._claim_created_at(),
         )
         self.claims[c.id] = c
         self.agent_claims.setdefault(agent_id, []).append(c.id)
@@ -97,7 +120,7 @@ class KnowledgeEngine:
                             emotional_valence=0.0):
         """创建带有行为影响的新知识"""
         c = KnowledgeClaim(
-            id=f"claim_{uuid.uuid4().hex[:8]}",
+            id=self._next_claim_id(),
             subject=subject,
             claim=claim_text,
             source=ClaimSource.OBSERVATION,
@@ -108,7 +131,8 @@ class KnowledgeEngine:
             actionable=bool(action_type),
             action_type=action_type,
             action_target=action_target,
-            emotional_valence=emotional_valence
+            emotional_valence=emotional_valence,
+            created_at=self._claim_created_at(),
         )
         self.claims[c.id] = c
         self.agent_claims.setdefault(agent_id, []).append(c.id)
@@ -180,7 +204,9 @@ class KnowledgeEngine:
             return None
         existing = self._find_identical(orig.subject, orig.claim)
         if existing is not None:
-            if to_agent not in self.agent_claims.get(existing.id, []):
+            # agent_claims 的索引是 agent_id -> claim_ids；传播后接收者必须能在
+            # 下一次决策中检索到这条既有知识。
+            if existing.id not in self.agent_claims.get(to_agent, []):
                 self.agent_claims.setdefault(to_agent, []).append(existing.id)
             return existing
         p = KnowledgeClaim(
@@ -307,3 +333,4 @@ class KnowledgeEngine:
         self.agent_claims = {}
         self.subject_index = {}
         self.location_index = {}
+        self._claim_sequence = 0

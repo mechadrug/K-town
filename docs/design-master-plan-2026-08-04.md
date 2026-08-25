@@ -1,14 +1,15 @@
 # K-town 修正版主计划（Master Plan v0.3+）
 
+> **状态（2026-08-23）**：历史架构修复与 v0.5 实现记录；不再作为当前产品或实施路线。
+> **当前权威路线**：先读 `docs/product/gameplay-design-v5.md`，再读 `docs/product/world-view-v3.md`、`docs/product/art-direction-v2.md` 和 `docs/plans/2026-08-23-rebuild-plan.md`。
 > 制定日期：2026-08-04
 > 制定视角：游戏大师 + 代码大师（三方独立评审合成）
-> 本文件取代并修正 `design-master-review-2026-08-04.md`、`design-review-2026-08-04.md`、`design-architecture-refactor.md`、`design-frontend-redesign.md`、`design-mechanics-depth.md`、`plans/2026-08-04-v0.3-phased-plan.md` 中与当前现实不符的部分。
-> 读者：未来的每个 Claude Code session。先读本文件，再动手。
-> **配套详细设计**：
-> - 玩法逻辑设计 → `docs/product/gameplay-design-v4.md`（游戏大师视角，完整玩法；取代 v3）
-> - 美术方向 → `docs/product/art-direction-v1.md`（风格锚点/地图升级/动效/死 CSS 清理）
-> - v0.4 功能与实现安排 → `docs/plans/2026-08-04-gameplay-plan.md`（P0–P2 功能 + 实现顺序）
-> - 世界自生成（远期支柱）→ `docs/product/world-self-generation.md`（NPC 按意志设计游戏资产；Phase 5）
+> 本文件保留已完成的架构修复、系统来源和历史决策，供排查现有实现时参考。其 Phase 6-9、v4 玩法和 v1 美术描述不能覆盖 v5 的七天纵切片边界。
+> **历史配套设计**：
+> - `docs/product/gameplay-design-v4.md`：已实现机制和旧玩法取舍的参考
+> - `docs/product/art-direction-v1.md`：现有前端资产及 CSS 清理的参考
+> - `docs/plans/2026-08-04-gameplay-plan.md`：v0.4 功能实施历史
+> - `docs/product/world-self-generation.md`：纵切片之后才评估的远期支柱
 
 ---
 
@@ -134,7 +135,7 @@ templates/index-v2.html + static/*-v2.*  唯一前端（v1 全套删除）
 - 前端 v1：`templates/index.html`、`static/style.css`、`static/app.js`、`static/town-map.js`、`static/sound.js`、`static/visualization.js`
 
 ### 3.2 修正
-- `run_server.ps1` → `python main.py`（原为坏的 `python -m server`）
+- `run_server.ps1` → 固定使用 Conda `python_class` 启动 `main.py`（原为坏的 `python -m server`；当前启动入口已自动替换 8090 上一实例）
 - `__main__.py` docstring → `python -m ktown` 描述（或直接运行 main）
 - `.gitignore`（NUL 损坏 + Go 时代残留规则）→ 重写
 - `config.py` 删除死字段 `ws_port`

@@ -36,12 +36,34 @@ class World:
         self.state.tick = tick
         # 每天早上6点更新天气和价格（一天 20 小时）
         if tick % 20 == 6:
-            self._change_weather()
+            # 首周压力线：第一天收到预报，第三天必然迎来暴雨；其余天气仍可变。
+            self._change_weather(tick)
             self._update_prices()
 
-    def _change_weather(self):
+    def _change_weather(self, tick=None):
+        if tick is not None:
+            day = tick // 20 + 1
+            if self.state.rain_forecast_day and day >= self.state.rain_forecast_day:
+                self.state.weather = "rainy"
+                return
         weights = [0.5, 0.2, 0.15, 0.1, 0.05]
         self.state.weather = random.choices(self._weathers, weights=weights, k=1)[0]
+
+    def set_workshop_roof(self, stage: int, day: int = 0) -> int:
+        """设置工坊屋顶阶段，避免请求/前端各自维护一份状态。"""
+        self.state.workshop_roof_stage = max(0, min(2, int(stage)))
+        if day:
+            self.state.workshop_roof_last_change_day = day
+        return self.state.workshop_roof_stage
+
+    def workshop_roof_status(self) -> dict:
+        statuses = {
+            0: {"id": "leaking", "label": "漏雨", "description": "西侧屋檐还在滴水，炉台不能久留。"},
+            1: {"id": "temporary_cover", "label": "临时遮雨", "description": "旧布料挡住了大半雨水，但雨声和滴漏仍在。"},
+            2: {"id": "repaired", "label": "正式修好", "description": "支架稳了，夜里工坊会亮起稳定的窗光。"},
+        }
+        return {**statuses.get(self.state.workshop_roof_stage, statuses[0]),
+                "stage": self.state.workshop_roof_stage}
 
     def _update_prices(self):
         """根据供需关系更新价格"""
@@ -107,4 +129,16 @@ class World:
             "resources": self.resources,
             "prices": self.prices,
             "price_history": {k: v[-7:] for k, v in self.price_history.items()}
+            ,"workshop_roof": self.workshop_roof_status()
+            ,"rain_forecast": {
+                "day": self.state.rain_forecast_day,
+                "announced": self.state.rain_forecast_announced,
+                "weather": "rainy",
+            }
+            ,"mine_rumor": {
+                "status": self.state.mine_rumor_status,
+                "confidence": self.state.mine_rumor_confidence,
+            }
+            ,"lantern_fair_preparedness": self.state.lantern_fair_preparedness,
+            "campaign_markers": dict(self.state.campaign_markers),
         }

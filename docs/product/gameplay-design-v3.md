@@ -1,9 +1,9 @@
 # K-town 玩法设计 v3.0 —— 让小镇活过来
 
-> **状态**：权威设计（取代 `gameplay-design.md` 玩家英雄向旧稿）
+> **状态（2026-08-23）**：历史玩法设计；当前权威玩法为 `gameplay-design-v5.md`。
 > **日期**：2026-08-04
 > **视角**：游戏大师（承接 `docs/design-master-plan-2026-08-04.md` 三方评审结论）
-> **配套**：功能/实现安排见 `docs/plans/2026-08-04-gameplay-plan.md`
+> **配套**：历史功能安排见 `docs/plans/2026-08-04-gameplay-plan.md`；当前实施计划见 `docs/plans/2026-08-23-rebuild-plan.md`。
 
 ---
 

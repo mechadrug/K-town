@@ -6,6 +6,12 @@ window.TownMapV2 = (function() {
   var SVG_NS = "http://www.w3.org/2000/svg";
   var svg = null;
   var agentTokens = {};
+  var stableSeed = 17;
+  var lastWeather = null;
+  var lastRoofStage = null;
+  var lastWeatherLocation = null;
+  var currentRoof = null;
+  var currentRoofStage = null;
 
   // 分层界面：一次只显示一个地点（舞台居中放大 + 等级标注）
   var currentLoc = "square";
@@ -135,7 +141,39 @@ window.TownMapV2 = (function() {
     svg.appendChild(riverG);
   }
 
-  // ===== 道路绘制 =====
+  // ===== 道路绘制（art-direction §3.1：连接 5 地点的手绘土路）=====
+  function drawRoads() {
+    var g = el("g", {id: "roads"});
+    // 地点坐标（与 LOCATIONS 一致）
+    var pts = {
+      square: {x: 600, y: 280},
+      workshop: {x: 220, y: 210},
+      wilderness: {x: 970, y: 500},
+      school: {x: 250, y: 540},
+      mine: {x: 970, y: 190},
+    };
+    var links = [
+      ["square", "workshop"], ["square", "wilderness"],
+      ["square", "school"], ["square", "mine"],
+      ["workshop", "school"], ["mine", "wilderness"],
+    ];
+    links.forEach(function(pair) {
+      var a = pts[pair[0]], b = pts[pair[1]];
+      // 手绘曲线：用二次贝塞尔 + 中点偏移制造自然弯曲
+      // Geometry must not change when a WebSocket state packet arrives.
+      var linkSeed = pair[0].length * 13 + pair[1].length * 7 + stableSeed;
+      var mx = (a.x + b.x) / 2 + ((linkSeed % 40) - 20);
+      var my = (a.y + b.y) / 2 + (((linkSeed * 3) % 40) - 20);
+      var d = "M" + a.x + "," + (a.y + 60) + " Q" + mx + "," + my + " " + b.x + "," + (b.y + 60);
+      // 底层宽边（土路轮廓）
+      g.appendChild(el("path", {d: d, fill: "none", stroke: "#D7CCC8", "stroke-width": 20, "stroke-linecap": "round", opacity: 0.7}));
+      // 中间沙色（走出来的路）
+      g.appendChild(el("path", {d: d, fill: "none", stroke: "#EFEBE9", "stroke-width": 10, "stroke-linecap": "round", opacity: 0.85}));
+      // 中央虚线（脚印花纹）
+      g.appendChild(el("path", {d: d, fill: "none", stroke: "#BCAAA4", "stroke-width": 3, "stroke-linecap": "round", "stroke-dasharray": "14 18", opacity: 0.6}));
+    });
+    svg.appendChild(g);
+  }
 
   // ===== 场景动画元素 =====
 
@@ -156,14 +194,20 @@ window.TownMapV2 = (function() {
   }
 
   // ===== 像素画建筑（crisp 方块像素风）=====
-  function pxRect(g, x, y, w, h, fill, stroke) {
-    g.appendChild(el("rect", {
+  function pxRect(g, x, y, w, h, fill, stroke, cls) {
+      var attrs = {
       x: Math.round(x), y: Math.round(y),
       width: Math.round(w), height: Math.round(h),
       fill: fill, stroke: stroke || "none", "stroke-width": 1,
       "shape-rendering": "crispEdges"
-    }));
-  }
+      };
+      if (cls) {
+        attrs["class"] = cls;
+        // 保存原始填充，便于夜间/日间切换
+        attrs["data-orig-fill"] = fill;
+      }
+      g.appendChild(el("rect", attrs));
+    }
 
   function drawPixelBuilding(g, loc, S) {
     S = S || 10; // 像素格（舞台分层界面用 16 放大）
@@ -216,10 +260,10 @@ window.TownMapV2 = (function() {
         var wx = bx + S * 2 + c * ((w - S * 4) / Math.max(1, winCols - 1));
         var wy = by + S * 2 + rr * S * 3;
         if (wy + S > by + h - S * 2) continue;
-        pxRect(g, wx, wy, S, S, "rgba(255,255,255,0.35)", trim);
-        pxRect(g, wx + S, wy, S, S, "rgba(255,255,255,0.25)", trim);
-        pxRect(g, wx, wy + S, S, S, "rgba(255,255,255,0.25)", trim);
-        pxRect(g, wx + S, wy + S, S, S, "rgba(255,255,255,0.2)", trim);
+        pxRect(g, wx, wy, S, S, "rgba(255,255,255,0.35)", trim, 'pixel-window');
+        pxRect(g, wx + S, wy, S, S, "rgba(255,255,255,0.25)", trim, 'pixel-window');
+        pxRect(g, wx, wy + S, S, S, "rgba(255,255,255,0.25)", trim, 'pixel-window');
+        pxRect(g, wx + S, wy + S, S, S, "rgba(255,255,255,0.2)", trim, 'pixel-window');
       }
     }
     pxRect(g, cx - S, by + h - S * 2, S * 2, S * 2, trim);
@@ -238,6 +282,43 @@ window.TownMapV2 = (function() {
       // 学校小钟
       pxRect(g, cx - S / 2, by - roofRows * S - S * 2, S, S * 2, wallC, trim);
       pxRect(g, cx - S, by - roofRows * S - S * 3, S * 2, S, "#FFD54F");
+    }
+
+    if (variant === "workshop") {
+      drawWorkshopRoofState(g, loc, S);
+    }
+  }
+
+  // 屋顶阶段必须在晴天也可读：漏雨、临时遮雨、正式修好不只靠数字或雨滴区分。
+  function drawWorkshopRoofState(g, loc, S) {
+    var stage = loc.roofStage == null ? 0 : loc.roofStage;
+    var w = loc.width, h = loc.height, cx = loc.x;
+    var bx = cx - w / 2, by = loc.y - h / 2;
+    var roofRows = Math.max(2, Math.floor(w / (S * 2)));
+    var roofTop = by - roofRows * S;
+    var trim = "rgba(0,0,0,0.22)";
+    if (stage === 0) {
+      g.appendChild(el("path", {
+        d: "M" + (bx + S) + "," + (by - S) + " L" + cx + "," + roofTop + " L" + (bx + w - S) + "," + (by - S),
+        fill: "none", stroke: "#4E342E", "stroke-width": Math.max(3, S / 3), opacity: 0.8,
+        "class": "roof-damage"
+      }));
+      pxRect(g, bx + S * 2, by - S * 2, S * 2, S, "#5D4037", trim, "roof-damage-patch");
+    } else if (stage === 1) {
+      g.appendChild(el("path", {
+        d: "M" + (bx + S) + "," + (by - S) + " L" + cx + "," + roofTop + " L" + (cx + S * 2) + "," + roofTop + " L" + (bx + w * 0.55) + "," + (by - S),
+        fill: "#90A4AE", stroke: "#546E7A", "stroke-width": 2, opacity: 0.82,
+        "class": "roof-tarp"
+      }));
+      g.appendChild(el("line", {x1: bx + S * 2, y1: by - S * 2, x2: bx + w * 0.55, y2: by - S, stroke: "#455A64", "stroke-width": 2, opacity: 0.8, "class": "roof-tarp-rope"}));
+    } else {
+      g.appendChild(el("path", {
+        d: "M" + (bx + S) + "," + (by - S) + " L" + cx + "," + roofTop + " L" + (bx + w - S) + "," + (by - S),
+        fill: "none", stroke: "#D7CCC8", "stroke-width": Math.max(2, S / 4), opacity: 0.9,
+        "class": "roof-repaired-edge"
+      }));
+      pxRect(g, bx + S * 2, by - S * 2, S, S, "#FFD54F", trim, "roof-repair-nail");
+      pxRect(g, bx + w - S * 3, by - S * 2, S, S, "#FFD54F", trim, "roof-repair-nail");
     }
   }
 
@@ -284,17 +365,29 @@ window.TownMapV2 = (function() {
     labelText.textContent = name;
     g.appendChild(labelText);
 
-    // 心情光环（脉动）
-    g.appendChild(el("circle", {cx: 0, cy: 0, r: 14, fill: moodColor, opacity: 0.15, "class": "agent-aura"}));
-    // Agent 身体
-    g.appendChild(el("circle", {cx: 0, cy: 0, r: 11, fill: color, stroke: "white", "stroke-width": 2.5, "class": "agent-body"}));
-    // 心情表情
-    var faceText = el("text", {x: 0, y: 4, "text-anchor": "middle", "font-size": "9", "class": "agent-face"});
+    // 心情光环（脉动，radial 柔和）
+    g.appendChild(el("circle", {cx: 0, cy: 0, r: 16, fill: moodColor, opacity: 0.18, "class": "agent-aura"}));
+
+    // 像素小人（art-direction §3.2：8×8 级像素小人替代圆点）
+    var P = 2.2; // 像素块大小
+    var bodyGroup = el("g", {"class": "agent-body"});
+    // 头（肤色）
+    bodyGroup.appendChild(el("rect", {x: -P * 2, y: -P * 7, width: P * 4, height: P * 4, rx: P, fill: "#FFCCBC", stroke: "white", "stroke-width": 1, "class": "pixel-head"}));
+    // 身体（职业色）
+    bodyGroup.appendChild(el("rect", {x: -P * 2.5, y: -P * 3, width: P * 5, height: P * 6, rx: P, fill: color, stroke: "white", "stroke-width": 1, "class": "pixel-body"}));
+    // 腿（2px）
+    bodyGroup.appendChild(el("rect", {x: -P * 1.5, y: P * 3, width: P, height: P * 2.5, fill: "#5D4037", "class": "pixel-leg-l"}));
+    bodyGroup.appendChild(el("rect", {x: P * 0.5, y: P * 3, width: P, height: P * 2.5, fill: "#5D4037", "class": "pixel-leg-r"}));
+    g.appendChild(bodyGroup);
+
+    // 心情表情（头上悬浮 emoji）
+    var faceText = el("text", {x: 0, y: -P * 9, "text-anchor": "middle", "font-size": "12", "class": "agent-face"});
     faceText.textContent = MOOD_EMOJI[agent.mood] || "😐";
     g.appendChild(faceText);
+
     // 工作状态指示器
     if (agent.current_task) {
-      g.appendChild(el("circle", {cx: 12, cy: -12, r: 4, fill: "#FFB74D", stroke: "white", "stroke-width": 1.5, "class": "task-indicator"}));
+      g.appendChild(el("circle", {cx: 14, cy: -14, r: 4, fill: "#FFB74D", stroke: "white", "stroke-width": 1.5, "class": "task-indicator"}));
     }
 
     // 点击事件
@@ -309,7 +402,7 @@ window.TownMapV2 = (function() {
 
   function updateTokenVisual(g, agent) {
     var aura = g.querySelector(".agent-aura");
-    var body = g.querySelector(".agent-body");
+    var body = g.querySelector(".pixel-body");
     var face = g.querySelector(".agent-face");
     var moodColor = MOOD_COLORS[agent.mood] || "#FFB74D";
     if (aura) aura.setAttribute("fill", moodColor);
@@ -317,7 +410,7 @@ window.TownMapV2 = (function() {
     if (face) face.textContent = MOOD_EMOJI[agent.mood] || "😐";
     var ind = g.querySelector(".task-indicator");
     if (agent.current_task && !ind) {
-      g.appendChild(el("circle", {cx: 12, cy: -12, r: 4, fill: "#FFB74D", stroke: "white", "stroke-width": 1.5, "class": "task-indicator"}));
+      g.appendChild(el("circle", {cx: 14, cy: -14, r: 4, fill: "#FFB74D", stroke: "white", "stroke-width": 1.5, "class": "task-indicator"}));
     } else if (!agent.current_task && ind) {
       g.removeChild(ind);
     }
@@ -359,10 +452,16 @@ window.TownMapV2 = (function() {
   }
 
   // ===== 天气系统 =====
-  function setWeather(weather) {
-    
+  function setWeather(weather, roof) {
+    var roofStage = roof && roof.stage != null ? roof.stage : null;
+    if (weather === lastWeather && roofStage === lastRoofStage && currentLoc === lastWeatherLocation) return;
+    lastWeather = weather;
+    lastRoofStage = roofStage;
+    lastWeatherLocation = currentLoc;
     var existing = document.getElementById("weather-overlay");
     if (existing) existing.remove();
+    var existingDrips = document.getElementById("roof-drips");
+    if (existingDrips) existingDrips.remove();
     if (!weather || weather === "clear") return;
 
     var g = el("g", {id: "weather-overlay"});
@@ -374,7 +473,7 @@ window.TownMapV2 = (function() {
         var rain = el("line", {
           x1: rx, y1: ry, x2: rx - 3, y2: ry + 18,
           stroke: "#64B5F6", "stroke-width": 1.5, opacity: 0.35,
-          className: "raindrop"
+          "class": "raindrop"
         });
         rain.style.animationDuration = (0.3 + Math.random() * 0.4) + "s";
         rain.style.animationDelay = (Math.random() * 0.5) + "s";
@@ -387,7 +486,7 @@ window.TownMapV2 = (function() {
         var snow = el("circle", {
           cx: sx, cy: sy, r: 2 + Math.random() * 3,
           fill: "white", opacity: 0.5 + Math.random() * 0.3,
-          className: "snowflake"
+          "class": "snowflake"
         });
         snow.style.animationDuration = (2 + Math.random() * 3) + "s";
         snow.style.animationDelay = (Math.random() * 2) + "s";
@@ -397,7 +496,7 @@ window.TownMapV2 = (function() {
       for (var i = 0; i < 6; i++) {
         var cx = 80 + i * 180;
         var cy = 30 + Math.random() * 30;
-        var cloud = el("g", {className: "cloud-drift"});
+        var cloud = el("g", {"class": "cloud-drift"});
         cloud.appendChild(el("ellipse", {cx: cx, cy: cy, rx: 70 + Math.random() * 30, ry: 22 + Math.random() * 10, fill: "#B0BEC5", opacity: 0.35}));
         cloud.appendChild(el("ellipse", {cx: cx + 30, cy: cy - 8, rx: 50, ry: 18, fill: "#CFD8DC", opacity: 0.3}));
         cloud.appendChild(el("ellipse", {cx: cx - 25, cy: cy + 5, rx: 45, ry: 15, fill: "#ECEFF1", opacity: 0.25}));
@@ -409,12 +508,19 @@ window.TownMapV2 = (function() {
         var wind = el("path", {
           d: "M" + (50 + Math.random() * 80) + "," + wy + " Q" + (200 + Math.random() * 100) + "," + (wy - 15) + " " + (400 + Math.random() * 100) + "," + (wy + 10) + " Q" + (550 + Math.random() * 100) + "," + (wy - 5) + " " + (700 + Math.random() * 80) + "," + wy,
           fill: "none", stroke: "rgba(255,255,255,0.2)", "stroke-width": 1.5,
-          className: "wind-line"
+          "class": "wind-line"
         });
         wind.style.animationDuration = (1.5 + Math.random()) + "s";
         wind.style.animationDelay = (Math.random() * 0.8) + "s";
         g.appendChild(wind);
       }
+    }
+    if (weather === "rainy" && roof && roof.stage < 2 && currentLoc === "workshop") {
+      var drip = el("g", {id: "roof-drips", "class": "roof-drips"});
+      for (var d = 0; d < (roof.stage === 1 ? 2 : 4); d++) {
+        drip.appendChild(el("line", {x1: LOCATION_STAGE.x - 38 + d * 25, y1: LOCATION_STAGE.y - 45, x2: LOCATION_STAGE.x - 38 + d * 25, y2: LOCATION_STAGE.y + 10, stroke: "#64B5F6", "stroke-width": 2, "class": "roof-drip"}));
+      }
+      g.appendChild(drip);
     }
     
     svg.appendChild(g);
@@ -472,6 +578,21 @@ window.TownMapV2 = (function() {
       tint.setAttribute("fill", tintColor);
       tint.setAttribute("opacity", tintOpacity);
     }
+
+    // 切换像素窗光（夜间为暖黄色）
+    try {
+      var windows = svg.querySelectorAll('.pixel-window');
+      var isNight = (hour >= 17 || hour < 5);
+      windows.forEach(function(w) {
+        var orig = w.getAttribute('data-orig-fill') || w.getAttribute('fill') || 'white';
+        if (isNight) {
+          w.setAttribute('fill', '#FFD54F');
+          w.setAttribute('opacity', '0.95');
+        } else {
+          w.setAttribute('fill', orig);
+        }
+      });
+  } catch (e) { /* ignore in older browsers */ }
   }
 
   // ===== 分层界面：渲染当前地点舞台 =====
@@ -485,7 +606,8 @@ window.TownMapV2 = (function() {
     var sc = {
       x: LOCATION_STAGE.x, y: LOCATION_STAGE.y,
       width: loc.width * 1.7, height: loc.height * 1.7,
-      color: loc.color, roofColor: loc.roofColor, variant: loc.variant
+      color: loc.color, roofColor: loc.roofColor, variant: loc.variant,
+      roofStage: currentRoof && currentRoof.stage
     };
     drawPixelBuilding(locStageGroup, sc, 16);
 
@@ -502,8 +624,8 @@ window.TownMapV2 = (function() {
     } else if (loc.variant === "mine") {
       for (var i = 0; i < 5; i++) {
         var sp = el("circle", {
-          cx: LOCATION_STAGE.x - 30 + Math.random() * 60, cy: LOCATION_STAGE.y + 20 + Math.random() * 30,
-          r: 2 + Math.random() * 2, fill: "#FFD54F", "class": "sparkle"
+          cx: LOCATION_STAGE.x - 30 + i * 15, cy: LOCATION_STAGE.y + 20 + (i % 3) * 10,
+          r: 2 + (i % 2), fill: "#FFD54F", "class": "sparkle"
         });
         sp.style.animationDelay = (i * 0.6) + "s";
         locStageGroup.appendChild(sp);
@@ -520,16 +642,25 @@ window.TownMapV2 = (function() {
       svg = svgElement;
       svg.innerHTML = "";
       drawBackground();
+      drawRoads();
       drawScenery();
       setLocation("square");
       agentTokens = {};
     },
-    update: function(agents, weather, hour) {
+    update: function(agents, weather, hour, roof) {
       if (!svg) return;
+      var nextRoofStage = roof && roof.stage != null ? roof.stage : null;
+      currentRoof = roof || null;
+      if (nextRoofStage !== currentRoofStage && currentLoc === "workshop") {
+        currentRoofStage = nextRoofStage;
+        setLocation(currentLoc);
+      } else {
+        currentRoofStage = nextRoofStage;
+      }
       // 分层界面：只显示当前地点的在场居民
       var here = (agents || []).filter(function(a) { return a.location === currentLoc; });
       updateAgentPositions(here);
-      if (weather) setWeather(weather);
+      if (weather) setWeather(weather, roof);
       if (hour !== undefined) setHour(hour);
     },
     setLocation: function(locId) { if (svg) setLocation(locId); },

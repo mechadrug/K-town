@@ -129,7 +129,7 @@ class Crisis:
                 return f"{agent.identity.name}{desc_map[reaction]}"
         return f"{agent.identity.name}照常生活，但心里记挂着这件事"
 
-    def intervene(self, agent, action_type: str) -> str:
+    def intervene(self, agent, action_type: str, charge_ap: bool = True) -> str:
         """玩家干预。返回结果描述。"""
         if not self.active:
             return "这场危机已经结束了"
@@ -140,17 +140,17 @@ class Crisis:
             return "无效的干预方式"
 
         # 玩家 AP 检查（旁观不消耗）
-        if action_type != "watch":
+        if action_type != "watch" and charge_ap:
             ap_cost = inter["ap"]
             if agent.state.ap < ap_cost:
                 return f"行动力不足（剩余{agent.state.ap}点，需要{ap_cost}点）"
             agent.state.ap -= ap_cost
 
+        # 记录干预日期（同日限一次）；旁观也算一次选择，避免无成本刷日志。
+        self.last_intervene_day = self.town.current_day
+
         if action_type == "watch":
             return "你选择袖手旁观，看着小镇自己面对这场危机"
-
-        # 记录干预日期（同日限一次）
-        self.last_intervene_day = self.town.current_day
 
         # 干预效果（澄清对谣言特别有效；帮忙对灾害/疫病有效）
         gain = inter["progress"]

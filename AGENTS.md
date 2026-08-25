@@ -6,9 +6,9 @@ This file provides guidance to AI coding agents (Codex, Copilot, Cursor, etc.) w
 
 A multi-agent town simulation game. Residents are independent AI agents with persistent memory, knowledge, goals, and social relationships — not player-centric NPCs. Players can observe or join as human residents.
 
-**Current state (v0.3-refactor)**: 12 agents, 5 locations (square/workshop/wilderness/school/mine), 22 event types. Agents move, work, socialize, record & spread knowledge. Player is a resident (12 AP/day) who can observe and lightly influence the town.
+**Current code state**: 12 agents, 5 locations (square/workshop/wilderness/school/mine), 22 event types, and a four-week campaign Demo. The emotion loop, crisis intervention, long-term progress, versioned save/restore, deterministic replay, and chapter effects are connected through the playable loop.
 
-> **Direction**: see `docs/design-master-plan-2026-08-04.md` (the authoritative roadmap). The old Go/Godot/PostgreSQL plan is abandoned.
+> **Current product direction (2026-08-25)**: `docs/product/gameplay-design-v6.md` is the four-week Demo baseline, extending the v5 choice-and-consequence loop. Read it with `docs/product/gameplay-design-v5.md`, `docs/product/world-view-v3.md`, `docs/product/art-direction-v2.md`, `docs/plans/2026-08-25-multiweek-demo-plan.md`, and `docs/architecture/frontend-v2.md` before changing code. The old Go/Godot/PostgreSQL plan is abandoned; the 2026-08-04 master plan and v4/v1 designs are historical implementation references.
 
 ## Tech Stack (actual)
 
@@ -16,6 +16,50 @@ A multi-agent town simulation game. Residents are independent AI agents with per
 - **Server**: Python 3.11 + FastAPI + Uvicorn (`main.py` → port 8090) — tick loop, event bus, agent loop
 - **Agent Runtime**: rule-based 5-layer decision (`agent.py:decide`); LLM only for key decisions (`llm.py`, rate-limited + cached, mock without key)
 - **DB**: SQLite via `storage.py` — the ONE data access layer (WAL, authoritative DDL, schema-version rebuild)
+
+## Runbook And Environment Notes
+
+This repository is developed on Windows with the Conda environment `python_class`.
+The validated interpreter is:
+
+```powershell
+E:\anaconda\envs\python_class\python.exe
+```
+
+Use the project launcher for a normal foreground server run:
+
+```powershell
+.\run_server.ps1
+```
+
+`run_server.ps1` stops the previous process listening on port 8090 and runs the new server with `python_class` in the current terminal. For a detached run, use `scripts/ensure-start-server.ps1` without `-Foreground`; it waits for `GET /api/state` to return HTTP 200, writes logs under `logs/`, and tracks the PID in `scripts/server.pid`.
+
+Do not use bare `python` in this workspace. In the current machine it resolves to the Conda base interpreter (`E:\anaconda\python.exe`), which produces Windows error `0xc0000022` before the application starts. Do not assume that activating a shell changed the interpreter; verify with:
+
+```powershell
+& "E:\anaconda\envs\python_class\python.exe" -c "import sys; print(sys.executable)"
+```
+
+Install dependencies through the same interpreter:
+
+```powershell
+& "E:\anaconda\envs\python_class\python.exe" -m pip install -r requirements.txt
+```
+
+### Data And Test Safety
+
+- `main.py` reads `server.reset_on_start` explicitly: `false` resumes the versioned save, while `true` starts a new game and clears managed tables. Do not run reset-based tests against a live server.
+- Core tests, including `test_progress.py`, use isolated temporary SQLite databases. Stop any live server before running a test that intentionally targets a persistent path.
+- `test_crisis.py` and `test_emotions.py` are in-memory tests. On Windows, set `$env:PYTHONIOENCODING = 'utf-8'` if the console cannot print its symbols.
+- `config.yaml` is local/ignored and may contain an LLM credential. Never commit or disclose it; `LLM_API_KEY` overrides the YAML key through `config.py`.
+
+## Current Gaps And Priorities
+
+The four-week Demo has passed its delivery gate, including desktop/mobile/reduced-motion browser acceptance, fixed-seed replay, save/restore, and the full isolated test suite. Future work is optional:
+
+1. Tune chapter branches, action costs, and ending thresholds only with before/after fixed-seed evidence.
+2. Clarify the full-town activity layer if the single-location stage becomes a UX bottleneck.
+3. Split `tick.py` only before adding another large system, after behavior remains stable.
 
 ## Agent Tiers (future scale-up, not yet enabled)
 
@@ -37,6 +81,9 @@ K-town/
     plans/               — implementation plans
     development-progress.md
     handoff.md           — AI session handoff state
+  campaign.py            — chapter director and campaign effects
+  game_state.py          — versioned save/restore envelope
+  static/                 — frontend contract, API client, views, and map
   docs-local/            — personal notes/drafts (git ignored, AI agents should NOT modify)
 ```
 
@@ -53,10 +100,14 @@ K-town/
 ```
 docs/
   product/
-    vision.md, world-v0.1.md, agent-model.md, knowledge-system.md
+    gameplay-design-v5.md       — current gameplay baseline
+    world-view-v3.md            — current seven-day world baseline
+    art-direction-v2.md         — current visual/UI direction
+    agent-model.md, knowledge-system.md
   architecture/
     overview.md, backend-go.md, godot-client.md, logging-and-replay.md
   plans/
+    2026-08-23-rebuild-plan.md  — current implementation plan
     YYYY-MM-DD-feature.md
   development-progress.md
   handoff.md

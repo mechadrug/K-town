@@ -75,6 +75,7 @@ async def _run_ticks(engine, agents, initial_locs, errors, moved):
     print(f"[smoke] 60 ticks | moved {moved_count}/{len(agents)} | energy<100 {energy_changed}/{len(agents)}")
     print(f"[smoke] current_day={engine.current_day} | in-mem summaries={len(engine.day_summaries)} | persisted={len(db_summaries)}")
     print(f"[smoke] knowledge claims={len(engine.knowledge.claims)}")
+    print(f"[smoke] decisions={len(engine.db.query_decisions(100))} | causal beats={sum(len(s.get('causal_beats', [])) for s in engine.day_summaries)}")
     if errors:
         print("[smoke] EXCEPTIONS:"); [print("   ", e) for e in errors[:8]]
 
@@ -84,6 +85,13 @@ async def _run_ticks(engine, agents, initial_locs, errors, moved):
     assert len(engine.day_summaries) >= 1, "FAIL: 每日摘要未生成"
     assert len(db_summaries) >= 1, "FAIL: 每日摘要未落库"
     assert len(engine.knowledge.claims) > 0, "FAIL: 知识从未产生"
+    decisions = engine.db.query_decisions(20)
+    assert decisions, "FAIL: 决策日志未落库"
+    assert any(d.get("observations") for d in decisions), "FAIL: 决策缺少感知记录"
+    assert any(d.get("reason") for d in decisions), "FAIL: 决策缺少原因记录"
+    assert any("因为" in line and "所以" in line
+               for summary in engine.day_summaries
+               for line in summary.get("causal_beats", [])), "FAIL: 日报缺少因果回信"
     assert not errors, f"FAIL: 存在异常 {len(errors)} 次"
     print("[smoke] ALL PASS OK")
 

@@ -38,32 +38,40 @@ def init_system():
     bus = EventBus()
     # 唯一数据访问层：main/tick/api 共享同一实例
     storage = Storage(cfg.server.db_path)
-    knowledge = KnowledgeEngine()
+    knowledge = KnowledgeEngine(storage)
     llm = LLMClient(cfg.llm.base_url, cfg.llm.api_key, cfg.llm.model, cfg.llm.provider)
 
     agents = populate_agents()
     for a in agents:
         world.add_agent_to_location(a.identity.id, a.state.location)
-        storage.log_world_event(0, "agent_spawned", a.state.location, [a.identity.id], None)
     print(f"Spawned {len(agents)} agents")
 
     engine = TickEngine(world, bus, agents, knowledge, storage, llm, cfg.tick.day_length,
                         db=storage, wake_hour=cfg.tick.wake_hour, waking_hours=cfg.tick.waking_hours,
                         auto_reset=cfg.server.reset_on_start)
-    if cfg.server.reset_on_start:
+    if engine.restored_from_save:
+        print(f"[继续游戏] 已恢复版本化完整存档：第 {engine.current_day} 天，tick {world.state.tick}")
+    elif cfg.server.reset_on_start:
         print("[新游戏] reset_on_start=True：已清空数据库，从第 1 天开始")
     else:
-        print("[继续游戏] reset_on_start=False：加载历史存档（部分恢复，完整存档未实现）")
+        print("[继续游戏] 未找到完整存档，已使用旧版兼容恢复")
 
-    # 知识持久化：新知识写穿到 knowledge_pool；并尝试断点恢复（关闭自动重置时生效）
-    knowledge.persistence = storage
-    knowledge.load_from_db(storage.get_knowledge_pool())
+    # 完整存档含知识和分发索引；只有旧版兼容恢复才从知识表补读。
+    if not engine.restored_from_save and not cfg.server.reset_on_start:
+        knowledge.load_from_db(storage.get_knowledge_pool())
+
+    if not engine.restored_from_save:
+        for location in world.locations.values():
+            location["agents"] = []
+        for a in agents:
+            world.add_agent_to_location(a.identity.id, a.state.location)
+            storage.log_world_event(0, "agent_spawned", a.state.location, [a.identity.id], None)
 
     # 初始化任务系统
     quest_engine = QuestEngine()
     engine.quest_engine = quest_engine
-    # 第 1 天启动即生成每日目标（此后每天日结时重新生成）
-    quest_engine.generate_daily_goals(1)
+    # 任务系统是旧兼容层；按恢复后的日期初始化，不能重新写成第 1 天。
+    quest_engine.generate_daily_goals(engine.current_day)
 
     # 初始化对话系统
     dialogue_sys = DialogueSystem()
@@ -79,11 +87,14 @@ def init_system():
     engine.on_day_summary = on_day_summary
     engine.on_event = on_event
 
-    agent_ids = [a.identity.id for a in agents]
-    engine.scheduler.generate_daily_schedule(1, agent_ids, world)
-    # 世界观：从清晨醒来开始（清醒时段 5–17），玩家登录即可行动
-    world.state.tick = cfg.tick.wake_hour
-    print("Day 1 events scheduled")
+    if not engine.restored_from_save:
+        agent_ids = [a.identity.id for a in agents]
+        engine.scheduler.generate_daily_schedule(engine.current_day, agent_ids, world)
+        # 新游戏/旧版兼容恢复都从当前日清晨开始；完整读档保留原时钟和事件队列。
+        world.state.tick = ((engine.current_day - 1) * cfg.tick.day_length) + cfg.tick.wake_hour
+        engine._save_current_state()
+        engine.persist_game_state()
+        print(f"Day {engine.current_day} events scheduled")
 
     app = create_app(world, agents, bus, storage, knowledge, llm, engine, ws_clients, dialogue_sys)
     return app, engine, llm, cfg
@@ -91,7 +102,7 @@ def init_system():
 
 async def main():
     app, engine, llm, cfg = init_system()
-    asyncio.create_task(engine.run())
+    engine_task = asyncio.create_task(engine.run())
     print("Tick engine running (回合制)")
 
     server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=cfg.server.http_port, log_level="info"))
@@ -108,6 +119,7 @@ async def main():
         print(f"Server error: {e}")
     finally:
         engine.stop()
+        await engine_task
         await llm.close()
         # Close database safely
         if engine.db:

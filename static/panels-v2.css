@@ -289,6 +289,51 @@
   border-top: 1px solid var(--panel-border);
 }
 
+.profile-story-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 0;
+  font-size: 0.84em;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.profile-story-label,
+.profile-response-label {
+  color: var(--text-muted);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.profile-details {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.78em;
+}
+
+.profile-details summary { cursor: pointer; }
+.profile-emotions { padding-top: 6px; line-height: 1.7; color: var(--text-secondary); }
+
+.profile-response-label { margin-bottom: 7px; }
+.profile-response-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.profile-response-btn small { color: var(--text-muted); white-space: nowrap; }
+.profile-response-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 @keyframes scaleIn {
   from { transform: scale(0.9); opacity: 0; }
   to { transform: scale(1); opacity: 1; }

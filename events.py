@@ -46,12 +46,32 @@ class EventScheduler:
         base = (day-1)*20
         # 清晨天气：与 world.advance 共用同一来源（避免双随机不一致）
         # 实际天气由 world._change_weather 在 tick%20==6 决定，此处仅调度播报事件
-        weather = world.state.weather
+        weather = "rainy" if day >= (world.state.rain_forecast_day or 999) else world.state.weather
         self.bus.schedule(Event(tick=base+6, type=EventType.WEATHER_CHANGE, location="square", payload={"weather": weather}), base+6)
+        if day == 1:
+            self.bus.schedule(Event(
+                tick=base+6, type=EventType.WEATHER_FORECAST, location="square",
+                payload={"weather": "rainy", "day": world.state.rain_forecast_day,
+                         "message": "天气台预告：第三天会有一场暴雨。"},
+            ), base+6)
+            # 首周固定传闻入口：罗文的说法会在广场被听见，玩家可以相信、转述或调查。
+            self.bus.schedule(Event(
+                tick=base+10, type=EventType.RUMOR_SPREAD, location="square",
+                payload={
+                    "claim": "旧矿道可能有塌方，罗文建议暂时不要走那里",
+                    "from": "agent_scout", "to": "agent_elder",
+                    "source_quality": "first_hand",
+                },
+            ), base+10)
 
         # 天气影响事件：根据天气影响工作效率
         impact = self._get_weather_impact(weather)
         self.bus.schedule(Event(tick=base+7, type=EventType.WEATHER_IMPACT, location="square", payload={"impact": impact, "weather": weather}), base+7)
+        if day >= (world.state.rain_forecast_day or 999):
+            self.bus.schedule(Event(
+                tick=base+7, type=EventType.WEATHER_IMPACT, location="workshop",
+                payload={"impact": -0.2, "weather": "rainy", "pressure": "workshop_roof"},
+            ), base+7)
 
         # 资源发现事件
         if random.random()<0.7:

@@ -1,6 +1,6 @@
 """情绪闭环专项验证（Phase 6）—— 验证初心核心："被批评→悲伤→行为改变→习惯→性格演化"
 
-运行：python test_emotions.py
+运行：`& "E:\\anaconda\\envs\\python_class\\python.exe" test_emotions.py`
 """
 import random
 import sys

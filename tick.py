@@ -30,6 +30,9 @@ from actions import ActionResolver, Action
 
 from requests import seed_initial_requests
 
+from game_state import build_game_state, restore_game_state
+from campaign import CampaignDirector
+
 
 
 
@@ -51,6 +54,8 @@ class TickEngine:
         self.agents = agents
 
         self.knowledge = knowledge
+        if hasattr(self.knowledge, "set_clock"):
+            self.knowledge.set_clock(lambda: self.world.state.tick)
 
         self.logger = logger
 
@@ -64,6 +69,7 @@ class TickEngine:
         self.waking_hours = waking_hours
 
         self._running = False
+        self._is_stepping = False
 
         # 回合制：玩家行动累积的待推进小时数（1 AP = 1 小时）
         self._pending_advance = 0
@@ -79,6 +85,7 @@ class TickEngine:
         self.day_summaries: List[Dict[str, Any]] = []
 
         self.current_day_events: List[Dict[str, Any]] = []
+        self.current_day_decisions: List[Dict[str, Any]] = []
 
         self.current_day: int = 1
 
@@ -131,22 +138,30 @@ class TickEngine:
         # 统一动作结算（v5 §2.1）：所有玩家/NPC 动作唯一入口
         self.resolver = ActionResolver(self)
 
-        # 小镇请求（v5 纵切片）：首批只有莉娜「缺干木料」
-        self.requests = seed_initial_requests()
+        # 小镇请求（v5 纵切片）。完整读档会替换这份初始列表。
+        self.requests = []
+        self.restored_from_save = False
+        # 内容进度与模拟时钟分离；后续章节通过数据注册，不继续膨胀 TickEngine。
+        self.campaign = CampaignDirector(self)
 
-        # 自动重置
-
+        # 新游戏明确清库；继续游戏优先使用完整版本化存档，旧数据库再退回
+        # 到历史摘要/Agent 状态的兼容恢复。
         if auto_reset:
-
             self.db.reset()
+        else:
+            saved_state = self.db.load_game_state()
+            if saved_state is not None:
+                self.restored_from_save = restore_game_state(self, saved_state)
 
-        # 加载历史摘要
-
-        self._load_history()
-
-        # 断点恢复：读档 Agent 完整状态（auto_reset 清库后为空，正常从初始状态开始）
-        if not auto_reset:
-            self._restore_agents()
+        if not self.restored_from_save:
+            self.requests = seed_initial_requests()
+            self._load_history()
+            # 兼容 v5 以前只保存 Agent 状态的数据库。
+            if not auto_reset:
+                self._restore_agents()
+            # 旧版数据库没有篇章快照时，按已完成的天数补齐可用内容。
+            if self.current_day > 1:
+                self.campaign.sync_for_day(self.current_day)
 
     
 
@@ -188,6 +203,7 @@ class TickEngine:
             st.social_ties = s.get("social_ties", st.social_ties)
             st.emotions = s.get("emotions", st.emotions)
             st.habit_bias = s.get("habits", st.habit_bias)
+            st.short_term_memory = s.get("recent_observations", st.short_term_memory)
             a.identity.personality = s.get("personality", a.identity.personality)
             a.identity.skills = s.get("skills", a.identity.skills)
             a.diary = s.get("diary", a.diary) or []
@@ -199,7 +215,12 @@ class TickEngine:
 
         """主循环（纯回合制）：世界时间只随玩家 AP 推进（1 AP = 1 小时），无闲时自动前进。"""
 
-        self._save_current_state()
+        # A complete restore already contains the current day's baseline and
+        # causal logs. Reinitializing it here would make a restart lose the
+        # observations that happened before the process stopped.
+        if not self.restored_from_save:
+            self._save_current_state()
+        self.persist_game_state()
 
         self._running = True
 
@@ -210,18 +231,21 @@ class TickEngine:
                 if self._pending_advance > 0:
 
                     while self._pending_advance > 0:
-
+                        # 标记必须先于 pending-- 设置；否则 API 可能把正在执行
+                        # 的 step 误判为已追上。
+                        self._is_stepping = True
                         self._pending_advance -= 1
-
-                        await self.step()
+                        try:
+                            await self.step()
+                        finally:
+                            self._is_stepping = False
 
                 await asyncio.sleep(0.05)
 
         finally:
 
-            # 确保退出时刷新所有缓冲数据到数据库
-
             self._flush_db_writes()
+            self.persist_game_state()
 
     def advance(self, hours: int = 1) -> None:
         """玩家行动驱动世界推进：消耗 1 AP 度过 1 小时（回合制）。
@@ -231,8 +255,12 @@ class TickEngine:
 
     async def wait_caught_up(self, timeout: float = 5.0) -> None:
         """等待回合制推进全部落地（run 循环处理完待推进小时），避免竞态"""
+        # 单元测试会直接调用 API，但不会启动后台 run loop；此时动作的即时
+        # 结算已经完成，不应无谓等待超时。
+        if not self._running:
+            return
         waited = 0.0
-        while self._pending_advance > 0 and waited < timeout:
+        while (self._pending_advance > 0 or self._is_stepping) and waited < timeout:
             await asyncio.sleep(0.02)
             waited += 0.02
 
@@ -257,6 +285,14 @@ class TickEngine:
         # 初始化当天的agent行为日志
 
         self.daily_agent_logs = {a.identity.id: [] for a in self.agents}
+
+    def persist_game_state(self) -> None:
+        """写入可恢复的完整模拟快照；旧日志仍保留作审计和回放。"""
+        try:
+            self.db.save_game_state(build_game_state(self))
+        except Exception as exc:
+            # 存档失败不能让正在运行的回合循环崩溃；调用者仍能从日志定位问题。
+            print(f"[save] 完整存档失败（不致命）：{exc}")
 
 
 
@@ -346,6 +382,8 @@ class TickEngine:
 
             self.knowledge.auto_solidify()
 
+        # 保留本 tick 的事件快照给居民感知；事件处理和感知属于同一时间步。
+        event_snapshot = list(self.bus.all_events)
         self.bus.clear_events()
 
 
@@ -368,14 +406,20 @@ class TickEngine:
 
         for agent in self.agents:
 
-            evts = self.bus.get_events_at(agent.state.location)
+            evts = [e for e in event_snapshot if e.location == agent.state.location]
 
-            evt_strs = [f"{e.type.value} at {e.location}" for e in evts]
+            evt_strs = [f"{e.type.value} at {e.location}: {e.payload}" for e in evts]
 
             # 同地点 Agent 对象列表（decide 需要 Agent 对象而非 ID）
             here = [a for a in self.agents if a.state.location == agent.state.location]
 
-            agent.perceive(evt_strs)
+            observations = agent.perceive(
+                evts,
+                weather=self.world.state.weather,
+                nearby_agents=here,
+                knowledge_engine=self.knowledge,
+                tick=tick,
+            )
 
             agent.think(hour)
 
@@ -400,24 +444,71 @@ class TickEngine:
                 action = llm_action
 
                 source = 'llm'
+                trace = {
+                    "rule": "llm_key_decision",
+                    "reason": "关键情境交给模型生成行动建议",
+                    "observations": observations,
+                }
 
             else:
 
-                action = agent.decide(hour, here, evt_strs, knowledge_engine=self.knowledge, world=self.world)
+                action, trace = agent.decide_with_trace(
+                    hour, here, evt_strs,
+                    knowledge_engine=self.knowledge,
+                    world=self.world,
+                )
 
                 source = 'rule'
-
-            self.logger.log_decision(tick, agent.identity.id, action['desc'], action['type'],
-
-                                     agent.top_goal().description if agent.top_goal() else '', 0.9 if source == 'llm' else 0.8, source)
 
             self.daily_agent_logs[agent.identity.id].append(f"{hour}点: {action['desc']}")
 
             # ★核心修复：执行决策结果，让动作真实改变世界（move/work/talk/trade/rest...）
+            action_result = None
             try:
-                await self._handle_action(agent, action, tick)
+                action_result = await self._handle_action(agent, action, tick)
             except Exception as e:
                 self.daily_agent_logs[agent.identity.id].append(f"[执行异常] {e}")
+
+            decision_changes = []
+            next_observation = None
+            if action_result is not None and getattr(action_result, "accepted", False):
+                decision_changes = [
+                    {
+                        "target": change.target,
+                        "field": change.field,
+                        "before": change.before,
+                        "after": change.after,
+                        "source": change.source,
+                    }
+                    for change in action_result.changes
+                ]
+                next_observation = action_result.next_observation
+                if next_observation:
+                    self.daily_agent_logs[agent.identity.id].append(
+                        f"因为{trace.get('reason', '当前处境')}，所以{next_observation}"
+                    )
+
+            # 决策日志与动作结果一起写入，确保 observations/reason/changes/后果可追溯。
+            self.logger.log_decision(
+                tick, agent.identity.id, action['desc'], action['type'],
+                agent.top_goal().description if agent.top_goal() else '',
+                0.9 if source == 'llm' else 0.8, source,
+                observations=trace.get("observations", observations),
+                reason=trace.get("reason", "按日常节奏行动"),
+                changes=decision_changes,
+                next_observation=next_observation,
+            )
+            self.current_day_decisions.append({
+                "tick": tick,
+                "agent_id": agent.identity.id,
+                "agent": agent.identity.name,
+                "action": action.get("type", ""),
+                "action_desc": action.get("desc", ""),
+                "observations": trace.get("observations", observations),
+                "reason": trace.get("reason", "按日常节奏行动"),
+                "changes": decision_changes,
+                "next_observation": next_observation,
+            })
 
             if action["type"] in ("talk", "work", "trade", "move"):
 
@@ -451,6 +542,35 @@ class TickEngine:
             self._town_upgrade_check()
 
             # === 危机系统（v4 §4）：每日推进 ===
+            # 请求的次日观察在清晨转成真实事件，只消费一次；玩家能在舞台/事件流
+            # 看到自己的选择留下的后果，而不是只看到请求卡上的静态文案。
+            for request in self.requests:
+                pending_observations = [
+                    item for item in request.next_day_observations
+                    if item not in request.observed_next_day_observations
+                ]
+                for observation in pending_observations:
+                    self.current_day_events.append({
+                        "tick": tick, "type": "request_next_day",
+                        "request_id": request.id,
+                        "location": request.location,
+                        "action": observation,
+                    })
+                    request.observed_next_day_observations.append(observation)
+                    self.daily_agent_logs.setdefault(request.requester_id, []).append(
+                        f"次日看见：{observation}"
+                    )
+
+            # 暴雨首次到来时，给旧矿道传闻一个可观察的回应：罗文把危险标记挂上路标。
+            if self.current_day == (self.world.state.rain_forecast_day or 3):
+                if self.world.state.mine_rumor_status in ("circulating", "needs_verification"):
+                    self.world.state.mine_rumor_status = "marked"
+                    self.world.state.mine_rumor_confidence = max(self.world.state.mine_rumor_confidence, .7)
+                    self.current_day_events.append({
+                        "tick": tick, "type": "mine_rumor_consequence",
+                        "location": "wilderness",
+                        "action": "暴雨前，罗文在旧矿道路口挂起了‘待确认，谨慎通行’的路标。",
+                    })
             # 1. 现有危机：性格化反应 + 倒计时结算
             for crisis in list(self.crises):
                 if not crisis.active:
@@ -513,6 +633,7 @@ class TickEngine:
                                   prev_map.get(agent.identity.id, {}).get("gold", agent.state.gold))
 
             self.current_day_events = []
+            self.current_day_decisions = []
 
             self._llm_calls_today = 0
 
@@ -524,6 +645,9 @@ class TickEngine:
                     a.state.night_ap = (self.current_day + 1) // 13
 
             self.current_day += 1
+
+            # 新章节在新一天开始时解锁，避免在前一日摘要中提前显示。
+            self.campaign.sync_for_day(self.current_day)
 
             # 关系衰减：每天好感度向0回归5%（需要持续维护关系）
 
@@ -573,6 +697,9 @@ class TickEngine:
 
                 await self.on_day_summary(summary)
 
+
+        # 每个完整时间步都持久化，包括尚未跨日的居民自主行动和事件队列。
+        self.persist_game_state()
 
 
 
@@ -1514,11 +1641,61 @@ class TickEngine:
 
                 important_events.append("镇上有新的传闻在流传")
 
+            elif t == EventType.WEATHER_FORECAST.value:
+
+                important_events.append(evt.get("action", "天气台发布了暴雨预告"))
+
+            elif t in ("request_next_day", "workshop_roof", "mine_rumor_consequence"):
+
+                important_events.append(evt.get("action", "小镇的选择留下了次日变化"))
+
+            elif t == "insight":
+
+                important_events.append(evt.get("action", "有人想起了一段记忆"))
+
             elif t == EventType.SOCIAL_RELATION_CHANGE.value:
 
                 important_events.append("一些居民之间的关系发生了变化")
 
+        # 有些世界后果在清晨结算时改变状态后，可能已经跨过了上一天的
+        # 事件窗口；状态本身仍然必须在日报中翻译成玩家能读懂的回信。
+        if self.world.state.mine_rumor_status == "marked" and not any(
+            "路标" in text for text in important_events
+        ):
+            important_events.append("旧矿道入口挂起了‘待确认，谨慎通行’的路标")
 
+
+
+        # Phase 2 因果回信：直接从行为日志读取最多三条“因为……所以……”，
+        # 保证日报和决策日志使用同一份因果数据。
+        # Keep consequential request/world outcomes ahead of routine activity
+        # when the overall reply is capped to a small number of highlights.
+        priority_events = []
+        for evt in self.current_day_events:
+            if evt.get("type", "") in ("request_next_day", "workshop_roof", "mine_rumor_consequence"):
+                text = evt.get("action", "")
+                if text and text not in priority_events:
+                    priority_events.append(text)
+        if self.world.state.mine_rumor_status == "marked" and not any(
+            "路标" in text for text in priority_events
+        ):
+            priority_events.append("旧矿道入口挂起了‘待确认，谨慎通行’的路标")
+        important_events = priority_events + [
+            text for text in important_events if text not in priority_events
+        ]
+
+        causal_beats = []
+        seen_causal = set()
+        for logs in self.daily_agent_logs.values():
+            for line in logs:
+                if "因为" not in line or "所以" not in line or line in seen_causal:
+                    continue
+                seen_causal.add(line)
+                causal_beats.append(line)
+                if len(causal_beats) >= 3:
+                    break
+            if len(causal_beats) >= 3:
+                break
 
         # 整体叙事摘要
 
@@ -1560,6 +1737,9 @@ class TickEngine:
 
             overall += f"今天发生的重大事件：{'；'.join(important_events[:5])}。"
 
+        if causal_beats:
+            overall += f"因果回信：{'；'.join(causal_beats)}。"
+
 
 
         # 地点动态
@@ -1593,6 +1773,7 @@ class TickEngine:
             "overall_summary": overall,
 
             "agents": agent_summaries,
+            "causal_beats": causal_beats,
 
             "stats": {
 
@@ -1611,6 +1792,15 @@ class TickEngine:
                 "anxious_count": anxious_count,
 
                 "events_count": len(self.current_day_events)
+
+                ,"town_state": {
+                    "workshop_roof": self.world.workshop_roof_status(),
+                    "mine_rumor": {
+                        "status": self.world.state.mine_rumor_status,
+                        "confidence": self.world.state.mine_rumor_confidence,
+                    },
+                    "lantern_fair_preparedness": self.world.state.lantern_fair_preparedness,
+                }
 
             }
 
@@ -1654,6 +1844,18 @@ class TickEngine:
                     c = self.knowledge.observe(a.identity.id, "weather", f"今天天气是{w_cn}", a.state.location)
 
                     self.logger.log_knowledge(0, c.id, a.identity.id, "create", "", c.claim)
+
+        elif event.type == EventType.WEATHER_FORECAST:
+            self.world.state.rain_forecast_announced = True
+            message = event.payload.get("message", "天气台发出了新的预告。")
+            self.current_day_events.append({
+                "tick": event.tick, "type": event.type.value,
+                "location": event.location, "action": message,
+                "payload": event.payload,
+            })
+            for a in self.agents:
+                if a.state.location == event.location:
+                    self.knowledge.observe(a.identity.id, "weather_forecast", message, event.location, confidence=.9)
 
         elif event.type == EventType.RESOURCE_FOUND:
 
@@ -1709,6 +1911,25 @@ class TickEngine:
                     a.state.energy = max(0, a.state.energy + impact * 10)
 
                     apply_event_emotion(a, "weather_impact")
+
+            if event.payload.get("pressure") == "workshop_roof":
+                stage = self.world.state.workshop_roof_stage
+                messages = {
+                    0: "暴雨打进工坊，西侧炉台又开始滴水。",
+                    1: "旧布料挡住了大半雨，工坊仍能听见滴漏。",
+                    2: "雨声落下，修好的工坊屋顶没有再漏。",
+                }
+                self.current_day_events.append({
+                    "tick": event.tick, "type": "workshop_roof",
+                    "action": messages.get(stage, messages[0]), "location": "workshop",
+                })
+                for a in self.agents:
+                    if a.state.location == "workshop":
+                        self.knowledge.observe(
+                            a.identity.id, "workshop_roof",
+                            self.world.workshop_roof_status()["description"],
+                            "workshop", confidence=.9,
+                        )
 
         elif event.type == EventType.SOCIAL_RELATION_CHANGE:
 
@@ -1798,6 +2019,9 @@ class TickEngine:
                 self.knowledge.observe(f, "rumor", claim, event.location)
 
                 self.knowledge.observe(t, "rumor", f"听说{claim}", event.location)
+                if "矿道" in claim or "塌方" in claim:
+                    self.world.state.mine_rumor_status = "circulating"
+                    self.world.state.mine_rumor_confidence = .45
 
 
 
@@ -1888,7 +2112,5 @@ class TickEngine:
     def stop(self):
 
         self._running = False
+        self.persist_game_state()
 
-        self.db.close()
-
-    

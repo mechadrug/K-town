@@ -17,11 +17,16 @@ venv/
 k_town.db
 k_town.db-shm
 k_town.db-wal
+test_*.db
+test_*.db-shm
+test_*.db-wal
 static_data/
 
 # ---- 日志 / 临时 ----
 *.log
 *.tmp
+*.stdin
+scripts/server.pid
 
 # ---- 编辑器 / 系统 ----
 .vscode/

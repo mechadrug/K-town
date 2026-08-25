@@ -1,8 +1,32 @@
 """Agent 模块 v2.0 — 知识驱动决策 + 经济闭环"""
-import random,time,uuid
+import random
 from typing import List,Optional,Dict,Any
 from models import AgentIdentity,AgentState,Goal,Mood,Role
 from emotions import dominant_emotion, emotion_drift, emotion_to_decision_bias
+
+def _event_text(event_type, location, payload):
+    """把结构化世界事件压缩成居民能理解的一句观察。"""
+    location_names = {
+        "square": "广场", "workshop": "工坊", "wilderness": "荒野",
+        "school": "学校", "mine": "矿洞",
+    }
+    loc = location_names.get(location, location or "附近")
+    if event_type == "weather_change":
+        return f"{loc}传来天气变化：{payload.get('weather', '天气变了')}"
+    if event_type == "weather_impact":
+        return f"{loc}受到天气影响，工作会更困难"
+    if event_type == "resource_found":
+        return f"有人在{loc}发现了{payload.get('resource', '资源')}"
+    if event_type == "rumor_spread":
+        return f"{loc}有人传开了一个消息：{payload.get('claim', '新的传闻')}"
+    if event_type == "disaster":
+        return f"{loc}发生了{payload.get('type', '灾害')}"
+    if event_type == "social_encounter":
+        return f"{loc}有人碰面交谈"
+    if event_type == "social_relation_change":
+        return f"{loc}两位居民的关系有了变化"
+    return f"{loc}发生了{event_type or '新的事情'}"
+
 
 class Agent:
     def __init__(self, identity:AgentIdentity, location="square"):
@@ -11,9 +35,54 @@ class Agent:
         self.diary = []
         self.goals = []
 
-    def perceive(self, events):
-        # 感知事件（当前不持久化短期记忆，知识由 KnowledgeEngine 承载）
-        pass
+    def perceive(self, events, *, weather=None, nearby_agents=None, knowledge_engine=None,
+                 tick=None, max_events=6):
+        """把当前 tick 的可见输入写入短期记忆，并返回可用于决策的观察摘要。
+
+        ``events`` 可以是事件对象，也可以是旧调用方传入的字符串。感知只接收
+        当前地点事件；长期知识仍由 KnowledgeEngine 管理，避免把居民变成全知视角。
+        """
+        nearby_agents = nearby_agents or []
+        observations = []
+        for event in list(events or [])[:max_events]:
+            if isinstance(event, str):
+                item = {"kind": "event", "text": event}
+            else:
+                event_type = getattr(getattr(event, "type", None), "value", getattr(event, "type", "event"))
+                location = getattr(event, "location", self.state.location)
+                payload = getattr(event, "payload", {}) or {}
+                item = {
+                    "kind": "event",
+                    "type": event_type,
+                    "location": location,
+                    "payload": dict(payload),
+                    "text": _event_text(event_type, location, payload),
+                }
+            item["tick"] = tick
+            observations.append(item)
+
+        if weather:
+            observations.append({"kind": "weather", "weather": weather,
+                                 "text": f"天气是{weather}" , "tick": tick})
+        if nearby_agents:
+            observations.append({
+                "kind": "nearby",
+                "agents": [a.identity.id for a in nearby_agents if a.identity.id != self.identity.id],
+                "text": "附近有" + "、".join(a.identity.name for a in nearby_agents if a.identity.id != self.identity.id),
+                "tick": tick,
+            })
+
+        # 只保存有限窗口；去重相同 tick/文本可避免一个事件在多次决策中刷屏。
+        existing = {(m.get("tick"), m.get("text")) for m in self.state.short_term_memory}
+        for item in observations:
+            if (item.get("tick"), item.get("text")) not in existing:
+                self.state.short_term_memory.append(item)
+        self.state.short_term_memory = self.state.short_term_memory[-12:]
+        return observations
+
+    def recent_observations(self, limit=6):
+        """返回最近的感知，用于决策日志和居民档案。"""
+        return list(self.state.short_term_memory[-limit:])
 
     def think(self, hour):
         # 情绪系统 v2（gameplay-design-v4 §3）：生理状态映射到 4 维情绪，再驱动 Mood
@@ -93,9 +162,27 @@ class Agent:
         joy = emo.get("joy", 50)
         anger = emo.get("anger", 50)
         sadness = emo.get("sadness", 50)
+        conscientiousness = p.get("conscientiousness", 0.5)
+        stability = p.get("stability", 0.5)
+
+        # Phase 2：天气压力进入决策，而不是只改变一个后台数值。
+        # 同样的雨天输入由人格调制：敏感/不稳定者先避开风险，稳重且尽责者继续
+        # 留在工坊工作。这里保留为确定性规则，方便剧本回放和因果解释。
+        weather_pressure = any(
+            any(marker in str(event).lower() for marker in ("rain", "storm", "weather", "weather_impact", "暴雨", "下雨", "天气"))
+            for event in (events or [])
+        )
+        if weather_pressure and self.wake_hour_for_decision(hour):
+            if stability < 0.5 or anxiety >= 65:
+                if self.state.location != "square":
+                    return {"type": "move", "desc": f"{n}担心雨势，先离开了容易漏雨的地方", "target": "square"}
+                return {"type": "observe", "desc": f"{n}在广场留意雨势和镇上的消息", "target": ""}
+            if conscientiousness >= 0.75:
+                if self.state.location == "workshop":
+                    return {"type": "work", "desc": f"{n}冒着雨继续检查工坊屋顶", "target": ""}
+                return {"type": "move", "desc": f"{n}赶回工坊检查屋顶", "target": "workshop"}
 
         # === Layer 1: 生理需求（最高优先级）===
-        conscientiousness = p.get("conscientiousness", 0.5)
         rest_threshold = 20 - int(conscientiousness * 10)
         # 悲伤→更早休息（行动力下降）；愤怒→勉强支撑
         if sadness >= 60:
@@ -231,6 +318,45 @@ class Agent:
         
         return {"type":"observe","desc": f"{n}在广场观察四周","target":""}
 
+    @staticmethod
+    def wake_hour_for_decision(hour):
+        """Agent 决策使用的清醒时段适配器（兼容旧的 20 小时引擎）。"""
+        return 5 <= hour < 17
+
+    def decide_with_trace(self, hour, agents_here, events, knowledge_engine=None, world=None):
+        """返回动作及可持久化的决策解释。"""
+        action = self.decide(hour, agents_here, events,
+                             knowledge_engine=knowledge_engine, world=world)
+        observations = self.recent_observations()
+        rule = "default_behavior"
+        reason = "按日常节奏行动"
+        if any("rain" in str(e).lower() or "storm" in str(e).lower()
+               or "weather" in str(e).lower() or "weather_impact" in str(e).lower() or "暴雨" in str(e)
+               or "天气" in str(e)
+               for e in (events or [])):
+            rule = "weather_pressure"
+            if action.get("type") == "move":
+                reason = "因为感知到雨势压力，先调整位置"
+            else:
+                reason = "因为感知到雨势压力，继续处理屋顶风险"
+        elif knowledge_engine:
+            derived = knowledge_engine.derive_actions_for_agent(self.identity.id)
+            if derived:
+                top = derived[0]
+                rule = "knowledge_driven"
+                reason = f"因为相信「{top.get('reason', '一条传闻')}」（置信度{top.get('knowledge_confidence', 0):.2f}）"
+        if self.state.energy < 30:
+            rule = "physiology"
+            reason = "因为体力不足，需要先恢复"
+        self.last_decision = {
+            "rule": rule,
+            "reason": reason,
+            "observations": observations,
+            "action_type": action.get("type", ""),
+            "action_desc": action.get("desc", ""),
+        }
+        return action, self.last_decision
+
     def _goal_to_action(self, goal, hour):
         """将目标转化为具体行动"""
         desc = goal.description.lower()
@@ -301,7 +427,12 @@ class Agent:
         return None
 
     def add_goal(self, description, priority=5, urgency=0.5):
-        g = Goal(id=str(uuid.uuid4())[:8], description=description, base_priority=priority, urgency=urgency)
+        g = Goal(
+            id=f"goal_{self.identity.id}_{len(self.goals) + 1}",
+            description=description,
+            base_priority=priority,
+            urgency=urgency,
+        )
         self.goals.append(g)
 
     def top_goal(self):
@@ -330,6 +461,7 @@ class Agent:
             "night_ap": self.state.night_ap,
             "social_ties": self.state.social_ties,
             "current_task": self.state.current_task.description if self.state.current_task else None,
+            "recent_observations": self.state.short_term_memory[-6:],
             "traits": self.identity.traits,
             "skills": self.identity.skills,
             "personality": self.identity.personality,

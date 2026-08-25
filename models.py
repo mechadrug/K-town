@@ -17,7 +17,7 @@ class ClaimScope(str,Enum):
 
 # 仅保留：被 events.py 调度且被 tick._process_event 处理的事件类型
 class EventType(str,Enum):
-    WEATHER_CHANGE="weather_change";RESOURCE_FOUND="resource_found";SOCIAL_ENCOUNTER="social_encounter";ITEM_CRAFTED="item_crafted";RUMOR_SPREAD="rumor_spread";WEATHER_IMPACT="weather_impact";SOCIAL_RELATION_CHANGE="social_relation_change";FESTIVAL="festival";DISASTER="disaster";MERCHANT_ARRIVAL="merchant_arrival";TOWN_MEETING="town_meeting";MYSTERIOUS_STRANGER="mysterious_stranger";ANIMAL_ATTACK="animal_attack";GOLDEN_DISCOVERY="golden_discovery"
+    WEATHER_CHANGE="weather_change";WEATHER_FORECAST="weather_forecast";RESOURCE_FOUND="resource_found";SOCIAL_ENCOUNTER="social_encounter";ITEM_CRAFTED="item_crafted";RUMOR_SPREAD="rumor_spread";WEATHER_IMPACT="weather_impact";SOCIAL_RELATION_CHANGE="social_relation_change";FESTIVAL="festival";DISASTER="disaster";MERCHANT_ARRIVAL="merchant_arrival";TOWN_MEETING="town_meeting";MYSTERIOUS_STRANGER="mysterious_stranger";ANIMAL_ATTACK="animal_attack";GOLDEN_DISCOVERY="golden_discovery"
 
 @dataclass
 class KnowledgeClaim:
@@ -44,6 +44,9 @@ class AgentState:
     habit_bias:Dict[str,Dict[str,float]]=field(default_factory=dict)
     # 习惯固化计数：{"情境_行为": 次数}，达阈值触发性格演化
     habit_counts:Dict[str,int]=field(default_factory=dict)
+    # Phase 2：最近感知到的事件摘要。只保留短期工作记忆，避免把原始事件日志
+    # 当作居民记忆；重要内容会通过 KnowledgeEngine 进入长期知识。
+    short_term_memory:List[Dict[str,Any]]=field(default_factory=list)
 
 @dataclass
 class AgentIdentity:
@@ -70,3 +73,13 @@ class TradeOffer:
 class WorldState:
     tick:int=0;weather:str="clear";trade_offers:List[TradeOffer]=field(default_factory=list)
     location_levels:Dict[str,int]=field(default_factory=lambda: {"square":1,"workshop":1,"wilderness":1,"school":1,"mine":1})
+    # v5 首周压力线：0 漏雨、1 临时遮雨、2 正式修好。
+    workshop_roof_stage:int=0
+    workshop_roof_last_change_day:int=0
+    rain_forecast_day:int=3
+    rain_forecast_announced:bool=False
+    mine_rumor_status:str="unconfirmed"
+    mine_rumor_confidence:float=0.0
+    lantern_fair_preparedness:int=0
+    # 多周篇章导演写入的可观察场景标记；内容层不得直接改 TickEngine 的流程。
+    campaign_markers:Dict[str,str]=field(default_factory=dict)
